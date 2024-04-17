@@ -1,6 +1,6 @@
 from obspy import read
-import numpy as np
-import matplotlib.pyplot as plt
+# import numpy as np
+# import matplotlib.pyplot as plt
 
 # st = read("data/20040127_153300-OZALP-(VAN).M=3.6/BNG.SHZ.KO")
 # st = read("data/20040128_083800-KEMALIYE-(ERZINCAN).M=3.5/BNN.SHZ.KO")
@@ -15,9 +15,15 @@ print(st[0].stats)
 
 data = st[0].data
 
-arr = np.array(data, dtype='int')
-plt.plot(arr)
-plt.show()
+# arr = np.array(data, dtype='int')
+# plt.plot(arr)
+# plt.show()
 
-print(arr)
+
+st.plot(color='gray', tick_format='%I:%M %p',
+        starttime=st[0].stats.starttime,
+        endtime=st[0].stats.starttime+20)
+print(data)
 print(len(data))
+
+st[0].spectrogram(log=True)
