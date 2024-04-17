@@ -4,7 +4,9 @@ from obspy import read
 
 # st = read("data/20040127_153300-OZALP-(VAN).M=3.6/BNG.SHZ.KO")
 # st = read("data/20040128_083800-KEMALIYE-(ERZINCAN).M=3.5/BNN.SHZ.KO")
-st = read("data/20040128_083800-KEMALIYE-(ERZINCAN).M=3.5/ERZ.SHZ.KO")
+# st = read("data/20040128_083800-KEMALIYE-(ERZINCAN).M=3.5/ERZ.SHZ.KO")
+st = read("data/20240402_133341Ke-AKDENIZ.M=4.5/ODEM.SHN.KO")
+
 station = st[0].stats.station
 sta = st[0].stats.starttime
 end = st[0].stats.endtime
