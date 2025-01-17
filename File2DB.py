@@ -4,11 +4,12 @@ import mysql.connector
 files = os.listdir("data/dates")
 i = 0
 mydb = mysql.connector.connect(
-  host="localhost",
-  user="yourusername",
-  password="yourpassword",
-  database="mydatabase"
+  host=os.environ.get("DB_HOST"),
+  user=os.environ.get("DB_USER"),
+  password=os.environ.get("DB_PASS"),
+  database=os.environ.get("DB_NAME")
 )
+
 
 mycursor = mydb.cursor()
 

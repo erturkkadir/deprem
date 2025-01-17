@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Earthquake Prediction</title>
+    <link rel="stylesheet" href="my.css">
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .hero h2, .hero p {
+            text-shadow: 2px 2px 4px #000000;
+        }
+
+        .cta-button {
+            background-color: #ff8a00;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: background-color 0.3s ease-in-out, transform 0.3s ease-in-out;
+        }
+
+        .cta-button:hover {
+            background-color: #ffa726;
+            transform: scale(1.1);
+        }
+
+        .container img {
+            width: 50%;
+            max-width: 600px;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .container img:hover {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container py-4 text-center">
+            <h1>Earthquake Prediction System</h1>
+            <nav>
+                <ul class="list-inline">
+                    <li class="list-inline-item"><a href="#home" class="text-white">Home</a></li>
+                    <li class="list-inline-item"><a href="#about" class="text-white">About</a></li>
+                    <li class="list-inline-item"><a href="#predict" class="text-white">Predict</a></li>
+                    <li class="list-inline-item"><a href="#contact" class="text-white">Contact</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <section id="home" class="hero bg-primary py-5">
+        <div class="container text-center">
+            <h2>Welcome to Our Earthquake Prediction System</h2>
+            <p>Stay ahead of the shake with our advanced prediction model.</p>
+            <button class="cta-button mt-4">Learn More</button>
+        </div>
+    </section>
+
+    <section id="about" class="container bg-dark py-5">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h2>About Us</h2>
+                <p>We are dedicated to developing and deploying innovative solutions for earthquake prediction and mitigation.</p>
+            </div>
+            <div class="col-md-6">
+                <img src="http://via.placeholder.com/400x300?text=About+Us" alt="About Us" class="img-fluid rounded-circle shadow">
+            </div>
+        </div>
+    </section>
+
+    <section id="predict" class="container bg-primary py-5">
+        <div class="row align-items-center">
+            <div class="col-md-6 order-md-last">
+                <h2>Make a Prediction</h2>
+                <p>Enter location data to receive an earthquake prediction.</p>
+                <form id="prediction-form" class="mt-4">
+                    <input type="text" id="location" placeholder="Location (City, Country)" required class="form-control mb-3">
+                    <button type="submit" class="cta-button">Get Prediction</button>
+                </form>
+            </div>
+            <div class="col-md-6 order-md-first">
+                <img src="http://via.placeholder.com/400x300?text=Prediction+Form" alt="Prediction Form" class="img-fluid rounded-circle shadow">
+            </div>
+        </div>
+    </section>
+
+    <section id="contact" class="hero bg-primary py-5">
+        <div class="container text-center">
+            <h2>Contact Us</h2>
+            <p>For any inquiries or support, please contact us.</p>
+            <form id="contact-form" class="mt-4">
+                <input type="text" id="name" placeholder="Your Name" required class="form-control mb-3">
+                <input type="email" id="email" placeholder="Your Email" required class="form-control mb-3">
+                <textarea id="message" placeholder="Message" required class="form-control mb-3"></textarea>
+                <button type="submit" class="cta-button">Send</button>
+            </form>
+        </div>
+    </section>
+
+    <footer class="bg-dark text-center py-3">
+        <p>&copy; 2023 Earthquake Prediction System. All rights reserved.</p>
+    </footer>
+
+    <script src="http://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="bs.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('#prediction-form').submit(function(event) {
+                event.preventDefault();
+                const location = $('#location').val();
+                if (location.trim()) {
+                    // Simulate prediction response
+                    alert('Predicting for ' + location);
+                } else {
+                    alert('Please enter a valid location.');
+                }
+            });
+
+            $('#contact-form').submit(function(event) {
+                event.preventDefault();
+                const name = $('#name').val();
+                const email = $('#email').val();
+                const message = $('#message').val();
+                if (name && email && message) {
+                    // Simulate sending form
+                    alert('Form submitted successfully!');
+                    $(this).trigger('reset');
+                } else {
+                    alert('Please fill out all fields.');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
