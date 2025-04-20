@@ -45,11 +45,11 @@ eval_iters = 100
 
 torch.set_float32_matmul_precision('high')
 
-dataC.usgs2DB()                 # usgs to db
-dataC.db2File(min_mag=3.9)      # database to latest.csv  (m > 4.9)
-dataC.closeAll()                # close db connection etc
+# dataC.usgs2DB()                 # usgs to db
+# dataC.db2File(min_mag=3.9)      # database to latest.csv  (m > 4.9)
+# dataC.closeAll()                # close db connection etc
 
-data = dataC.getData()          # All data from latest.csv 87.192 x 7
+data = dataC.getData()          # All data from latest.csv 506.572.192 x 7
 
 xb, yb = dataC.getBatch(B, T, split='train', col=col)
 sizes = dataC.getSizes()
