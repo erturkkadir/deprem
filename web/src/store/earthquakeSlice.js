@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
-// Use relative path - Vite proxy will forward to Flask server
+// API calls go through Apache proxy
 const API_BASE = '';
 
 // Async thunks for API calls
@@ -20,6 +20,22 @@ export const fetchStats = createAsyncThunk(
   }
 );
 
+export const fetchLiveData = createAsyncThunk(
+  'earthquake/fetchLiveData',
+  async () => {
+    const response = await fetch(`${API_BASE}/api/live`);
+    return response.json();
+  }
+);
+
+export const fetchPredictions = createAsyncThunk(
+  'earthquake/fetchPredictions',
+  async (limit = 50) => {
+    const response = await fetch(`${API_BASE}/api/predictions?limit=${limit}`);
+    return response.json();
+  }
+);
+
 export const makePrediction = createAsyncThunk(
   'earthquake/makePrediction',
   async () => {
@@ -34,7 +50,19 @@ export const makePrediction = createAsyncThunk(
 export const refreshUSGSData = createAsyncThunk(
   'earthquake/refreshUSGSData',
   async () => {
-    const response = await fetch(`${API_BASE}/api/recent-earthquakes`);
+    const response = await fetch(`${API_BASE}/api/refresh`, {
+      method: 'POST',
+    });
+    return response.json();
+  }
+);
+
+export const triggerCycle = createAsyncThunk(
+  'earthquake/triggerCycle',
+  async () => {
+    const response = await fetch(`${API_BASE}/api/cycle`, {
+      method: 'POST',
+    });
     return response.json();
   }
 );
@@ -76,10 +104,20 @@ const initialState = {
   predictions: [],
   currentPrediction: null,
 
+  // Live data (for LiveDashboard)
+  liveData: {
+    latest_prediction: null,
+    recent_earthquakes: [],
+    stats: null,
+    timestamp: null,
+  },
+
   // UI State
   isLoading: false,
   isPredicting: false,
   isRefreshing: false,
+  isLoadingLive: false,
+  isCycling: false,
   error: null,
 
   // Live updates
@@ -164,6 +202,47 @@ const earthquakeSlice = createSlice({
       })
       .addCase(refreshUSGSData.rejected, (state, action) => {
         state.isRefreshing = false;
+        state.error = action.error.message;
+      })
+
+      // Live Data
+      .addCase(fetchLiveData.pending, (state) => {
+        state.isLoadingLive = true;
+      })
+      .addCase(fetchLiveData.fulfilled, (state, action) => {
+        state.isLoadingLive = false;
+        if (action.payload.success) {
+          state.liveData = {
+            latest_prediction: action.payload.latest_prediction,
+            recent_earthquakes: action.payload.recent_earthquakes || [],
+            stats: action.payload.stats,
+            timestamp: action.payload.timestamp,
+          };
+          state.isConnected = true;
+        }
+      })
+      .addCase(fetchLiveData.rejected, (state, action) => {
+        state.isLoadingLive = false;
+        state.isConnected = false;
+        state.error = action.error.message;
+      })
+
+      // Fetch Predictions
+      .addCase(fetchPredictions.fulfilled, (state, action) => {
+        if (action.payload.success) {
+          state.predictions = action.payload.predictions || [];
+        }
+      })
+
+      // Trigger Cycle
+      .addCase(triggerCycle.pending, (state) => {
+        state.isCycling = true;
+      })
+      .addCase(triggerCycle.fulfilled, (state) => {
+        state.isCycling = false;
+      })
+      .addCase(triggerCycle.rejected, (state, action) => {
+        state.isCycling = false;
         state.error = action.error.message;
       })
 

@@ -9,7 +9,7 @@ import config
 
 
 class DataC():
-    def __init__(self):        
+    def __init__(self):
         self.yr_max = 55
         self.mt_max = 12
         self.x_max = 180
@@ -23,14 +23,311 @@ class DataC():
         self.n = 0.8
 
         self.mydb = mysql.connector.connect(
-            host=config.DB_HOST, 
-            user=config.DB_USER, 
-            password=config.DB_PASS, 
+            host=config.DB_HOST,
+            user=config.DB_USER,
+            password=config.DB_PASS,
             database=config.DB_NAME
         )
-        
-        self.mycursor = self.mydb.cursor()        
+
+        self.mycursor = self.mydb.cursor()
         self.fname =  "./data/latest.csv"
+
+        # Ensure predictions table exists
+        self._create_predictions_table()
+
+    def _create_predictions_table(self):
+        """Create predictions table if it doesn't exist"""
+        sql = """
+        CREATE TABLE IF NOT EXISTS predictions (
+            pr_id INT AUTO_INCREMENT PRIMARY KEY,
+            pr_timestamp DATETIME NOT NULL,
+            pr_lat_predicted INT,
+            pr_lon_predicted INT,
+            pr_dt_predicted INT,
+            pr_mag_predicted INT,
+            pr_lat_actual INT,
+            pr_lon_actual INT,
+            pr_dt_actual INT,
+            pr_mag_actual INT,
+            pr_actual_id INT,
+            pr_actual_time DATETIME,
+            pr_diff_lat INT,
+            pr_diff_lon INT,
+            pr_diff_dt INT,
+            pr_diff_mag FLOAT,
+            pr_verified BOOLEAN DEFAULT FALSE,
+            pr_correct BOOLEAN DEFAULT NULL,
+            pr_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_timestamp (pr_timestamp),
+            INDEX idx_verified (pr_verified)
+        ) ENGINE=InnoDB
+        """
+        try:
+            self.mycursor.execute(sql)
+            self.mydb.commit()
+            # Add columns if they don't exist (for migration)
+            self._migrate_predictions_table()
+        except Exception as e:
+            print(f"Error creating predictions table: {e}")
+
+    def _migrate_predictions_table(self):
+        """Add new columns to existing predictions table"""
+        migrations = [
+            "ALTER TABLE predictions ADD COLUMN pr_dt_predicted INT AFTER pr_lon_predicted",
+            "ALTER TABLE predictions ADD COLUMN pr_mag_predicted INT AFTER pr_dt_predicted",
+            "ALTER TABLE predictions ADD COLUMN pr_dt_actual INT AFTER pr_lon_actual",
+            "ALTER TABLE predictions ADD COLUMN pr_mag_actual INT AFTER pr_dt_actual",
+            "ALTER TABLE predictions ADD COLUMN pr_diff_lon INT AFTER pr_diff_lat",
+            "ALTER TABLE predictions ADD COLUMN pr_diff_dt INT AFTER pr_diff_lon",
+            "ALTER TABLE predictions ADD COLUMN pr_diff_mag FLOAT AFTER pr_diff_dt",
+        ]
+        for sql in migrations:
+            try:
+                self.mycursor.execute(sql)
+                self.mydb.commit()
+            except Exception as e:
+                # Column likely already exists
+                pass
+
+    def save_prediction(self, lat_predicted, lon_predicted=None, dt_predicted=None, mag_predicted=None):
+        """Save a new prediction to database
+
+        Args:
+            lat_predicted: Encoded latitude (0-180)
+            lon_predicted: Encoded longitude (0-360)
+            dt_predicted: Time difference in minutes (0-150)
+            mag_predicted: Encoded magnitude (0-91, actual = value/10)
+        """
+        sql = """
+        INSERT INTO predictions (pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted)
+        VALUES (NOW(), %s, %s, %s, %s)
+        """
+        try:
+            self.mycursor.execute(sql, (lat_predicted, lon_predicted, dt_predicted, mag_predicted))
+            self.mydb.commit()
+            return self.mycursor.lastrowid
+        except Exception as e:
+            print(f"Error saving prediction: {e}")
+            return None
+
+    def get_unverified_predictions(self, older_than_hours=24):
+        """Get predictions that haven't been verified yet"""
+        sql = """
+        SELECT pr_id, pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted
+        FROM predictions
+        WHERE pr_verified = FALSE
+        AND pr_timestamp < DATE_SUB(NOW(), INTERVAL %s HOUR)
+        ORDER BY pr_timestamp ASC
+        """
+        try:
+            self.mycursor.execute(sql, (older_than_hours,))
+            return self.mycursor.fetchall()
+        except Exception as e:
+            print(f"Error getting unverified predictions: {e}")
+            return []
+
+    def get_earthquakes_in_window(self, start_time, end_time, min_mag=4.0):
+        """Get actual earthquakes within a time window"""
+        sql = """
+        SELECT us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place
+        FROM usgs
+        WHERE us_datetime BETWEEN %s AND %s
+        AND us_mag >= %s
+        AND us_type = 'earthquake'
+        ORDER BY us_datetime ASC
+        """
+        try:
+            self.mycursor.execute(sql, (start_time, end_time, min_mag))
+            return self.mycursor.fetchall()
+        except Exception as e:
+            print(f"Error getting earthquakes in window: {e}")
+            return []
+
+    def verify_prediction(self, pr_id, actual_id, actual_lat, actual_lon, actual_dt, actual_mag, actual_time, diff_lat, diff_lon, diff_dt, diff_mag, correct):
+        """Update prediction with verification result
+
+        Args:
+            pr_id: Prediction ID
+            actual_id: USGS earthquake ID
+            actual_lat: Actual latitude (encoded 0-180)
+            actual_lon: Actual longitude (encoded 0-360)
+            actual_dt: Actual time difference in minutes
+            actual_mag: Actual magnitude (encoded 0-91)
+            actual_time: Actual earthquake datetime
+            diff_lat: Difference in latitude degrees
+            diff_lon: Difference in longitude degrees
+            diff_dt: Difference in time prediction minutes
+            diff_mag: Difference in magnitude
+            correct: Whether prediction was correct
+        """
+        sql = """
+        UPDATE predictions SET
+            pr_actual_id = %s,
+            pr_lat_actual = %s,
+            pr_lon_actual = %s,
+            pr_dt_actual = %s,
+            pr_mag_actual = %s,
+            pr_actual_time = %s,
+            pr_diff_lat = %s,
+            pr_diff_lon = %s,
+            pr_diff_dt = %s,
+            pr_diff_mag = %s,
+            pr_verified = TRUE,
+            pr_correct = %s
+        WHERE pr_id = %s
+        """
+        try:
+            self.mycursor.execute(sql, (actual_id, actual_lat, actual_lon, actual_dt, actual_mag, actual_time, diff_lat, diff_lon, diff_dt, diff_mag, correct, pr_id))
+            self.mydb.commit()
+            return True
+        except Exception as e:
+            print(f"Error verifying prediction: {e}")
+            return False
+
+    def get_predictions_with_actuals(self, limit=50):
+        """Get predictions with matched actual earthquakes for display"""
+        sql = """
+        SELECT
+            p.pr_id,
+            p.pr_timestamp,
+            p.pr_lat_predicted - 90 as predicted_lat,
+            p.pr_lon_predicted - 180 as predicted_lon,
+            p.pr_dt_predicted as predicted_dt,
+            p.pr_mag_predicted / 10.0 as predicted_mag,
+            p.pr_lat_actual - 90 as actual_lat,
+            p.pr_lon_actual - 180 as actual_lon,
+            p.pr_dt_actual as actual_dt,
+            p.pr_mag_actual / 10.0 as actual_mag,
+            p.pr_diff_lat as diff_lat,
+            p.pr_diff_lon as diff_lon,
+            p.pr_diff_dt as diff_dt,
+            p.pr_diff_mag as diff_mag,
+            p.pr_verified,
+            p.pr_correct,
+            p.pr_actual_time,
+            u.us_place
+        FROM predictions p
+        LEFT JOIN usgs u ON p.pr_actual_id = u.us_id
+        ORDER BY p.pr_timestamp DESC
+        LIMIT %s
+        """
+        try:
+            self.mycursor.execute(sql, (limit,))
+            columns = ['id', 'prediction_time', 'predicted_lat', 'predicted_lon', 'predicted_dt', 'predicted_mag',
+                      'actual_lat', 'actual_lon', 'actual_dt', 'actual_mag', 'diff_lat', 'diff_lon', 'diff_dt', 'diff_mag',
+                      'verified', 'correct', 'actual_time', 'place']
+            rows = self.mycursor.fetchall()
+            return [dict(zip(columns, row)) for row in rows]
+        except Exception as e:
+            print(f"Error getting predictions with actuals: {e}")
+            return []
+
+    def get_latest_prediction(self):
+        """Get the most recent prediction"""
+        sql = """
+        SELECT
+            pr_id,
+            pr_timestamp,
+            pr_lat_predicted - 90 as predicted_lat,
+            pr_lon_predicted - 180 as predicted_lon,
+            pr_dt_predicted as predicted_dt,
+            pr_mag_predicted / 10.0 as predicted_mag,
+            pr_lat_actual - 90 as actual_lat,
+            pr_lon_actual - 180 as actual_lon,
+            pr_dt_actual as actual_dt,
+            pr_mag_actual / 10.0 as actual_mag,
+            pr_diff_lat,
+            pr_diff_lon,
+            pr_diff_dt,
+            pr_diff_mag,
+            pr_verified,
+            pr_correct
+        FROM predictions
+        ORDER BY pr_timestamp DESC
+        LIMIT 1
+        """
+        try:
+            self.mycursor.execute(sql)
+            row = self.mycursor.fetchone()
+            if row:
+                return {
+                    'id': row[0],
+                    'timestamp': row[1].isoformat() if row[1] else None,
+                    'predicted_lat': row[2],
+                    'predicted_lon': row[3],
+                    'predicted_dt': row[4],
+                    'predicted_mag': float(row[5]) if row[5] else None,
+                    'actual_lat': row[6],
+                    'actual_lon': row[7],
+                    'actual_dt': row[8],
+                    'actual_mag': float(row[9]) if row[9] else None,
+                    'diff_lat': row[10],
+                    'diff_lon': row[11],
+                    'diff_dt': row[12],
+                    'diff_mag': float(row[13]) if row[13] else None,
+                    'verified': bool(row[14]),
+                    'correct': bool(row[15]) if row[15] is not None else None
+                }
+            return None
+        except Exception as e:
+            print(f"Error getting latest prediction: {e}")
+            return None
+
+    def get_recent_earthquakes(self, limit=20, min_mag=4.0):
+        """Get recent actual earthquakes from database"""
+        sql = """
+        SELECT
+            us_id,
+            us_datetime,
+            us_x - 90 as lat,
+            us_y - 180 as lon,
+            us_mag,
+            us_dep,
+            us_place
+        FROM usgs
+        WHERE us_mag >= %s AND us_type = 'earthquake'
+        ORDER BY us_datetime DESC
+        LIMIT %s
+        """
+        try:
+            self.mycursor.execute(sql, (min_mag, limit))
+            columns = ['id', 'time', 'lat', 'lon', 'mag', 'depth', 'place']
+            rows = self.mycursor.fetchall()
+            result = []
+            for row in rows:
+                d = dict(zip(columns, row))
+                if d['time']:
+                    d['time'] = d['time'].isoformat()
+                result.append(d)
+            return result
+        except Exception as e:
+            print(f"Error getting recent earthquakes: {e}")
+            return []
+
+    def get_prediction_stats(self):
+        """Get prediction success statistics"""
+        sql = """
+        SELECT
+            COUNT(*) as total,
+            SUM(CASE WHEN pr_verified = TRUE THEN 1 ELSE 0 END) as verified,
+            SUM(CASE WHEN pr_correct = TRUE THEN 1 ELSE 0 END) as correct
+        FROM predictions
+        """
+        try:
+            self.mycursor.execute(sql)
+            row = self.mycursor.fetchone()
+            total = row[0] or 0
+            verified = row[1] or 0
+            correct = row[2] or 0
+            return {
+                'total_predictions': total,
+                'verified_predictions': verified,
+                'correct_predictions': correct,
+                'success_rate': (correct / verified * 100) if verified > 0 else 0.0
+            }
+        except Exception as e:
+            print(f"Error getting prediction stats: {e}")
+            return {'total_predictions': 0, 'verified_predictions': 0, 'correct_predictions': 0, 'success_rate': 0.0}
         
     def db2File(self, min_mag):
         min_magnitude = 2

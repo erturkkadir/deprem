@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchModelStatus, fetchStats } from './store/earthquakeSlice';
+import { fetchModelStatus, fetchStats, fetchLiveData } from './store/earthquakeSlice';
 
 import Header from './components/Header';
+import LiveDashboard from './components/LiveDashboard';
 import StatsGrid from './components/StatsGrid';
 import PredictionPanel from './components/PredictionPanel';
 import PredictionsTable from './components/PredictionsTable';
@@ -66,6 +67,7 @@ function App() {
         </div>
       </section>
 
+      <LiveDashboard />
       <StatsGrid />
       <PredictionPanel />
       <PredictionsTable />

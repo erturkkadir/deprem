@@ -354,7 +354,14 @@ class Block(nn.Module):
         return x
 
 class ComplexEqModel(nn.Module):
-    """Complex-valued Earthquake Model as specified in CLAUDE.md"""
+    """Complex-valued Earthquake Model as specified in CLAUDE.md
+
+    Predicts 4 values:
+    - Latitude (0-180 encoded, actual -90 to +90)
+    - Longitude (0-360 encoded, actual -180 to +180)
+    - Time difference to next earthquake (0-150 in minutes)
+    - Magnitude (0-91 encoded, actual 0.0 to 9.1)
+    """
 
     def __init__(self, sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max):
         super().__init__()
@@ -371,8 +378,15 @@ class ComplexEqModel(nn.Module):
         self.blocks = nn.ModuleList([ComplexBlock(n_embed, n_heads, T, dropout) for _ in range(n_layer)])
         self.layer_norm = ComplexLayerNorm(n_embed)
 
-        # Output projection (from complex to real for classification)
-        self.lm_linear = nn.Linear(n_embed * 2, p_max, bias=False)  # Combine real and imag
+        # Output projection heads (from complex to real for classification)
+        # Four separate heads for latitude, longitude, time difference, and magnitude
+        self.lat_head = nn.Linear(n_embed * 2, 181, bias=False)   # Latitude: 0-180
+        self.lon_head = nn.Linear(n_embed * 2, 361, bias=False)   # Longitude: 0-360
+        self.dt_head = nn.Linear(n_embed * 2, 151, bias=False)    # Time diff: 0-150 minutes
+        self.mag_head = nn.Linear(n_embed * 2, 92, bias=False)    # Magnitude: 0-91 (mag*10)
+
+        # Keep legacy linear for backward compatibility with saved models
+        self.lm_linear = nn.Linear(n_embed * 2, p_max, bias=False)
         self.apply(self._init_weights)
         self.device = device
 
@@ -418,6 +432,7 @@ class ComplexEqModel(nn.Module):
 
     @torch.no_grad()
     def generate(self, x_test):
+        """Generate predictions for latitude, longitude, and time difference"""
         logits, _ = self(x_test)
         logits = logits[:, -1, :]
 
@@ -431,6 +446,65 @@ class ComplexEqModel(nn.Module):
         probs = FN.softmax(logits, dim=-1)
         idx_next = torch.multinomial(probs, num_samples=1)
         return idx_next
+
+    @torch.no_grad()
+    def generate_multi(self, x_test):
+        """Generate predictions for latitude, longitude, time difference, and magnitude
+
+        Returns:
+            dict with 'lat', 'lon', 'dt', 'mag' encoded values
+        """
+        B, T, F = x_test.shape
+
+        # Complex embedding
+        x_real, x_imag = self.embed(x_test)
+
+        # Complex positional encoding
+        x_real, x_imag = self.p_embed(x_real, x_imag)
+
+        # Pass through complex transformer blocks
+        for block in self.blocks:
+            x_real, x_imag = block(x_real, x_imag)
+
+        # Complex layer norm
+        x_real, x_imag = self.layer_norm(x_real, x_imag)
+
+        # Combine real and imaginary parts
+        x_combined = torch.cat([x_real, x_imag], dim=-1)
+
+        # Get last position
+        x_last = x_combined[:, -1, :]
+
+        # Get logits from each head
+        lat_logits = self.lat_head(x_last)
+        lon_logits = self.lon_head(x_last)
+        dt_logits = self.dt_head(x_last)
+        mag_logits = self.mag_head(x_last)
+
+        # Handle NaN/Inf
+        for logits in [lat_logits, lon_logits, dt_logits, mag_logits]:
+            if torch.isnan(logits).any() or torch.isinf(logits).any():
+                logits = torch.nan_to_num(logits, nan=0.0, posinf=100.0, neginf=-100.0)
+
+        temperature = 1.0
+
+        # Sample from each distribution
+        lat_probs = FN.softmax(lat_logits / temperature, dim=-1)
+        lon_probs = FN.softmax(lon_logits / temperature, dim=-1)
+        dt_probs = FN.softmax(dt_logits / temperature, dim=-1)
+        mag_probs = FN.softmax(mag_logits / temperature, dim=-1)
+
+        lat_pred = torch.multinomial(lat_probs, num_samples=1)
+        lon_pred = torch.multinomial(lon_probs, num_samples=1)
+        dt_pred = torch.multinomial(dt_probs, num_samples=1)
+        mag_pred = torch.multinomial(mag_probs, num_samples=1)
+
+        return {
+            'lat': lat_pred.item(),  # 0-180 encoded
+            'lon': lon_pred.item(),  # 0-360 encoded
+            'dt': dt_pred.item(),    # 0-150 minutes
+            'mag': mag_pred.item()   # 0-91 (mag * 10)
+        }
 
 class EqModel(nn.Module):
     """Standard Earthquake Model (kept for backward compatibility)"""
