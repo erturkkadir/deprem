@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #18181b;
+    color: white;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    margin: 0;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    background-color: #f97316;
+    color: white;
+    font-weight: 700;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    transition: all 0.3s;
+    cursor: pointer;
+    border: none;
+  }
+  .btn-primary:hover {
+    background-color: #ea580c;
+    transform: scale(1.05);
+  }
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: scale(1);
+  }
+
+  .btn-secondary {
+    background-color: #27272a;
+    border: 2px solid #f97316;
+    color: #f97316;
+    font-weight: 700;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    transition: all 0.3s;
+    cursor: pointer;
+  }
+  .btn-secondary:hover {
+    background-color: #f97316;
+    color: #18181b;
+  }
+
+  .card {
+    background: linear-gradient(to bottom right, #27272a, #18181b);
+    border: 1px solid #3f3f46;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+  }
+
+  .stat-card {
+    background: linear-gradient(to bottom right, #27272a, #18181b);
+    border: 1px solid #3f3f46;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+    text-align: center;
+    transition: border-color 0.3s;
+  }
+  .stat-card:hover {
+    border-color: #f97316;
+  }
+}
+
+/* Pulse animation for live indicator */
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+.live-indicator::before {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #1a1a1a; }
+::-webkit-scrollbar-thumb { background: #f97316; border-radius: 4px; }

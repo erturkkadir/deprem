@@ -2,4 +2,6 @@ torch
 numpy
 pandas
 requests
-mysql.connector
+mysql-connector-python
+flask
+flask-cors
