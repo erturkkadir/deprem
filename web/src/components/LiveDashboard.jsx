@@ -19,18 +19,40 @@ function LiveDashboard() {
 
   const { latest_prediction, recent_earthquakes, stats, timestamp } = liveData || {};
 
+  // Parse time as UTC (USGS times are UTC)
+  const parseUTC = (isoString) => {
+    if (!isoString) return null;
+    // Add 'Z' if missing to force UTC interpretation
+    const utcString = isoString.endsWith('Z') ? isoString : isoString + 'Z';
+    return new Date(utcString);
+  };
+
   const formatTime = (isoString) => {
     if (!isoString) return 'N/A';
-    const date = new Date(isoString);
-    return date.toLocaleString();
+    const date = parseUTC(isoString);
+    return date.toLocaleString() + ' (UTC)';
+  };
+
+  const formatTimeUTC = (isoString) => {
+    if (!isoString) return 'N/A';
+    const date = parseUTC(isoString);
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'UTC'
+    }) + ' UTC';
   };
 
   const formatTimeAgo = (isoString) => {
     if (!isoString) return '';
-    const date = new Date(isoString);
+    const date = parseUTC(isoString);
     const now = new Date();
     const diff = Math.floor((now - date) / 1000);
 
+    // Handle edge cases
+    if (diff < 0) return 'just now';
     if (diff < 60) return `${diff}s ago`;
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
@@ -108,18 +130,32 @@ function LiveDashboard() {
 
             {latest_prediction ? (
               <div className="space-y-4">
-                {/* Location Banner */}
-                {latest_prediction.predicted_place && (
-                  <div className="bg-gradient-to-r from-orange-600/20 to-orange-500/10 border border-orange-500/30 rounded-lg p-4">
+                {/* Location Banner - Always show */}
+                <div className="bg-gradient-to-r from-orange-600/20 to-orange-500/10 border border-orange-500/30 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
-                      <span className="text-orange-400 font-semibold text-lg">{latest_prediction.predicted_place}</span>
+                      <span className="text-orange-400 font-semibold text-lg">
+                        {latest_prediction.predicted_place || `Ocean (${latest_prediction.predicted_lat?.toFixed(1)}°, ${latest_prediction.predicted_lon?.toFixed(1)}°)`}
+                      </span>
                     </div>
+                    <a
+                      href={`https://www.google.com/maps?q=${latest_prediction.predicted_lat},${latest_prediction.predicted_lon}&z=6`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm rounded-lg transition-colors"
+                      title="View on Google Maps"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                      </svg>
+                      Maps
+                    </a>
                   </div>
-                )}
+                </div>
 
                 {/* Prediction Grid */}
                 <div className="grid grid-cols-2 gap-3">
@@ -252,12 +288,13 @@ function LiveDashboard() {
 
           {/* Right: Recent Earthquakes */}
           <div className="card p-6">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
               <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
               </svg>
               Recent Earthquakes (M4.0+)
             </h3>
+            <p className="text-zinc-500 text-xs mb-4">All times in UTC</p>
 
             <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar">
               {recent_earthquakes && recent_earthquakes.length > 0 ? (
@@ -279,6 +316,9 @@ function LiveDashboard() {
                           </span>
                           <span className="text-zinc-400 text-xs">
                             {formatTimeAgo(eq.time)}
+                          </span>
+                          <span className="text-zinc-500 text-xs">
+                            ({formatTimeUTC(eq.time)})
                           </span>
                         </div>
                         <p className="text-white text-sm mt-1 truncate" title={eq.place}>

@@ -134,11 +134,17 @@ export default function PredictionsTable() {
                     <span className="text-2xl font-bold text-orange-500">#{pred.id}</span>
                     <div>
                       <div className="text-white font-medium">{formatTime(pred.prediction_time)}</div>
-                      {pred.predicted_place && (
-                        <div className="text-orange-300 text-sm">{pred.predicted_place}</div>
-                      )}
+                      <div className="flex items-center gap-2 text-sm">
+                        <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span className="text-orange-300 font-medium">
+                          {pred.predicted_place || `Ocean (${pred.predicted_lat}°, ${pred.predicted_lon}°)`}
+                        </span>
+                      </div>
                       {pred.actual_place && (
-                        <div className="text-zinc-400 text-sm">Actual: {pred.actual_place}</div>
+                        <div className="text-zinc-400 text-sm mt-1">Actual: {pred.actual_place}</div>
                       )}
                     </div>
                   </div>

@@ -152,6 +152,8 @@ const earthquakeSlice = createSlice({
           device: action.payload.device,
           modelType: action.payload.model_type,
           config: action.payload.config,
+          latestCheckpoint: action.payload.latest_checkpoint,
+          checkpointTime: action.payload.checkpoint_time,
         };
         state.isConnected = true;
       })

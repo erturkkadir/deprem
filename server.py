@@ -679,7 +679,18 @@ def trigger_cycle():
         return jsonify({'error': str(e)}), 500
 
 
-if __name__ == '__main__':
+_initialized = False
+
+def init_app():
+    """Initialize the application - load model and start scheduler (only once)"""
+    global _initialized
+
+    if _initialized:
+        print("App already initialized, skipping...")
+        return
+
+    _initialized = True
+
     print("=" * 50)
     print("EARTHQUAKE PREDICTION SERVER")
     print("=" * 50)
@@ -698,11 +709,17 @@ if __name__ == '__main__':
     run_prediction_cycle()
 
     print("\n" + "=" * 50)
-    print(f"Server starting on http://0.0.0.0:3000")
     print(f"Using device: {device}")
     print(f"Min magnitude display: {MIN_MAG_DISPLAY}")
     print(f"Training interval: every {TRAINING_INTERVAL_HOURS} hour(s)")
     print(f"Training iterations per cycle: {TRAINING_ITERS}")
     print("=" * 50)
 
-    app.run(host='0.0.0.0', port=3000, debug=False, threaded=True)
+
+# Initialize on module load (for gunicorn --preload)
+init_app()
+
+
+if __name__ == '__main__':
+    print(f"Server starting on http://0.0.0.0:3000")
+    app.run(host='0.0.0.0', port=3000, debug=False, threaded=False, use_reloader=False)
