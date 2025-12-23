@@ -1,35 +1,43 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchModelStatus, fetchStats, fetchLiveData } from './store/earthquakeSlice';
+import { fetchModelStatus, fetchStats, fetchLiveData, fetchPredictions } from './store/earthquakeSlice';
 
 import Header from './components/Header';
 import LiveDashboard from './components/LiveDashboard';
 import StatsGrid from './components/StatsGrid';
-import PredictionPanel from './components/PredictionPanel';
 import PredictionsTable from './components/PredictionsTable';
 import About from './components/About';
 
 function App() {
   const dispatch = useDispatch();
-  const { isConnected } = useSelector((state) => state.earthquake);
+  const { isConnected, modelStatus } = useSelector((state) => state.earthquake);
 
-  // Initial fetch and polling
+  // Initial fetch and auto-polling
   useEffect(() => {
     // Initial data fetch
     dispatch(fetchModelStatus());
     dispatch(fetchStats());
+    dispatch(fetchLiveData());
+    dispatch(fetchPredictions(20));
 
-    // Poll for updates every 10 seconds
+    // Poll for live data every 30 seconds
+    const liveInterval = setInterval(() => {
+      dispatch(fetchLiveData());
+      dispatch(fetchPredictions(20));
+    }, 30000);
+
+    // Poll stats every 10 seconds
     const statsInterval = setInterval(() => {
       dispatch(fetchStats());
     }, 10000);
 
-    // Check model status every 30 seconds
+    // Check model status every 60 seconds
     const statusInterval = setInterval(() => {
       dispatch(fetchModelStatus());
-    }, 30000);
+    }, 60000);
 
     return () => {
+      clearInterval(liveInterval);
       clearInterval(statsInterval);
       clearInterval(statusInterval);
     };
@@ -40,28 +48,35 @@ function App() {
       <Header />
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-orange-600 to-orange-500 py-16">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-            AI-Powered Earthquake Prediction
-          </h2>
-          <p className="text-xl text-orange-100 mb-8 max-w-2xl mx-auto">
-            Using complex-valued transformer neural networks trained on 500,000+
-            historical earthquakes from USGS
-          </p>
+      <section className="py-8">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="bg-gradient-to-br from-orange-600 to-orange-500 rounded-xl py-12 px-6 text-center">
+            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+              AI-Powered Earthquake Prediction
+            </h2>
+            <p className="text-xl text-orange-100 mb-6 max-w-2xl mx-auto">
+              Fully automated system predicting latitude, longitude, magnitude, and timing
+              using complex-valued transformer neural networks
+            </p>
 
-          <div className="flex flex-wrap justify-center gap-4">
-            <div className="flex items-center gap-2 bg-white/10 backdrop-blur px-4 py-2 rounded-full">
-              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`} />
-              <span className="text-white text-sm">
-                {isConnected ? 'Model Online' : 'Model Offline'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 bg-white/10 backdrop-blur px-4 py-2 rounded-full">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <span className="text-white text-sm">Real-time Updates</span>
+            <div className="flex flex-wrap justify-center gap-4">
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur px-4 py-2 rounded-full">
+                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
+                <span className="text-white text-sm">
+                  {isConnected ? 'System Online' : 'System Offline'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur px-4 py-2 rounded-full">
+                <svg className="w-4 h-4 text-white animate-spin-slow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span className="text-white text-sm">Auto-updates every 5 min</span>
+              </div>
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur px-4 py-2 rounded-full">
+                <span className="text-white text-sm">
+                  {modelStatus?.device === 'cuda' ? 'GPU Accelerated' : 'CPU Mode'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -69,7 +84,6 @@ function App() {
 
       <LiveDashboard />
       <StatsGrid />
-      <PredictionPanel />
       <PredictionsTable />
       <About />
 
@@ -77,10 +91,10 @@ function App() {
       <footer className="bg-zinc-900 border-t border-zinc-800 py-8">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-zinc-500 text-sm">
-            Earthquake Prediction System — Powered by Complex-Valued Transformer AI
+            Earthquake Prediction System — Fully Automated, No User Interaction Required
           </p>
           <p className="text-zinc-600 text-xs mt-2">
-            Data sourced from USGS | Built with React + Redux + Tailwind
+            Data sourced from USGS every 5 minutes | Predictions verified after 24 hours
           </p>
         </div>
       </footer>

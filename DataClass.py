@@ -22,18 +22,35 @@ class DataC():
         self.valid = []
         self.n = 0.8
 
-        self.mydb = mysql.connector.connect(
-            host=config.DB_HOST,
-            user=config.DB_USER,
-            password=config.DB_PASS,
-            database=config.DB_NAME
-        )
-
-        self.mycursor = self.mydb.cursor()
+        self._connect_db()
         self.fname =  "./data/latest.csv"
 
         # Ensure predictions table exists
         self._create_predictions_table()
+
+    def _connect_db(self):
+        """Connect or reconnect to database"""
+        try:
+            self.mydb = mysql.connector.connect(
+                host=config.DB_HOST,
+                user=config.DB_USER,
+                password=config.DB_PASS,
+                database=config.DB_NAME,
+                autocommit=True,
+                connection_timeout=30
+            )
+            self.mycursor = self.mydb.cursor()
+        except Exception as e:
+            print(f"Database connection error: {e}")
+            raise
+
+    def _ensure_connection(self):
+        """Ensure database connection is active, reconnect if needed"""
+        try:
+            self.mydb.ping(reconnect=True, attempts=3, delay=1)
+        except Exception as e:
+            print(f"Reconnecting to database: {e}")
+            self._connect_db()
 
     def _create_predictions_table(self):
         """Create predictions table if it doesn't exist"""
@@ -80,6 +97,7 @@ class DataC():
             "ALTER TABLE predictions ADD COLUMN pr_diff_lon INT AFTER pr_diff_lat",
             "ALTER TABLE predictions ADD COLUMN pr_diff_dt INT AFTER pr_diff_lon",
             "ALTER TABLE predictions ADD COLUMN pr_diff_mag FLOAT AFTER pr_diff_dt",
+            "ALTER TABLE predictions ADD COLUMN pr_place VARCHAR(255) AFTER pr_mag_predicted",
         ]
         for sql in migrations:
             try:
@@ -89,7 +107,7 @@ class DataC():
                 # Column likely already exists
                 pass
 
-    def save_prediction(self, lat_predicted, lon_predicted=None, dt_predicted=None, mag_predicted=None):
+    def save_prediction(self, lat_predicted, lon_predicted=None, dt_predicted=None, mag_predicted=None, place=None):
         """Save a new prediction to database
 
         Args:
@@ -97,13 +115,15 @@ class DataC():
             lon_predicted: Encoded longitude (0-360)
             dt_predicted: Time difference in minutes (0-150)
             mag_predicted: Encoded magnitude (0-91, actual = value/10)
+            place: Predicted location name (from reverse geocoding)
         """
+        self._ensure_connection()
         sql = """
-        INSERT INTO predictions (pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted)
-        VALUES (NOW(), %s, %s, %s, %s)
+        INSERT INTO predictions (pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted, pr_place)
+        VALUES (NOW(), %s, %s, %s, %s, %s)
         """
         try:
-            self.mycursor.execute(sql, (lat_predicted, lon_predicted, dt_predicted, mag_predicted))
+            self.mycursor.execute(sql, (lat_predicted, lon_predicted, dt_predicted, mag_predicted, place))
             self.mydb.commit()
             return self.mycursor.lastrowid
         except Exception as e:
@@ -112,6 +132,7 @@ class DataC():
 
     def get_unverified_predictions(self, older_than_hours=24):
         """Get predictions that haven't been verified yet"""
+        self._ensure_connection()
         sql = """
         SELECT pr_id, pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted
         FROM predictions
@@ -128,6 +149,7 @@ class DataC():
 
     def get_earthquakes_in_window(self, start_time, end_time, min_mag=4.0):
         """Get actual earthquakes within a time window"""
+        self._ensure_connection()
         sql = """
         SELECT us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place
         FROM usgs
@@ -160,6 +182,7 @@ class DataC():
             diff_mag: Difference in magnitude
             correct: Whether prediction was correct
         """
+        self._ensure_connection()
         sql = """
         UPDATE predictions SET
             pr_actual_id = %s,
@@ -184,8 +207,14 @@ class DataC():
             print(f"Error verifying prediction: {e}")
             return False
 
-    def get_predictions_with_actuals(self, limit=50):
-        """Get predictions with matched actual earthquakes for display"""
+    def get_predictions_with_actuals(self, limit=50, min_mag=4.0):
+        """Get predictions with matched actual earthquakes for display
+
+        Args:
+            limit: Maximum number of predictions to return
+            min_mag: Minimum predicted magnitude to show (default 4.0)
+        """
+        self._ensure_connection()
         sql = """
         SELECT
             p.pr_id,
@@ -194,6 +223,7 @@ class DataC():
             p.pr_lon_predicted - 180 as predicted_lon,
             p.pr_dt_predicted as predicted_dt,
             p.pr_mag_predicted / 10.0 as predicted_mag,
+            p.pr_place as predicted_place,
             p.pr_lat_actual - 90 as actual_lat,
             p.pr_lon_actual - 180 as actual_lon,
             p.pr_dt_actual as actual_dt,
@@ -205,25 +235,28 @@ class DataC():
             p.pr_verified,
             p.pr_correct,
             p.pr_actual_time,
-            u.us_place
+            u.us_place as actual_place
         FROM predictions p
         LEFT JOIN usgs u ON p.pr_actual_id = u.us_id
+        WHERE p.pr_mag_predicted >= %s
         ORDER BY p.pr_timestamp DESC
         LIMIT %s
         """
         try:
-            self.mycursor.execute(sql, (limit,))
-            columns = ['id', 'prediction_time', 'predicted_lat', 'predicted_lon', 'predicted_dt', 'predicted_mag',
+            # min_mag stored as encoded (mag * 10), so multiply threshold
+            self.mycursor.execute(sql, (min_mag * 10, limit,))
+            columns = ['id', 'prediction_time', 'predicted_lat', 'predicted_lon', 'predicted_dt', 'predicted_mag', 'predicted_place',
                       'actual_lat', 'actual_lon', 'actual_dt', 'actual_mag', 'diff_lat', 'diff_lon', 'diff_dt', 'diff_mag',
-                      'verified', 'correct', 'actual_time', 'place']
+                      'verified', 'correct', 'actual_time', 'actual_place']
             rows = self.mycursor.fetchall()
             return [dict(zip(columns, row)) for row in rows]
         except Exception as e:
             print(f"Error getting predictions with actuals: {e}")
             return []
 
-    def get_latest_prediction(self):
-        """Get the most recent prediction"""
+    def get_latest_prediction(self, min_mag=4.0):
+        """Get the most recent prediction with magnitude >= min_mag"""
+        self._ensure_connection()
         sql = """
         SELECT
             pr_id,
@@ -232,6 +265,7 @@ class DataC():
             pr_lon_predicted - 180 as predicted_lon,
             pr_dt_predicted as predicted_dt,
             pr_mag_predicted / 10.0 as predicted_mag,
+            pr_place,
             pr_lat_actual - 90 as actual_lat,
             pr_lon_actual - 180 as actual_lon,
             pr_dt_actual as actual_dt,
@@ -243,11 +277,13 @@ class DataC():
             pr_verified,
             pr_correct
         FROM predictions
+        WHERE pr_mag_predicted >= %s
         ORDER BY pr_timestamp DESC
         LIMIT 1
         """
         try:
-            self.mycursor.execute(sql)
+            # min_mag stored as encoded (mag * 10), so multiply threshold
+            self.mycursor.execute(sql, (min_mag * 10,))
             row = self.mycursor.fetchone()
             if row:
                 return {
@@ -257,16 +293,17 @@ class DataC():
                     'predicted_lon': row[3],
                     'predicted_dt': row[4],
                     'predicted_mag': float(row[5]) if row[5] else None,
-                    'actual_lat': row[6],
-                    'actual_lon': row[7],
-                    'actual_dt': row[8],
-                    'actual_mag': float(row[9]) if row[9] else None,
-                    'diff_lat': row[10],
-                    'diff_lon': row[11],
-                    'diff_dt': row[12],
-                    'diff_mag': float(row[13]) if row[13] else None,
-                    'verified': bool(row[14]),
-                    'correct': bool(row[15]) if row[15] is not None else None
+                    'predicted_place': row[6],
+                    'actual_lat': row[7],
+                    'actual_lon': row[8],
+                    'actual_dt': row[9],
+                    'actual_mag': float(row[10]) if row[10] else None,
+                    'diff_lat': row[11],
+                    'diff_lon': row[12],
+                    'diff_dt': row[13],
+                    'diff_mag': float(row[14]) if row[14] else None,
+                    'verified': bool(row[15]),
+                    'correct': bool(row[16]) if row[16] is not None else None
                 }
             return None
         except Exception as e:
@@ -275,6 +312,7 @@ class DataC():
 
     def get_recent_earthquakes(self, limit=20, min_mag=4.0):
         """Get recent actual earthquakes from database"""
+        self._ensure_connection()
         sql = """
         SELECT
             us_id,
@@ -304,17 +342,20 @@ class DataC():
             print(f"Error getting recent earthquakes: {e}")
             return []
 
-    def get_prediction_stats(self):
-        """Get prediction success statistics"""
+    def get_prediction_stats(self, min_mag=4.0):
+        """Get prediction success statistics for predictions with magnitude >= min_mag"""
+        self._ensure_connection()
         sql = """
         SELECT
             COUNT(*) as total,
             SUM(CASE WHEN pr_verified = TRUE THEN 1 ELSE 0 END) as verified,
             SUM(CASE WHEN pr_correct = TRUE THEN 1 ELSE 0 END) as correct
         FROM predictions
+        WHERE pr_mag_predicted >= %s
         """
         try:
-            self.mycursor.execute(sql)
+            # min_mag stored as encoded (mag * 10), so multiply threshold
+            self.mycursor.execute(sql, (min_mag * 10,))
             row = self.mycursor.fetchone()
             total = row[0] or 0
             verified = row[1] or 0
@@ -346,7 +387,8 @@ class DataC():
         fp.close()
         self.mydb.close()
         
-    def usgs2DB(self):    
+    def usgs2DB(self):
+        self._ensure_connection()
         self.mycursor.execute("delete from usgs_tmp")
 
         min_magnitude = 2

@@ -16,7 +16,7 @@ function StatusBadge({ verified, correct }) {
         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
         </svg>
-        Correct
+        Matched
       </span>
     );
   }
@@ -26,8 +26,63 @@ function StatusBadge({ verified, correct }) {
       <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
         <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
       </svg>
-      Incorrect
+      Miss
     </span>
+  );
+}
+
+function ParamCompare({ label, predicted, actual, diff, unit, tolerance, colorClass }) {
+  const hasActual = actual !== null && actual !== undefined;
+  const hasDiff = diff !== null && diff !== undefined;
+  const isWithinTolerance = hasDiff && Math.abs(diff) <= tolerance;
+
+  return (
+    <div className="bg-zinc-800/50 rounded-lg p-3 min-w-[140px]">
+      <div className={`text-xs font-medium mb-2 ${colorClass}`}>{label}</div>
+
+      <div className="flex items-center justify-between gap-3">
+        {/* Predicted */}
+        <div className="text-center flex-1">
+          <div className="text-[10px] text-zinc-500 uppercase tracking-wide">Pred</div>
+          <div className={`font-mono font-bold text-lg ${colorClass}`}>
+            {predicted !== null && predicted !== undefined
+              ? `${Number(predicted).toFixed(1)}${unit}`
+              : '—'}
+          </div>
+        </div>
+
+        {/* Arrow or waiting */}
+        <div className="text-zinc-600">
+          {hasActual ? (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          ) : (
+            <span className="text-xs">...</span>
+          )}
+        </div>
+
+        {/* Actual */}
+        <div className="text-center flex-1">
+          <div className="text-[10px] text-zinc-500 uppercase tracking-wide">Actual</div>
+          <div className="font-mono font-bold text-lg text-white">
+            {hasActual ? `${Number(actual).toFixed(1)}${unit}` : '—'}
+          </div>
+        </div>
+      </div>
+
+      {/* Difference bar */}
+      {hasDiff && (
+        <div className={`mt-2 text-center text-xs font-medium px-2 py-1 rounded ${
+          isWithinTolerance
+            ? 'bg-green-900/30 text-green-400'
+            : 'bg-red-900/30 text-red-400'
+        }`}>
+          {isWithinTolerance ? '✓' : '✗'} Diff: {diff > 0 ? '+' : ''}{Number(diff).toFixed(1)}{unit}
+          <span className="text-zinc-500 ml-1">(±{tolerance}{unit})</span>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -36,6 +91,22 @@ export default function PredictionsTable() {
 
   const sortedPredictions = [...predictions].reverse();
 
+  const formatTime = (timeStr) => {
+    if (!timeStr) return '—';
+    try {
+      const date = new Date(timeStr);
+      if (isNaN(date.getTime())) return '—';
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return '—';
+    }
+  };
+
   return (
     <section className="py-8">
       <div className="max-w-7xl mx-auto px-4">
@@ -43,65 +114,80 @@ export default function PredictionsTable() {
           Recent Predictions
         </h2>
 
-        <div className="card overflow-hidden">
-          {sortedPredictions.length === 0 ? (
-            <div className="text-center py-12 text-zinc-500">
-              <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              <p>No predictions yet</p>
-              <p className="text-sm mt-1">Make your first prediction above!</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-orange-500 text-zinc-900">
-                    <th className="px-4 py-3 text-left font-semibold">ID</th>
-                    <th className="px-4 py-3 text-left font-semibold">Timestamp</th>
-                    <th className="px-4 py-3 text-right font-semibold">Predicted</th>
-                    <th className="px-4 py-3 text-right font-semibold">Actual</th>
-                    <th className="px-4 py-3 text-right font-semibold">Diff</th>
-                    <th className="px-4 py-3 text-center font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedPredictions.map((pred, index) => (
-                    <tr
-                      key={pred.id}
-                      className={`border-b border-zinc-700 hover:bg-zinc-800/50 transition-colors ${
-                        index === 0 ? 'bg-zinc-800/30' : ''
-                      }`}
-                    >
-                      <td className="px-4 py-3 text-zinc-400">
-                        #{pred.id}
-                      </td>
-                      <td className="px-4 py-3 text-zinc-300">
-                        {new Date(pred.timestamp).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-orange-400">
-                        {pred.predicted_lat?.toFixed(2)}°
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-zinc-300">
-                        {pred.actual_lat !== null ? `${pred.actual_lat?.toFixed(2)}°` : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono">
-                        {pred.difference !== undefined ? (
-                          <span className={pred.difference <= 5 ? 'text-green-400' : pred.difference <= 10 ? 'text-yellow-400' : 'text-red-400'}>
-                            {pred.difference?.toFixed(1)}°
-                          </span>
-                        ) : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <StatusBadge verified={pred.verified} correct={pred.correct} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        {sortedPredictions.length === 0 ? (
+          <div className="card text-center py-12 text-zinc-500">
+            <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <p>No predictions yet</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {sortedPredictions.map((pred, index) => (
+              <div
+                key={pred.id}
+                className={`card p-4 ${index === 0 ? 'ring-2 ring-orange-500/50' : ''}`}
+              >
+                {/* Header row */}
+                <div className="flex items-center justify-between mb-4 pb-3 border-b border-zinc-700">
+                  <div className="flex items-center gap-4">
+                    <span className="text-2xl font-bold text-orange-500">#{pred.id}</span>
+                    <div>
+                      <div className="text-white font-medium">{formatTime(pred.prediction_time)}</div>
+                      {pred.predicted_place && (
+                        <div className="text-orange-300 text-sm">{pred.predicted_place}</div>
+                      )}
+                      {pred.actual_place && (
+                        <div className="text-zinc-400 text-sm">Actual: {pred.actual_place}</div>
+                      )}
+                    </div>
+                  </div>
+                  <StatusBadge verified={pred.verified} correct={pred.correct} />
+                </div>
+
+                {/* 4 Parameter Grid */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <ParamCompare
+                    label="LATITUDE"
+                    predicted={pred.predicted_lat}
+                    actual={pred.actual_lat}
+                    diff={pred.diff_lat}
+                    unit="°"
+                    tolerance={10}
+                    colorClass="text-orange-400"
+                  />
+                  <ParamCompare
+                    label="LONGITUDE"
+                    predicted={pred.predicted_lon}
+                    actual={pred.actual_lon}
+                    diff={pred.diff_lon}
+                    unit="°"
+                    tolerance={20}
+                    colorClass="text-blue-400"
+                  />
+                  <ParamCompare
+                    label="TIME DIFF"
+                    predicted={pred.predicted_dt}
+                    actual={pred.actual_dt}
+                    diff={pred.diff_dt}
+                    unit="m"
+                    tolerance={30}
+                    colorClass="text-purple-400"
+                  />
+                  <ParamCompare
+                    label="MAGNITUDE"
+                    predicted={pred.predicted_mag}
+                    actual={pred.actual_mag}
+                    diff={pred.diff_mag}
+                    unit=""
+                    tolerance={1.0}
+                    colorClass="text-red-400"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
