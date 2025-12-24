@@ -6,7 +6,7 @@ function LiveDashboard() {
   const dispatch = useDispatch();
   const { liveData, isLoadingLive, isPredicting } = useSelector((state) => state.earthquake);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [minMagFilter, setMinMagFilter] = useState(0); // 0 = show all
+  const [minMagFilter, setMinMagFilter] = useState(2); // Default M2.0+
   const [isFlashing, setIsFlashing] = useState(false);
   const lastPredictionId = useRef(null);
   const lastMatchState = useRef(false);

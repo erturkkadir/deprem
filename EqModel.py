@@ -489,10 +489,8 @@ class ComplexEqModel(nn.Module):
             if torch.isnan(logits).any() or torch.isinf(logits).any():
                 logits = torch.nan_to_num(logits, nan=0.0, posinf=100.0, neginf=-100.0)
 
-        # Use higher temperature for more variation
+        # Temperature for sampling (higher = more random, lower = more confident)
         temperature = 2.0
-
-        # Sample from each distribution with temperature scaling
         lat_probs = FN.softmax(lat_logits / temperature, dim=-1)
         lon_probs = FN.softmax(lon_logits / temperature, dim=-1)
         dt_probs = FN.softmax(dt_logits / temperature, dim=-1)
