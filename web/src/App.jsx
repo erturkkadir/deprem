@@ -20,24 +20,25 @@ function App() {
     dispatch(fetchLiveData());
     dispatch(fetchPredictions(20));
 
-    // Poll for live data every 30 seconds
-    const liveInterval = setInterval(() => {
+    // Poll for earthquakes every 60 seconds (1 minute)
+    // This fetches latest earthquakes - prediction updates are handled by LiveDashboard
+    const earthquakeInterval = setInterval(() => {
       dispatch(fetchLiveData());
-      dispatch(fetchPredictions(20));
-    }, 30000);
-
-    // Poll stats every 10 seconds
-    const statsInterval = setInterval(() => {
-      dispatch(fetchStats());
-    }, 10000);
-
-    // Check model status every 60 seconds
-    const statusInterval = setInterval(() => {
-      dispatch(fetchModelStatus());
     }, 60000);
 
+    // Poll stats & predictions table every 2 minutes
+    const statsInterval = setInterval(() => {
+      dispatch(fetchStats());
+      dispatch(fetchPredictions(20));
+    }, 120000);
+
+    // Check model status every 5 minutes
+    const statusInterval = setInterval(() => {
+      dispatch(fetchModelStatus());
+    }, 300000);
+
     return () => {
-      clearInterval(liveInterval);
+      clearInterval(earthquakeInterval);
       clearInterval(statsInterval);
       clearInterval(statusInterval);
     };

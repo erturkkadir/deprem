@@ -1,13 +1,14 @@
 """
-Flask API Server for Earthquake Prediction System
-- Automated USGS data pull every 5 minutes
-- Auto-verification of predictions against actual earthquakes
-- Continuous training with automatic checkpoint management
-- Serves API on port 1977 for external access
+Earthquake Prediction Server
+- Loads latest checkpoint from training
+- Makes predictions every 5 minutes
+- Saves predictions to database
+- Auto-verifies predictions against actual earthquakes
+- Serves API for frontend on port 3000
 """
 import os
 import glob
-import json
+import math
 import torch
 import atexit
 import requests
@@ -18,7 +19,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from torch.nn import functional as F
 
 from DataClass import DataC
-from EqModel import ComplexEqModel, EqModel
+from EqModel import ComplexEqModel
 
 
 def reverse_geocode(lat, lon):
@@ -29,7 +30,7 @@ def reverse_geocode(lat, lon):
             'lat': lat,
             'lon': lon,
             'format': 'json',
-            'zoom': 5,  # Country/state level
+            'zoom': 5,
             'addressdetails': 1
         }
         headers = {'User-Agent': 'EarthquakePredictionSystem/1.0'}
@@ -37,12 +38,9 @@ def reverse_geocode(lat, lon):
 
         if response.status_code == 200:
             data = response.json()
-
-            # Build location string from address components
             address = data.get('address', {})
             parts = []
 
-            # Try to get meaningful location parts
             if address.get('city'):
                 parts.append(address['city'])
             elif address.get('town'):
@@ -61,10 +59,8 @@ def reverse_geocode(lat, lon):
             if parts:
                 return ', '.join(parts)
 
-            # Fallback to display_name
             display = data.get('display_name', '')
             if display:
-                # Take first few parts of the display name
                 parts = display.split(', ')[:3]
                 return ', '.join(parts)
 
@@ -73,11 +69,13 @@ def reverse_geocode(lat, lon):
         print(f"Reverse geocoding error: {e}")
         return None
 
+
 app = Flask(__name__, static_folder='web/dist')
 CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
 
 # Model configuration
-device = "cuda" if torch.cuda.is_available() else "cpu"
+# Use CPU for server (training uses GPU)
+device = "cpu"
 col = 2  # Latitude prediction
 p_max = 180
 B = 1
@@ -92,115 +90,85 @@ dropout = 0.01
 model = None
 dataC = None
 scheduler = None
+current_checkpoint = None  # Track which checkpoint is loaded
 
 MODEL_DIR = '/var/www/syshuman/quake'
 MODEL_PREFIX = 'eqModel_complex'
-MODEL_PATH = f'{MODEL_DIR}/{MODEL_PREFIX}.pth'  # Legacy path
-LATITUDE_TOLERANCE = 10  # degrees
-MIN_MAG_DISPLAY = 4.0  # Only show predictions with mag >= 4.0
 
-# Training configuration
-TRAINING_ITERS = 200  # Training iterations per cycle
-TRAINING_LR = 3e-4
-TRAINING_INTERVAL_HOURS = 1  # Run training every hour
+# Verification tolerances
+DISTANCE_RADIUS = 15  # degrees - circular distance for matching
+DT_TOLERANCE = 30     # minutes
+MAG_TOLERANCE = 1.0   # magnitude
+MIN_MAG_DISPLAY = 4.0 # Only show predictions with mag >= 4.0
 
 
 def get_latest_checkpoint():
     """Find the latest checkpoint file by timestamp"""
-    # Look for timestamped checkpoints first
     pattern = f'{MODEL_DIR}/{MODEL_PREFIX}_*.pth'
     checkpoints = glob.glob(pattern)
 
     if checkpoints:
-        # Sort by modification time (most recent first)
         checkpoints.sort(key=os.path.getmtime, reverse=True)
         return checkpoints[0]
 
-    # Fall back to legacy path
-    if os.path.exists(MODEL_PATH):
-        return MODEL_PATH
+    # Fallback to legacy path
+    legacy = f'{MODEL_DIR}/{MODEL_PREFIX}.pth'
+    if os.path.exists(legacy):
+        return legacy
 
     return None
 
 
-def save_checkpoint(model_to_save):
-    """Save model checkpoint with timestamp"""
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    checkpoint_path = f'{MODEL_DIR}/{MODEL_PREFIX}_{timestamp}.pth'
+def load_model(force_reload=False):
+    """Load or reload the earthquake prediction model"""
+    global model, dataC, current_checkpoint
 
-    # Get the raw model if it's compiled
-    if hasattr(model_to_save, '_orig_mod'):
-        state_dict = model_to_save._orig_mod.state_dict()
-    else:
-        state_dict = model_to_save.state_dict()
+    checkpoint_path = get_latest_checkpoint()
 
-    # Remove '_orig_mod.' prefix if present
-    clean_state_dict = {}
-    for key, value in state_dict.items():
-        new_key = key.replace('_orig_mod.', '')
-        clean_state_dict[new_key] = value
+    # Skip if same checkpoint already loaded (unless forced)
+    if not force_reload and checkpoint_path == current_checkpoint and model is not None:
+        return False  # No reload needed
 
-    torch.save(clean_state_dict, checkpoint_path)
-    print(f"[{datetime.now()}] Checkpoint saved: {checkpoint_path}")
-
-    # Also save to legacy path for compatibility
-    torch.save(clean_state_dict, MODEL_PATH)
-
-    # Keep only last 5 checkpoints
-    cleanup_old_checkpoints(keep=5)
-
-    return checkpoint_path
-
-
-def cleanup_old_checkpoints(keep=5):
-    """Remove old checkpoints, keeping only the most recent ones"""
-    pattern = f'{MODEL_DIR}/{MODEL_PREFIX}_*.pth'
-    checkpoints = glob.glob(pattern)
-
-    if len(checkpoints) > keep:
-        checkpoints.sort(key=os.path.getmtime, reverse=True)
-        for old_checkpoint in checkpoints[keep:]:
-            try:
-                os.remove(old_checkpoint)
-                print(f"Removed old checkpoint: {old_checkpoint}")
-            except Exception as e:
-                print(f"Error removing checkpoint {old_checkpoint}: {e}")
-
-
-def load_model():
-    """Load or initialize the earthquake prediction model"""
-    global model, dataC
+    print(f"[{datetime.now()}] Loading model...")
 
     dataC = DataC()
     dataC.getData()
     sizes = dataC.getSizes()
 
-    # Use ComplexEqModel as specified in CLAUDE.md
     model = ComplexEqModel(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max)
     model.to(device)
 
-    checkpoint_path = get_latest_checkpoint()
-
     if checkpoint_path:
-        # Load state dict and handle torch.compile() prefix
         state_dict = torch.load(checkpoint_path, map_location=device, weights_only=True)
-        # Remove '_orig_mod.' prefix if present (from torch.compile)
+        # Clean keys from torch.compile prefix
         new_state_dict = {}
         for key, value in state_dict.items():
             new_key = key.replace('_orig_mod.', '')
             new_state_dict[new_key] = value
 
-        # Load with strict=False to allow missing keys (new prediction heads)
         missing_keys, unexpected_keys = model.load_state_dict(new_state_dict, strict=False)
         if missing_keys:
-            print(f"Missing keys (will use random init): {missing_keys}")
-        if unexpected_keys:
-            print(f"Unexpected keys (ignored): {unexpected_keys}")
-        print(f"Model loaded from {checkpoint_path}")
+            print(f"Missing keys: {missing_keys}")
+
+        current_checkpoint = checkpoint_path
+        print(f"[{datetime.now()}] Loaded checkpoint: {os.path.basename(checkpoint_path)}")
     else:
-        print("No saved model found, using initialized weights")
+        print("No checkpoint found, using random weights")
 
     model.eval()
+    return True
+
+
+def reload_if_new_checkpoint():
+    """Check for new checkpoint and reload if found"""
+    global current_checkpoint
+
+    latest = get_latest_checkpoint()
+    if latest and latest != current_checkpoint:
+        print(f"[{datetime.now()}] New checkpoint detected: {os.path.basename(latest)}")
+        load_model(force_reload=True)
+        return True
+    return False
 
 
 def make_prediction():
@@ -220,27 +188,26 @@ def make_prediction():
         x_test = x_test.to(device)
 
         with torch.no_grad():
-            # Use generate_multi for all 4 predictions
             predictions = model.generate_multi(x_test)
 
-        lat_encoded = predictions['lat']   # 0-180 encoded
-        lon_encoded = predictions['lon']   # 0-360 encoded
-        dt_minutes = predictions['dt']     # 0-150 minutes
-        mag_encoded = predictions['mag']   # 0-91 (mag * 10)
+        lat_encoded = predictions['lat']
+        lon_encoded = predictions['lon']
+        dt_minutes = predictions['dt']
+        mag_encoded = predictions['mag']
 
         # Convert to actual coordinates
         lat_actual = lat_encoded - 90
         lon_actual = lon_encoded - 180
         mag_actual = mag_encoded / 10.0
 
-        # Get location name from coordinates
+        # Get location name
         place = reverse_geocode(lat_actual, lon_actual)
 
-        # Save prediction to database with place
+        # Save to database
         pr_id = dataC.save_prediction(lat_encoded, lon_encoded, dt_minutes, mag_encoded, place)
 
         place_str = f" near {place}" if place else ""
-        print(f"[{datetime.now()}] Prediction made: lat={lat_actual}°, lon={lon_actual}°{place_str}, dt={dt_minutes}min, mag={mag_actual} (id={pr_id})")
+        print(f"[{datetime.now()}] Prediction: lat={lat_actual}, lon={lon_actual}{place_str}, dt={dt_minutes}min, mag={mag_actual} (id={pr_id})")
         return pr_id
 
     except Exception as e:
@@ -250,46 +217,35 @@ def make_prediction():
         return None
 
 
-LONGITUDE_TOLERANCE = 20  # degrees for longitude (not used with circular matching)
-DT_TOLERANCE = 30  # minutes for time difference
-MAG_TOLERANCE = 1.0  # magnitude difference
-DISTANCE_RADIUS = 15  # degrees - circular distance radius for matching sqrt(lat² + lon²)
-
 def auto_verify_predictions():
-    """Auto-verify predictions against actual earthquakes using circular distance matching"""
+    """Verify old predictions against actual earthquakes"""
     global dataC
-    import math
 
     if dataC is None:
         return
 
     try:
-        # Get unverified predictions older than 24 hours
         unverified = dataC.get_unverified_predictions(older_than_hours=24)
 
         for pred in unverified:
             pr_id, pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted = pred
 
-            # Look for actual earthquakes in the 24 hours after prediction
             start_time = pr_timestamp
             end_time = pr_timestamp + timedelta(hours=24)
 
             actuals = dataC.get_earthquakes_in_window(start_time, end_time, min_mag=4.0)
 
             if actuals:
-                # Find the earthquake with closest circular distance
+                # Find closest match by circular distance
                 best_match = None
                 min_distance = float('inf')
 
                 for actual in actuals:
                     us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = actual
-                    # Calculate differences
                     lat_diff = abs(pr_lat_predicted - us_x) if pr_lat_predicted else 180
                     lon_diff = abs(pr_lon_predicted - us_y) if pr_lon_predicted else 360
-                    # Handle longitude wrap-around
                     lon_diff = min(lon_diff, 360 - lon_diff)
 
-                    # Circular distance: sqrt(lat² + lon²)
                     distance = math.sqrt(lat_diff ** 2 + lon_diff ** 2)
                     if distance < min_distance:
                         min_distance = distance
@@ -298,21 +254,17 @@ def auto_verify_predictions():
                 if best_match:
                     us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = best_match
 
-                    # Calculate all differences
                     diff_lat = abs(pr_lat_predicted - us_x) if pr_lat_predicted else None
                     diff_lon = abs(pr_lon_predicted - us_y) if pr_lon_predicted else None
                     if diff_lon:
                         diff_lon = min(diff_lon, 360 - diff_lon)
 
-                    # Time difference: compare predicted dt with actual time since prediction
                     actual_dt = int((us_datetime - pr_timestamp).total_seconds() / 60) if us_datetime else None
                     diff_dt = abs(pr_dt_predicted - actual_dt) if (pr_dt_predicted and actual_dt) else None
 
-                    # Magnitude difference
                     actual_mag_encoded = int(us_mag * 10) if us_mag else None
                     diff_mag = abs((pr_mag_predicted / 10.0) - us_mag) if (pr_mag_predicted and us_mag) else None
 
-                    # Circular distance matching: sqrt(lat² + lon²) <= DISTANCE_RADIUS
                     circular_distance = math.sqrt((diff_lat or 0) ** 2 + (diff_lon or 0) ** 2)
                     correct = circular_distance <= DISTANCE_RADIUS
 
@@ -330,7 +282,7 @@ def auto_verify_predictions():
                         diff_mag=diff_mag,
                         correct=correct
                     )
-                    print(f"[{datetime.now()}] Verified prediction {pr_id}: distance={circular_distance:.1f}° (radius={DISTANCE_RADIUS}°), matched={correct}")
+                    print(f"[{datetime.now()}] Verified prediction {pr_id}: distance={circular_distance:.1f}, correct={correct}")
 
     except Exception as e:
         print(f"Error in auto-verification: {e}")
@@ -338,125 +290,56 @@ def auto_verify_predictions():
         traceback.print_exc()
 
 
-def run_training_cycle():
-    """Run a training cycle to continuously improve the model"""
-    global model, dataC
-
-    print(f"\n[{datetime.now()}] Starting training cycle...")
-
-    try:
-        # Reload latest data
-        dataC = DataC()
-        dataC.getData()
-
-        # Switch model to training mode
-        model.train()
-
-        optimizer = torch.optim.AdamW(model.parameters(), lr=TRAINING_LR)
-        total_loss = 0
-        num_batches = 0
-
-        for iter in range(TRAINING_ITERS):
-            optimizer.zero_grad(set_to_none=True)
-
-            # Get training batch
-            x, y = dataC.getBatch(B, T, 'train', col)
-            x = x.to(device)
-            y = y.to(device)
-
-            with torch.autocast(device_type=device if device != 'cpu' else 'cpu', dtype=torch.bfloat16 if device == 'cuda' else torch.float32):
-                logits, loss = model(x, y)
-
-            loss.backward()
-            optimizer.step()
-
-            total_loss += loss.item()
-            num_batches += 1
-
-            if (iter + 1) % 50 == 0:
-                avg_loss = total_loss / num_batches
-                print(f"  Training iter {iter + 1}/{TRAINING_ITERS}: avg loss = {avg_loss:.4f}")
-
-        # Save checkpoint after training
-        save_checkpoint(model)
-
-        # Switch back to eval mode
-        model.eval()
-
-        avg_loss = total_loss / num_batches if num_batches > 0 else 0
-        print(f"[{datetime.now()}] Training cycle complete. Final avg loss: {avg_loss:.4f}")
-
-    except Exception as e:
-        print(f"Error in training cycle: {e}")
-        import traceback
-        traceback.print_exc()
-        # Ensure model is back in eval mode
-        model.eval()
-
-
 def run_prediction_cycle():
-    """Run complete prediction cycle: fetch data, make prediction, verify old predictions"""
-    global dataC, model
+    """Full prediction cycle: fetch data, reload model if new, predict, verify"""
+    global dataC
 
     print(f"\n[{datetime.now()}] Starting prediction cycle...")
 
     try:
-        # 1. Pull latest USGS data
+        # 1. Check for new checkpoint from training
+        reload_if_new_checkpoint()
+
+        # 2. Pull latest USGS data
         print("Pulling USGS data...")
         dataC.usgs2DB()
 
-        # 2. Export to CSV
+        # 3. Export to CSV
         print("Exporting to CSV...")
         dataC.db2File(min_mag=3.9)
 
-        # Reconnect after db2File closes connection
+        # Reconnect after db2File
         dataC = DataC()
         dataC.getData()
 
-        # 3. Make new prediction
+        # 4. Make prediction
         print("Making prediction...")
         make_prediction()
 
-        # 4. Auto-verify old predictions
-        print("Auto-verifying predictions...")
+        # 5. Verify old predictions
+        print("Verifying predictions...")
         auto_verify_predictions()
 
         print(f"[{datetime.now()}] Prediction cycle complete\n")
 
     except Exception as e:
         print(f"Error in prediction cycle: {e}")
-        # Reconnect on error
         try:
-            reconnect_data()
+            dataC = DataC()
+            dataC.getData()
         except:
             pass
 
 
-def reconnect_data():
-    """Reconnect to database and reload data"""
-    global dataC
-    dataC = DataC()
-    dataC.getData()
-
-
 def start_scheduler():
-    """Start background scheduler for automated predictions and training"""
+    """Start background scheduler for predictions"""
     global scheduler
 
     scheduler = BackgroundScheduler()
-
-    # Run prediction cycle every 5 minutes
     scheduler.add_job(func=run_prediction_cycle, trigger="interval", minutes=5, id='prediction_cycle')
-    print("Scheduler: Prediction cycle will run every 5 minutes")
-
-    # Run training cycle every hour
-    scheduler.add_job(func=run_training_cycle, trigger="interval", hours=TRAINING_INTERVAL_HOURS, id='training_cycle')
-    print(f"Scheduler: Training cycle will run every {TRAINING_INTERVAL_HOURS} hour(s)")
-
     scheduler.start()
-    print("Scheduler started")
+    print("Scheduler started: predictions every 5 minutes")
 
-    # Shut down scheduler when exiting
     atexit.register(lambda: scheduler.shutdown())
 
 
@@ -464,30 +347,22 @@ def start_scheduler():
 
 @app.route('/')
 def serve_index():
-    """Serve the main web page"""
     return send_from_directory(app.static_folder, 'index.html')
 
 
 @app.route('/assets/<path:path>')
 def serve_assets(path):
-    """Serve static assets"""
     return send_from_directory(os.path.join(app.static_folder, 'assets'), path)
 
 
 @app.route('/<path:path>')
 def serve_static(path):
-    """Serve static files from web folder"""
     return send_from_directory(app.static_folder, path)
 
 
 @app.route('/api/live', methods=['GET'])
 def get_live_data():
-    """
-    Get live data for dynamic display:
-    - Latest prediction
-    - Recent actual earthquakes
-    - Success stats
-    """
+    """Get live data: latest prediction, recent earthquakes, stats"""
     global dataC
 
     if dataC is None:
@@ -495,7 +370,7 @@ def get_live_data():
 
     try:
         latest_prediction = dataC.get_latest_prediction()
-        recent_earthquakes = dataC.get_recent_earthquakes(limit=20, min_mag=4.0)
+        recent_earthquakes = dataC.get_recent_earthquakes(limit=50, min_mag=2.0)
         stats = dataC.get_prediction_stats()
 
         return jsonify({
@@ -512,7 +387,7 @@ def get_live_data():
 
 @app.route('/api/predictions', methods=['GET'])
 def get_predictions():
-    """Get predictions with actual earthquakes side by side"""
+    """Get predictions with actual earthquakes"""
     global dataC
 
     if dataC is None:
@@ -522,7 +397,6 @@ def get_predictions():
         limit = request.args.get('limit', 50, type=int)
         predictions = dataC.get_predictions_with_actuals(limit=limit)
 
-        # Convert datetime objects to ISO strings
         for p in predictions:
             if p.get('prediction_time') and hasattr(p['prediction_time'], 'isoformat'):
                 p['prediction_time'] = p['prediction_time'].isoformat()
@@ -582,7 +456,6 @@ def get_stats():
         stats = dataC.get_prediction_stats()
         predictions = dataC.get_predictions_with_actuals(limit=10)
 
-        # Convert datetime objects
         for p in predictions:
             if p.get('prediction_time') and hasattr(p['prediction_time'], 'isoformat'):
                 p['prediction_time'] = p['prediction_time'].isoformat()
@@ -625,42 +498,40 @@ def recent_earthquakes():
 
 @app.route('/api/model/status', methods=['GET'])
 def model_status():
-    """Get model status and configuration"""
-    latest_checkpoint = get_latest_checkpoint()
+    """Get model and server status"""
+    global current_checkpoint
+
     checkpoint_time = None
-    if latest_checkpoint:
-        checkpoint_time = datetime.fromtimestamp(os.path.getmtime(latest_checkpoint)).isoformat()
+    if current_checkpoint:
+        checkpoint_time = datetime.fromtimestamp(os.path.getmtime(current_checkpoint)).isoformat()
 
     return jsonify({
         'loaded': model is not None,
         'device': device,
         'model_type': 'ComplexEqModel',
-        'latest_checkpoint': os.path.basename(latest_checkpoint) if latest_checkpoint else None,
+        'current_checkpoint': os.path.basename(current_checkpoint) if current_checkpoint else None,
         'checkpoint_time': checkpoint_time,
         'config': {
             'sequence_length': T,
             'embedding_size': n_embed,
             'num_heads': n_heads,
             'num_layers': n_layer,
-            'prediction_target': 'multi (lat, lon, dt, mag)',
-            'latitude_tolerance': LATITUDE_TOLERANCE,
-            'min_mag_display': MIN_MAG_DISPLAY,
-            'training_interval_hours': TRAINING_INTERVAL_HOURS,
-            'training_iters_per_cycle': TRAINING_ITERS
+            'distance_radius': DISTANCE_RADIUS,
+            'min_mag_display': MIN_MAG_DISPLAY
         },
         'scheduler_running': scheduler is not None and scheduler.running if scheduler else False
     })
 
 
-@app.route('/api/train', methods=['POST'])
-def trigger_training():
-    """Manually trigger a training cycle"""
+@app.route('/api/reload-model', methods=['POST'])
+def reload_model():
+    """Manually reload model from latest checkpoint"""
     try:
-        run_training_cycle()
+        load_model(force_reload=True)
         return jsonify({
             'success': True,
-            'message': 'Training cycle completed',
-            'checkpoint': os.path.basename(get_latest_checkpoint())
+            'checkpoint': os.path.basename(current_checkpoint) if current_checkpoint else None,
+            'message': 'Model reloaded'
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -679,44 +550,93 @@ def trigger_cycle():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/match', methods=['POST'])
+def record_match():
+    """Record a real-time match detected by the frontend"""
+    global dataC
+
+    if dataC is None:
+        return jsonify({'error': 'Data not loaded'}), 500
+
+    try:
+        data = request.get_json()
+        prediction_id = data.get('prediction_id')
+        earthquake_id = data.get('earthquake_id')
+        earthquake_lat = data.get('earthquake_lat')
+        earthquake_lon = data.get('earthquake_lon')
+        earthquake_mag = data.get('earthquake_mag')
+        earthquake_time = data.get('earthquake_time')
+        distance = data.get('distance')
+
+        if not all([prediction_id, earthquake_id]):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        success = dataC.update_prediction_match(
+            pr_id=prediction_id,
+            earthquake_id=earthquake_id,
+            earthquake_lat=earthquake_lat,
+            earthquake_lon=earthquake_lon,
+            earthquake_mag=earthquake_mag,
+            earthquake_time=earthquake_time,
+            distance=distance
+        )
+
+        if success:
+            # Get updated stats
+            stats = dataC.get_prediction_stats()
+            return jsonify({
+                'success': True,
+                'message': f'Match recorded for prediction {prediction_id}',
+                'stats': stats
+            })
+        else:
+            return jsonify({'error': 'Failed to update prediction'}), 500
+
+    except Exception as e:
+        print(f"Error recording match: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ============= INITIALIZATION =============
+
 _initialized = False
 
 def init_app():
-    """Initialize the application - load model and start scheduler (only once)"""
-    global _initialized
+    """Initialize the application - non-blocking"""
+    global _initialized, dataC
 
     if _initialized:
-        print("App already initialized, skipping...")
         return
 
     _initialized = True
 
-    print("=" * 50)
+    print("=" * 60)
     print("EARTHQUAKE PREDICTION SERVER")
-    print("=" * 50)
-    print("Loading model...")
-    load_model()
+    print("=" * 60)
+    print(f"Device: {device}")
 
-    latest_ckpt = get_latest_checkpoint()
-    if latest_ckpt:
-        print(f"Latest checkpoint: {os.path.basename(latest_ckpt)}")
+    # Just load data and model - don't do full cycle
+    print("\nLoading data...")
+    dataC = DataC()
+    dataC.getData()
+
+    print("\nLoading model...")
+    load_model()
 
     print("\nStarting scheduler...")
     start_scheduler()
 
-    # Run initial prediction cycle
-    print("\nRunning initial prediction cycle...")
-    run_prediction_cycle()
+    # Schedule initial cycle to run after 10 seconds (non-blocking)
+    scheduler.add_job(func=run_prediction_cycle, trigger="date",
+                      run_date=datetime.now() + timedelta(seconds=10),
+                      id='initial_cycle')
 
-    print("\n" + "=" * 50)
-    print(f"Using device: {device}")
-    print(f"Min magnitude display: {MIN_MAG_DISPLAY}")
-    print(f"Training interval: every {TRAINING_INTERVAL_HOURS} hour(s)")
-    print(f"Training iterations per cycle: {TRAINING_ITERS}")
-    print("=" * 50)
+    print("=" * 60)
+    print("Server ready! Initial prediction cycle will run in 10 seconds.")
+    print("=" * 60)
 
 
-# Initialize on module load (for gunicorn --preload)
+# Initialize on module load
 init_app()
 
 

@@ -1,7 +1,9 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
-// API calls go through Apache proxy
-const API_BASE = '';
+// API base URL - set to Python server address
+// For same server: use ''
+// For different server: use full URL like 'http://192.168.1.177:3000'
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 // Async thunks for API calls
 export const fetchModelStatus = createAsyncThunk(
@@ -67,6 +69,26 @@ export const triggerCycle = createAsyncThunk(
   }
 );
 
+export const recordMatch = createAsyncThunk(
+  'earthquake/recordMatch',
+  async ({ predictionId, earthquake, distance }) => {
+    const response = await fetch(`${API_BASE}/api/match`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prediction_id: predictionId,
+        earthquake_id: earthquake.id,
+        earthquake_lat: earthquake.lat,
+        earthquake_lon: earthquake.lon,
+        earthquake_mag: earthquake.mag,
+        earthquake_time: earthquake.time,
+        distance: distance,
+      }),
+    });
+    return response.json();
+  }
+);
+
 export const verifyPrediction = createAsyncThunk(
   'earthquake/verifyPrediction',
   async ({ predictionId, actualLat, tolerance }) => {
@@ -123,6 +145,10 @@ const initialState = {
   // Live updates
   lastFetchTime: null,
   isConnected: false,
+
+  // Match tracking
+  isRecordingMatch: false,
+  matchRecorded: false,
 };
 
 const earthquakeSlice = createSlice({
@@ -137,6 +163,9 @@ const earthquakeSlice = createSlice({
     },
     clearCurrentPrediction: (state) => {
       state.currentPrediction = null;
+    },
+    resetMatchRecorded: (state) => {
+      state.matchRecorded = false;
     },
   },
   extraReducers: (builder) => {
@@ -256,9 +285,32 @@ const earthquakeSlice = createSlice({
             ...action.payload.stats,
           };
         }
+      })
+
+      // Record Match
+      .addCase(recordMatch.pending, (state) => {
+        state.isRecordingMatch = true;
+      })
+      .addCase(recordMatch.fulfilled, (state, action) => {
+        state.isRecordingMatch = false;
+        if (action.payload.success) {
+          state.matchRecorded = true;
+          if (action.payload.stats) {
+            state.stats = {
+              successRate: action.payload.stats.success_rate || 0,
+              totalPredictions: action.payload.stats.total_predictions || 0,
+              correctPredictions: action.payload.stats.correct_predictions || 0,
+              lastUpdated: Date.now(),
+            };
+          }
+        }
+      })
+      .addCase(recordMatch.rejected, (state, action) => {
+        state.isRecordingMatch = false;
+        state.error = action.error.message;
       });
   },
 });
 
-export const { clearError, setConnected, clearCurrentPrediction } = earthquakeSlice.actions;
+export const { clearError, setConnected, clearCurrentPrediction, resetMatchRecorded } = earthquakeSlice.actions;
 export default earthquakeSlice.reducer;

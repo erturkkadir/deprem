@@ -342,6 +342,89 @@ class DataC():
             print(f"Error getting recent earthquakes: {e}")
             return []
 
+    def update_prediction_match(self, pr_id, earthquake_id, earthquake_lat, earthquake_lon, earthquake_mag, earthquake_time, distance):
+        """Update prediction with real-time match data when a match is detected on the frontend
+
+        Args:
+            pr_id: Prediction ID to update
+            earthquake_id: USGS earthquake ID that matched
+            earthquake_lat: Actual earthquake latitude (already decoded)
+            earthquake_lon: Actual earthquake longitude (already decoded)
+            earthquake_mag: Actual earthquake magnitude
+            earthquake_time: Actual earthquake time (ISO string)
+            distance: Circular distance in degrees
+        """
+        self._ensure_connection()
+
+        try:
+            # First get the prediction data to calculate differences
+            sql = """SELECT pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted
+                     FROM predictions WHERE pr_id = %s"""
+            self.mycursor.execute(sql, (pr_id,))
+            row = self.mycursor.fetchone()
+
+            if not row:
+                print(f"Prediction {pr_id} not found")
+                return False
+
+            pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted = row
+
+            # Convert earthquake coords to encoded format (for storage consistency)
+            eq_lat_encoded = int(earthquake_lat + 90)
+            eq_lon_encoded = int(earthquake_lon + 180)
+            eq_mag_encoded = int(earthquake_mag * 10)
+
+            # Calculate differences
+            diff_lat = abs(pr_lat_predicted - eq_lat_encoded) if pr_lat_predicted else None
+            diff_lon = abs(pr_lon_predicted - eq_lon_encoded) if pr_lon_predicted else None
+            if diff_lon:
+                diff_lon = min(diff_lon, 360 - diff_lon)
+
+            # Parse earthquake time and calculate dt
+            from datetime import datetime
+            if isinstance(earthquake_time, str):
+                eq_time = datetime.fromisoformat(earthquake_time.replace('Z', '+00:00'))
+            else:
+                eq_time = earthquake_time
+
+            actual_dt = int((eq_time.replace(tzinfo=None) - pr_timestamp).total_seconds() / 60)
+            diff_dt = abs(pr_dt_predicted - actual_dt) if pr_dt_predicted else None
+
+            diff_mag = abs((pr_mag_predicted / 10.0) - earthquake_mag) if pr_mag_predicted else None
+
+            # A match within 15 degrees is considered correct
+            correct = distance <= 15
+
+            sql = """
+            UPDATE predictions SET
+                pr_actual_id = %s,
+                pr_lat_actual = %s,
+                pr_lon_actual = %s,
+                pr_dt_actual = %s,
+                pr_mag_actual = %s,
+                pr_actual_time = %s,
+                pr_diff_lat = %s,
+                pr_diff_lon = %s,
+                pr_diff_dt = %s,
+                pr_diff_mag = %s,
+                pr_verified = TRUE,
+                pr_correct = %s
+            WHERE pr_id = %s
+            """
+            self.mycursor.execute(sql, (
+                earthquake_id, eq_lat_encoded, eq_lon_encoded, actual_dt, eq_mag_encoded, eq_time,
+                diff_lat, diff_lon, diff_dt, diff_mag, correct, pr_id
+            ))
+            self.mydb.commit()
+            print(f"Updated prediction {pr_id} with match: distance={distance:.1f}, correct={correct}")
+            return True
+
+        except Exception as e:
+            print(f"Error updating prediction match: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
     def get_prediction_stats(self, min_mag=4.0):
         """Get prediction success statistics for predictions with magnitude >= min_mag"""
         self._ensure_connection()

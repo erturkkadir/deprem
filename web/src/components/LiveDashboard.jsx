@@ -1,375 +1,590 @@
-import { useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { fetchLiveData } from '../store/earthquakeSlice';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { fetchLiveData, makePrediction, recordMatch, resetMatchRecorded } from '../store/earthquakeSlice';
 
 function LiveDashboard() {
   const dispatch = useDispatch();
-  const { liveData, isLoadingLive } = useSelector((state) => state.earthquake);
+  const { liveData, isLoadingLive, isPredicting, isRecordingMatch, matchRecorded } = useSelector((state) => state.earthquake);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [minMagFilter, setMinMagFilter] = useState(0); // 0 = show all
+  const [isFlashing, setIsFlashing] = useState(false);
+  const [matchedEarthquakeId, setMatchedEarthquakeId] = useState(null);
+  const hasTriggeredNewPrediction = useRef(false);
+  const hasRecordedMatch = useRef(false);
+  const lastPredictionId = useRef(null);
+  const previousBestMatch = useRef(null);
 
-  // Auto-refresh every 30 seconds
+  // Update current time every second
   useEffect(() => {
-    dispatch(fetchLiveData());
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-    const interval = setInterval(() => {
-      dispatch(fetchLiveData());
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [dispatch]);
+  // Reset trigger flags when prediction changes
+  useEffect(() => {
+    if (liveData?.latest_prediction?.id !== lastPredictionId.current) {
+      lastPredictionId.current = liveData?.latest_prediction?.id;
+      hasTriggeredNewPrediction.current = false;
+      hasRecordedMatch.current = false;
+      previousBestMatch.current = null;
+      setMatchedEarthquakeId(null);
+      setIsFlashing(false);
+      dispatch(resetMatchRecorded());
+    }
+  }, [liveData?.latest_prediction?.id, dispatch]);
 
   const { latest_prediction, recent_earthquakes, stats, timestamp } = liveData || {};
 
-  // Parse time as UTC (USGS times are UTC)
+  // Parse UTC time
   const parseUTC = (isoString) => {
     if (!isoString) return null;
-    // Add 'Z' if missing to force UTC interpretation
-    const utcString = isoString.endsWith('Z') ? isoString : isoString + 'Z';
-    return new Date(utcString);
+    return new Date(isoString.endsWith('Z') ? isoString : isoString + 'Z');
   };
 
-  const formatTime = (isoString) => {
-    if (!isoString) return 'N/A';
-    const date = parseUTC(isoString);
-    return date.toLocaleString() + ' (UTC)';
+  // Calculate expected event time
+  const expectedEventTime = useMemo(() => {
+    if (!latest_prediction?.timestamp || !latest_prediction?.predicted_dt) return null;
+    const predTime = parseUTC(latest_prediction.timestamp);
+    return predTime ? new Date(predTime.getTime() + latest_prediction.predicted_dt * 60 * 1000) : null;
+  }, [latest_prediction]);
+
+  // Countdown calculation
+  const countdownInfo = useMemo(() => {
+    if (!expectedEventTime) return null;
+    const diff = expectedEventTime.getTime() - currentTime.getTime();
+
+    if (diff <= 0) return { expired: true, text: 'Window passed', progress: 100, seconds: 0 };
+
+    const totalSeconds = Math.floor(diff / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    // Calculate progress (0-100) based on predicted_dt
+    const totalPredictedSeconds = (latest_prediction?.predicted_dt || 60) * 60;
+    const elapsed = totalPredictedSeconds - totalSeconds;
+    const progress = Math.min(100, Math.max(0, (elapsed / totalPredictedSeconds) * 100));
+
+    const text = hours > 0 ? `${hours}h ${minutes}m ${seconds}s` :
+                 minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+
+    return { expired: false, text, progress, seconds: totalSeconds };
+  }, [expectedEventTime, currentTime, latest_prediction?.predicted_dt]);
+
+  // Auto-trigger new prediction when window expires
+  useEffect(() => {
+    if (countdownInfo?.expired && !hasTriggeredNewPrediction.current && !isPredicting && !latest_prediction?.verified) {
+      hasTriggeredNewPrediction.current = true;
+      const timeout = setTimeout(() => {
+        dispatch(makePrediction()).then(() => dispatch(fetchLiveData()));
+      }, 5000);
+      return () => clearTimeout(timeout);
+    }
+  }, [countdownInfo?.expired, isPredicting, latest_prediction?.verified, dispatch]);
+
+  // Calculate distance from prediction for each earthquake
+  const earthquakesWithDistance = useMemo(() => {
+    if (!recent_earthquakes) return [];
+
+    return recent_earthquakes
+      .filter(eq => eq.mag >= minMagFilter)
+      .map(eq => {
+        // Calculate distance only if we have a prediction
+        if (latest_prediction) {
+          const latDiff = Math.abs((latest_prediction.predicted_lat || 0) - (eq.lat || 0));
+          let lonDiff = Math.abs((latest_prediction.predicted_lon || 0) - (eq.lon || 0));
+          lonDiff = Math.min(lonDiff, 360 - lonDiff);
+          const distance = Math.sqrt(latDiff * latDiff + lonDiff * lonDiff);
+          const isMatch = distance <= 15;
+          return { ...eq, distance, isMatch, latDiff, lonDiff };
+        }
+        return { ...eq, distance: null, isMatch: false, latDiff: null, lonDiff: null };
+      }).sort((a, b) => new Date(b.time) - new Date(a.time));
+  }, [latest_prediction, recent_earthquakes, minMagFilter]);
+
+  // Get row background color based on magnitude
+  const getMagRowColor = (mag, isMatch) => {
+    if (isMatch) return 'bg-green-500/20 border border-green-500/50 shadow-lg shadow-green-500/20';
+    if (mag >= 7) return 'bg-purple-900/40 border border-purple-500/30';
+    if (mag >= 6) return 'bg-red-900/40 border border-red-500/30';
+    if (mag >= 5) return 'bg-orange-900/30 border border-orange-500/20';
+    if (mag >= 4) return 'bg-yellow-900/20 border border-yellow-500/20';
+    if (mag >= 3) return 'bg-zinc-800/50 border border-zinc-600/20';
+    return 'bg-zinc-800/30 border border-transparent';
   };
 
-  const formatTimeUTC = (isoString) => {
-    if (!isoString) return 'N/A';
-    const date = parseUTC(isoString);
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZone: 'UTC'
-    }) + ' UTC';
-  };
+  // Best match (closest earthquake)
+  const bestMatch = earthquakesWithDistance.find(eq => eq.isMatch);
+  const closestEq = earthquakesWithDistance[0];
+
+  // Handle new match detection - flash, record, and trigger new prediction
+  useEffect(() => {
+    // Check if we have a new match that we haven't processed yet
+    if (bestMatch && !hasRecordedMatch.current && latest_prediction && !latest_prediction.verified) {
+      const isNewMatch = !previousBestMatch.current || previousBestMatch.current.id !== bestMatch.id;
+
+      if (isNewMatch) {
+        console.log('Match found!', bestMatch);
+        hasRecordedMatch.current = true;
+        previousBestMatch.current = bestMatch;
+        setMatchedEarthquakeId(bestMatch.id);
+
+        // 1. Flash the match box
+        setIsFlashing(true);
+        setTimeout(() => setIsFlashing(false), 3000);
+
+        // 2. Record the match in the database
+        dispatch(recordMatch({
+          predictionId: latest_prediction.id,
+          earthquake: bestMatch,
+          distance: bestMatch.distance,
+        }));
+
+        // 3. Trigger a new prediction after a short delay
+        setTimeout(() => {
+          dispatch(makePrediction()).then(() => {
+            dispatch(fetchLiveData());
+          });
+        }, 5000);
+      }
+    }
+  }, [bestMatch, latest_prediction, dispatch]);
+
+  // Format functions
+  const formatTimeUTC = (date) => date?.toLocaleString('en-US', {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'UTC'
+  }) + ' UTC';
+
+  const formatTimeLocal = (date) => date?.toLocaleString('en-US', {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
 
   const formatTimeAgo = (isoString) => {
-    if (!isoString) return '';
     const date = parseUTC(isoString);
-    const now = new Date();
-    const diff = Math.floor((now - date) / 1000);
-
-    // Handle edge cases
-    if (diff < 0) return 'just now';
-    if (diff < 60) return `${diff}s ago`;
+    if (!date) return '';
+    const diff = Math.floor((new Date() - date) / 1000);
+    if (diff < 60) return 'just now';
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
     return `${Math.floor(diff / 86400)}d ago`;
   };
 
-  const getStatusBadge = (prediction) => {
-    if (!prediction) return null;
-
-    if (!prediction.verified) {
-      return (
-        <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full animate-pulse">
-          Pending
-        </span>
-      );
-    }
-
-    if (prediction.correct) {
-      return (
-        <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full flex items-center gap-1">
-          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-          </svg>
-          Correct
-        </span>
-      );
-    }
+  // Circular progress component
+  const CircularProgress = ({ progress, size = 120, children }) => {
+    const radius = (size - 12) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference - (progress / 100) * circumference;
+    const isUrgent = progress > 80;
+    const isClose = progress > 60;
 
     return (
-      <span className="px-2 py-1 bg-red-500/20 text-red-400 text-xs rounded-full flex items-center gap-1">
-        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg className="transform -rotate-90" width={size} height={size}>
+          <circle cx={size/2} cy={size/2} r={radius} stroke="#374151" strokeWidth="8" fill="none" />
+          <circle
+            cx={size/2} cy={size/2} r={radius}
+            stroke={isUrgent ? '#ef4444' : isClose ? '#f59e0b' : '#22c55e'}
+            strokeWidth="8" fill="none"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            className={`transition-all duration-1000 ${isUrgent ? 'animate-pulse' : ''}`}
+          />
         </svg>
-        Incorrect
-      </span>
+        <div className="absolute inset-0 flex items-center justify-center">
+          {children}
+        </div>
+      </div>
+    );
+  };
+
+  // Match indicator component
+  const MatchIndicator = ({ distance }) => {
+    const matchThreshold = 15;
+    const percentage = Math.max(0, Math.min(100, ((matchThreshold - distance) / matchThreshold) * 100));
+    const isMatch = distance <= matchThreshold;
+
+    return (
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-2 bg-zinc-700 rounded-full overflow-hidden">
+          <div
+            className={`h-full transition-all duration-500 ${isMatch ? 'bg-green-500' : percentage > 50 ? 'bg-yellow-500' : 'bg-zinc-500'}`}
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+        <span className={`text-xs font-mono ${isMatch ? 'text-green-400' : 'text-zinc-400'}`}>
+          {distance.toFixed(1)}°
+        </span>
+      </div>
     );
   };
 
   return (
     <section className="py-8 bg-zinc-900">
       <div className="max-w-7xl mx-auto px-4">
-        {/* Section Header */}
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-              Live Dashboard
+            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+              <div className="relative">
+                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+                <div className="absolute inset-0 w-3 h-3 bg-green-500 rounded-full animate-ping" />
+              </div>
+              Live Prediction Monitor
             </h2>
             <p className="text-zinc-400 text-sm mt-1">
-              Auto-updates every 30 seconds | Last update: {formatTime(timestamp)}
+              Real-time earthquake prediction tracking • Updates every minute
             </p>
           </div>
-
-          {isLoadingLive && (
-            <div className="flex items-center gap-2 text-zinc-400">
-              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              Updating...
-            </div>
-          )}
+          <div className="text-right">
+            <div className="text-zinc-500 text-xs">Current Time (UTC)</div>
+            <div className="text-white font-mono">{formatTimeUTC(currentTime)}</div>
+          </div>
         </div>
 
         {/* Main Grid */}
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Left: Latest Prediction */}
-          <div className="card p-6">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              Latest Prediction
-            </h3>
+        <div className="grid lg:grid-cols-3 gap-6">
 
+          {/* Left: Prediction Card */}
+          <div className="lg:col-span-2 space-y-4">
             {latest_prediction ? (
-              <div className="space-y-4">
-                {/* Location Banner - Always show */}
-                <div className="bg-gradient-to-r from-orange-600/20 to-orange-500/10 border border-orange-500/30 rounded-lg p-4">
+              <>
+                {/* Location Header */}
+                <div className={`rounded-xl p-6 border transition-all duration-500 ${
+                  bestMatch
+                    ? 'bg-gradient-to-r from-green-600/20 to-green-500/10 border-green-500/50'
+                    : 'bg-gradient-to-r from-orange-600/20 to-orange-500/10 border-orange-500/30'
+                } ${isFlashing ? 'animate-flash-match' : ''}`}>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      <span className="text-orange-400 font-semibold text-lg">
-                        {latest_prediction.predicted_place || `Ocean (${latest_prediction.predicted_lat?.toFixed(1)}°, ${latest_prediction.predicted_lon?.toFixed(1)}°)`}
-                      </span>
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          bestMatch
+                            ? 'bg-green-500 text-white animate-pulse'
+                            : latest_prediction.verified
+                              ? (latest_prediction.correct ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400')
+                              : 'bg-yellow-500/20 text-yellow-400'
+                        }`}>
+                          {bestMatch ? '✓ MATCH FOUND!' : latest_prediction.verified ? (latest_prediction.correct ? 'Verified Correct' : 'Verified Incorrect') : 'Awaiting Verification'}
+                        </span>
+                        {isRecordingMatch && (
+                          <span className="px-2 py-1 rounded-full text-xs bg-blue-500/20 text-blue-400 flex items-center gap-1">
+                            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                            Recording...
+                          </span>
+                        )}
+                        {matchRecorded && !isRecordingMatch && (
+                          <span className="px-2 py-1 rounded-full text-xs bg-green-500/20 text-green-400">
+                            ✓ Recorded
+                          </span>
+                        )}
+                        <span className="text-zinc-500 text-xs">ID: #{latest_prediction.id}</span>
+                      </div>
+                      <h3 className="text-2xl font-bold text-white flex items-center gap-2">
+                        <svg className="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        </svg>
+                        {latest_prediction.predicted_place || 'Ocean Region'}
+                      </h3>
+                      <p className="text-zinc-400 text-sm mt-1">
+                        {latest_prediction.predicted_lat?.toFixed(2)}°, {latest_prediction.predicted_lon?.toFixed(2)}°
+                      </p>
                     </div>
                     <a
-                      href={`https://www.google.com/maps?q=${latest_prediction.predicted_lat},${latest_prediction.predicted_lon}&z=6`}
+                      href={`https://www.google.com/maps?q=${latest_prediction.predicted_lat},${latest_prediction.predicted_lon}&z=5`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm rounded-lg transition-colors"
-                      title="View on Google Maps"
+                      className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                       </svg>
-                      Maps
+                      View Map
                     </a>
                   </div>
                 </div>
 
-                {/* Prediction Grid */}
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Latitude */}
-                  <div className="bg-zinc-800/50 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-zinc-400 text-xs">Latitude</span>
-                      {getStatusBadge(latest_prediction)}
-                    </div>
-                    <div className="text-2xl font-bold text-orange-500">
-                      {latest_prediction.predicted_lat?.toFixed(1)}°
-                    </div>
-                    {latest_prediction.verified && latest_prediction.actual_lat !== null && (
-                      <div className="text-xs text-zinc-500 mt-1">
-                        Actual: {latest_prediction.actual_lat?.toFixed(1)}° (diff: {latest_prediction.diff_lat}°)
+                {/* Countdown & Stats Grid */}
+                <div className="grid md:grid-cols-2 gap-4">
+                  {/* Countdown Timer */}
+                  <div className="card p-6 flex items-center justify-center">
+                    <div className="text-center">
+                      <CircularProgress progress={countdownInfo?.progress || 0} size={140}>
+                        <div className="text-center">
+                          {countdownInfo?.expired ? (
+                            isPredicting ? (
+                              <div className="text-orange-400">
+                                <svg className="w-8 h-8 mx-auto animate-spin" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                </svg>
+                                <div className="text-xs mt-1">Loading...</div>
+                              </div>
+                            ) : (
+                              <div className="text-zinc-400">
+                                <svg className="w-8 h-8 mx-auto" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                                </svg>
+                                <div className="text-xs mt-1">Refreshing...</div>
+                              </div>
+                            )
+                          ) : (
+                            <>
+                              <div className={`text-2xl font-bold font-mono ${
+                                countdownInfo?.progress > 80 ? 'text-red-400' :
+                                countdownInfo?.progress > 60 ? 'text-yellow-400' : 'text-green-400'
+                              }`}>
+                                {countdownInfo?.text}
+                              </div>
+                              <div className="text-zinc-500 text-xs">remaining</div>
+                            </>
+                          )}
+                        </div>
+                      </CircularProgress>
+                      <div className="mt-4 space-y-1">
+                        <div className="text-zinc-400 text-xs">Expected Event</div>
+                        <div className="text-white text-sm font-medium">
+                          {expectedEventTime ? formatTimeUTC(expectedEventTime) : 'N/A'}
+                        </div>
+                        <div className="text-zinc-500 text-xs">
+                          Local: {expectedEventTime ? formatTimeLocal(expectedEventTime) : 'N/A'}
+                        </div>
                       </div>
-                    )}
+                    </div>
                   </div>
 
-                  {/* Longitude */}
-                  <div className="bg-zinc-800/50 rounded-lg p-3">
-                    <span className="text-zinc-400 text-xs block mb-1">Longitude</span>
-                    <div className="text-2xl font-bold text-blue-500">
-                      {latest_prediction.predicted_lon?.toFixed(1)}°
-                    </div>
-                    {latest_prediction.verified && latest_prediction.actual_lon !== null && (
-                      <div className="text-xs text-zinc-500 mt-1">
-                        Actual: {latest_prediction.actual_lon?.toFixed(1)}° (diff: {latest_prediction.diff_lon}°)
+                  {/* Prediction Details */}
+                  <div className="card p-6">
+                    <h4 className="text-zinc-400 text-sm mb-4">Prediction Details</h4>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-zinc-500">Latitude</span>
+                        <span className="text-xl font-bold text-orange-500">{latest_prediction.predicted_lat?.toFixed(1)}°</span>
                       </div>
-                    )}
-                  </div>
-
-                  {/* Time Difference */}
-                  <div className="bg-zinc-800/50 rounded-lg p-3">
-                    <span className="text-zinc-400 text-xs block mb-1">Time to Next EQ</span>
-                    <div className="text-2xl font-bold text-purple-500">
-                      {latest_prediction.predicted_dt} min
-                    </div>
-                    {latest_prediction.verified && latest_prediction.actual_dt !== null && (
-                      <div className="text-xs text-zinc-500 mt-1">
-                        Actual: {latest_prediction.actual_dt} min (diff: {latest_prediction.diff_dt} min)
+                      <div className="flex justify-between items-center">
+                        <span className="text-zinc-500">Longitude</span>
+                        <span className="text-xl font-bold text-blue-500">{latest_prediction.predicted_lon?.toFixed(1)}°</span>
                       </div>
-                    )}
-                  </div>
-
-                  {/* Magnitude */}
-                  <div className="bg-zinc-800/50 rounded-lg p-3">
-                    <span className="text-zinc-400 text-xs block mb-1">Magnitude</span>
-                    <div className="text-2xl font-bold text-red-500">
-                      M{latest_prediction.predicted_mag?.toFixed(1)}
-                    </div>
-                    {latest_prediction.verified && latest_prediction.actual_mag !== null && (
-                      <div className="text-xs text-zinc-500 mt-1">
-                        Actual: M{latest_prediction.actual_mag?.toFixed(1)} (diff: {latest_prediction.diff_mag?.toFixed(1)})
+                      <div className="flex justify-between items-center">
+                        <span className="text-zinc-500">Magnitude</span>
+                        <span className={`text-xl font-bold ${
+                          latest_prediction.predicted_mag >= 6 ? 'text-red-500' :
+                          latest_prediction.predicted_mag >= 5 ? 'text-orange-500' : 'text-yellow-500'
+                        }`}>
+                          M{latest_prediction.predicted_mag?.toFixed(1)}
+                        </span>
                       </div>
-                    )}
+                      <div className="pt-2 border-t border-zinc-700">
+                        <div className="text-zinc-500 text-xs">Predicted at</div>
+                        <div className="text-zinc-300 text-sm">{formatTimeUTC(parseUTC(latest_prediction.timestamp))}</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Timestamp */}
-                <div className="text-zinc-500 text-xs text-center">
-                  Predicted at: {formatTime(latest_prediction.timestamp)}
-                </div>
+                {/* Closest Match Indicator */}
+                {closestEq && !latest_prediction.verified && (
+                  <div className="card p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-zinc-400 text-sm">Closest Earthquake to Prediction</span>
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        closestEq.isMatch ? 'bg-green-500/20 text-green-400' : 'bg-zinc-700 text-zinc-400'
+                      }`}>
+                        {closestEq.isMatch ? 'Within Range!' : `${closestEq.distance.toFixed(1)}° away`}
+                      </span>
+                    </div>
+                    <MatchIndicator distance={closestEq.distance} />
+                    {closestEq.isMatch && (
+                      <div className="mt-3 p-3 bg-green-500/10 rounded-lg border border-green-500/30">
+                        <div className="flex items-center gap-2 text-green-400">
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                          <span className="font-semibold">M{closestEq.mag?.toFixed(1)} - {closestEq.place}</span>
+                        </div>
+                        <div className="text-green-300/70 text-xs mt-1">
+                          {formatTimeAgo(closestEq.time)} • Lat: {closestEq.lat?.toFixed(1)}° Lon: {closestEq.lon?.toFixed(1)}°
+                        </div>
+                        {matchRecorded && (
+                          <div className="mt-2 pt-2 border-t border-green-500/20 text-green-300 text-xs flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            {isPredicting ? 'Starting new prediction...' : 'New prediction will start shortly'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                {/* Latitude/Longitude Visualization */}
-                <div className="bg-zinc-800/50 rounded-lg p-4">
-                  <div className="text-zinc-400 text-xs mb-2">Location Scale</div>
-
-                  {/* Latitude bar */}
-                  <div className="mb-3">
-                    <div className="text-zinc-500 text-xs mb-1">Latitude (-90° to +90°)</div>
-                    <div className="relative h-3 bg-zinc-700 rounded-full overflow-hidden">
-                      <div
-                        className="absolute top-0 bottom-0 w-1 bg-orange-500"
-                        style={{
-                          left: `${((latest_prediction.predicted_lat + 90) / 180) * 100}%`,
-                        }}
-                      />
-                      {latest_prediction.verified && latest_prediction.actual_lat !== null && (
+                {/* Visual Location Bars */}
+                <div className="card p-4">
+                  <div className="text-zinc-400 text-xs mb-3">Location Visualization</div>
+                  <div className="space-y-3">
+                    {/* Latitude */}
+                    <div>
+                      <div className="flex justify-between text-xs text-zinc-500 mb-1">
+                        <span>-90°</span>
+                        <span>Latitude</span>
+                        <span>+90°</span>
+                      </div>
+                      <div className="relative h-4 bg-zinc-700 rounded-full overflow-hidden">
+                        <div className="absolute top-0 bottom-0 w-0.5 bg-zinc-500" style={{ left: '50%' }} />
                         <div
-                          className="absolute top-0 bottom-0 w-1 bg-green-500"
-                          style={{
-                            left: `${((latest_prediction.actual_lat + 90) / 180) * 100}%`,
-                          }}
+                          className="absolute top-0.5 bottom-0.5 w-3 bg-orange-500 rounded-full shadow-lg shadow-orange-500/50"
+                          style={{ left: `calc(${((latest_prediction.predicted_lat + 90) / 180) * 100}% - 6px)` }}
                         />
-                      )}
+                        {bestMatch && (
+                          <div
+                            className="absolute top-0.5 bottom-0.5 w-3 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50"
+                            style={{ left: `calc(${((bestMatch.lat + 90) / 180) * 100}% - 6px)` }}
+                          />
+                        )}
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Longitude bar */}
-                  <div>
-                    <div className="text-zinc-500 text-xs mb-1">Longitude (-180° to +180°)</div>
-                    <div className="relative h-3 bg-zinc-700 rounded-full overflow-hidden">
-                      <div
-                        className="absolute top-0 bottom-0 w-1 bg-blue-500"
-                        style={{
-                          left: `${((latest_prediction.predicted_lon + 180) / 360) * 100}%`,
-                        }}
-                      />
-                      {latest_prediction.verified && latest_prediction.actual_lon !== null && (
+                    {/* Longitude */}
+                    <div>
+                      <div className="flex justify-between text-xs text-zinc-500 mb-1">
+                        <span>-180°</span>
+                        <span>Longitude</span>
+                        <span>+180°</span>
+                      </div>
+                      <div className="relative h-4 bg-zinc-700 rounded-full overflow-hidden">
+                        <div className="absolute top-0 bottom-0 w-0.5 bg-zinc-500" style={{ left: '50%' }} />
                         <div
-                          className="absolute top-0 bottom-0 w-1 bg-green-500"
-                          style={{
-                            left: `${((latest_prediction.actual_lon + 180) / 360) * 100}%`,
-                          }}
+                          className="absolute top-0.5 bottom-0.5 w-3 bg-blue-500 rounded-full shadow-lg shadow-blue-500/50"
+                          style={{ left: `calc(${((latest_prediction.predicted_lon + 180) / 360) * 100}% - 6px)` }}
                         />
-                      )}
+                        {bestMatch && (
+                          <div
+                            className="absolute top-0.5 bottom-0.5 w-3 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50"
+                            style={{ left: `calc(${((bestMatch.lon + 180) / 360) * 100}% - 6px)` }}
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
-
-                  <div className="flex gap-4 mt-3 text-xs justify-center">
-                    <span className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-orange-500 rounded" /> Lat Predicted
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-blue-500 rounded" /> Lon Predicted
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-green-500 rounded" /> Actual
-                    </span>
+                  <div className="flex gap-6 mt-3 text-xs justify-center">
+                    <span className="flex items-center gap-1"><div className="w-3 h-3 bg-orange-500 rounded-full" /> Predicted Lat</span>
+                    <span className="flex items-center gap-1"><div className="w-3 h-3 bg-blue-500 rounded-full" /> Predicted Lon</span>
+                    <span className="flex items-center gap-1"><div className="w-3 h-3 bg-green-500 rounded-full" /> Actual</span>
                   </div>
                 </div>
-              </div>
+              </>
             ) : (
-              <div className="text-center py-8 text-zinc-500">
-                No predictions yet. System will make predictions automatically.
+              <div className="card p-12 text-center">
+                <svg className="w-16 h-16 mx-auto text-zinc-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <h3 className="text-xl font-semibold text-zinc-400 mb-2">No Active Prediction</h3>
+                <p className="text-zinc-500">Waiting for the system to generate a new prediction...</p>
               </div>
             )}
           </div>
 
           {/* Right: Recent Earthquakes */}
-          <div className="card p-6">
-            <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
-              <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
-              </svg>
-              Recent Earthquakes (M4.0+)
-            </h3>
-            <p className="text-zinc-500 text-xs mb-4">All times in UTC</p>
+          <div className="card p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Recent Quakes
+              </h3>
+              <select
+                value={minMagFilter}
+                onChange={(e) => setMinMagFilter(Number(e.target.value))}
+                className="bg-zinc-800 text-zinc-300 text-xs px-2 py-1 rounded border border-zinc-700 focus:outline-none focus:border-orange-500"
+              >
+                <option value={0}>All</option>
+                <option value={2}>M2.0+</option>
+                <option value={3}>M3.0+</option>
+                <option value={4}>M4.0+</option>
+                <option value={5}>M5.0+</option>
+                <option value={6}>M6.0+</option>
+              </select>
+            </div>
 
-            <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar">
-              {recent_earthquakes && recent_earthquakes.length > 0 ? (
-                recent_earthquakes.map((eq, index) => (
+            <div className="space-y-2 max-h-[600px] overflow-y-auto custom-scrollbar pr-1">
+              {earthquakesWithDistance.length > 0 ? (
+                earthquakesWithDistance.map((eq, index) => (
                   <div
                     key={eq.id || index}
-                    className="bg-zinc-800/50 rounded-lg p-3 hover:bg-zinc-800 transition-colors"
+                    className={`p-3 rounded-lg transition-all duration-300 ${getMagRowColor(eq.mag, eq.isMatch)} ${
+                      matchedEarthquakeId === eq.id ? 'ring-2 ring-green-400 ring-offset-2 ring-offset-zinc-900 animate-pulse-matched' : ''
+                    }`}
                   >
-                    <div className="flex items-start justify-between">
+                    <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={`
-                            px-2 py-0.5 rounded text-xs font-bold
-                            ${eq.mag >= 6 ? 'bg-red-500 text-white' :
-                              eq.mag >= 5 ? 'bg-orange-500 text-white' :
-                              'bg-yellow-500 text-black'}
-                          `}>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                            eq.mag >= 6 ? 'bg-red-500 text-white' :
+                            eq.mag >= 5 ? 'bg-orange-500 text-white' : 'bg-yellow-500 text-black'
+                          }`}>
                             M{eq.mag?.toFixed(1)}
                           </span>
-                          <span className="text-zinc-400 text-xs">
-                            {formatTimeAgo(eq.time)}
-                          </span>
-                          <span className="text-zinc-500 text-xs">
-                            ({formatTimeUTC(eq.time)})
-                          </span>
+                          <span className="text-zinc-400 text-xs">{formatTimeAgo(eq.time)}</span>
+                          {eq.isMatch && (
+                            <span className="px-2 py-0.5 bg-green-500 text-white text-xs rounded-full animate-pulse">
+                              Match!
+                            </span>
+                          )}
                         </div>
-                        <p className="text-white text-sm mt-1 truncate" title={eq.place}>
-                          {eq.place || 'Unknown location'}
-                        </p>
-                        <div className="flex gap-4 mt-1 text-xs text-zinc-500">
-                          <span>Lat: {eq.lat?.toFixed(2)}°</span>
-                          <span>Lon: {eq.lon?.toFixed(2)}°</span>
-                          <span>Depth: {eq.depth?.toFixed(1)} km</span>
+                        <p className="text-white text-sm mt-1 truncate">{eq.place || 'Unknown'}</p>
+                        <div className="flex gap-3 mt-1 text-xs text-zinc-500">
+                          <span>{eq.lat?.toFixed(1)}°</span>
+                          <span>{eq.lon?.toFixed(1)}°</span>
+                          <span>{eq.depth?.toFixed(0)}km</span>
                         </div>
                       </div>
+                      {eq.distance !== null && (
+                        <div className="text-right">
+                          <div className={`text-xs font-mono ${
+                            eq.isMatch ? 'text-green-400' :
+                            eq.distance < 30 ? 'text-yellow-400' : 'text-zinc-500'
+                          }`}>
+                            {eq.distance.toFixed(0)}°
+                          </div>
+                          <div className="text-zinc-600 text-xs">dist</div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))
               ) : (
                 <div className="text-center py-8 text-zinc-500">
-                  No recent earthquakes data
+                  <svg className="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                  </svg>
+                  No recent data
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Success Rate Banner */}
+        {/* Stats Bar */}
         {stats && (
-          <div className="mt-6 bg-gradient-to-r from-zinc-800 to-zinc-800/50 rounded-xl p-6 border border-zinc-700">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-              <div>
-                <div className="text-3xl font-bold text-orange-500">
-                  {stats.success_rate?.toFixed(1) || 0}%
-                </div>
-                <div className="text-zinc-400 text-sm">Success Rate</div>
-              </div>
-              <div>
-                <div className="text-3xl font-bold text-white">
-                  {stats.total_predictions || 0}
-                </div>
-                <div className="text-zinc-400 text-sm">Total Predictions</div>
-              </div>
-              <div>
-                <div className="text-3xl font-bold text-green-500">
-                  {stats.correct_predictions || 0}
-                </div>
-                <div className="text-zinc-400 text-sm">Correct</div>
-              </div>
-              <div>
-                <div className="text-3xl font-bold text-zinc-400">
-                  {stats.verified_predictions || 0}
-                </div>
-                <div className="text-zinc-400 text-sm">Verified</div>
-              </div>
+          <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="card p-4 text-center">
+              <div className="text-3xl font-bold text-orange-500">{stats.success_rate?.toFixed(1) || 0}%</div>
+              <div className="text-zinc-500 text-sm">Success Rate</div>
+            </div>
+            <div className="card p-4 text-center">
+              <div className="text-3xl font-bold text-white">{stats.total_predictions || 0}</div>
+              <div className="text-zinc-500 text-sm">Total Predictions</div>
+            </div>
+            <div className="card p-4 text-center">
+              <div className="text-3xl font-bold text-green-500">{stats.correct_predictions || 0}</div>
+              <div className="text-zinc-500 text-sm">Correct</div>
+            </div>
+            <div className="card p-4 text-center">
+              <div className="text-3xl font-bold text-zinc-400">{stats.verified_predictions || 0}</div>
+              <div className="text-zinc-500 text-sm">Verified</div>
             </div>
           </div>
         )}

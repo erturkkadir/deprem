@@ -115,7 +115,7 @@ def main():
 
     # Check for missing dates in the last 2 years (more recent data is more important)
     end_date = datetime.now().date()
-    start_date = end_date - timedelta(days=730)  # 2 years back
+    start_date = end_date - timedelta(days=14600)  # 2 years back
 
     print(f"\nChecking for missing dates from {start_date} to {end_date}...")
 
