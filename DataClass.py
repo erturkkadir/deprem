@@ -37,7 +37,8 @@ class DataC():
                 password=config.DB_PASS,
                 database=config.DB_NAME,
                 autocommit=True,
-                connection_timeout=30
+                connection_timeout=30,
+                ssl_disabled=True
             )
             self.mycursor = self.mydb.cursor()
         except Exception as e:
@@ -47,7 +48,12 @@ class DataC():
     def _ensure_connection(self):
         """Ensure database connection is active, reconnect if needed"""
         try:
-            self.mydb.ping(reconnect=True, attempts=3, delay=1)
+            if self.mydb is None or not self.mydb.is_connected():
+                self._connect_db()
+            else:
+                self.mydb.ping(reconnect=True, attempts=3, delay=1)
+                # Refresh cursor after ping
+                self.mycursor = self.mydb.cursor()
         except Exception as e:
             print(f"Reconnecting to database: {e}")
             self._connect_db()
@@ -454,20 +460,27 @@ class DataC():
             return {'total_predictions': 0, 'verified_predictions': 0, 'correct_predictions': 0, 'success_rate': 0.0}
         
     def db2File(self, min_mag):
-        min_magnitude = 2
-        # sql = "SELECT year(us_datetime)-1970 as year, month(us_datetime) as mont, us_x, us_y, cast( (us_mag*10) as signed) as us_m, us_d, case when us_t>9000 then 150 else cast(us_t/60 as SIGNED) end as us_t FROM usgs WHERE	us_mag>1.99 and us_type = 'earthquake' and us_magtype like 'm%' order by  us_datetime asc "
-        # sql + sql + " INTO OUTFILE 'data/result0.txt' FIELDS TERMINATED BY ',' LINES TERMINATED BY '\n' "
-        sql = f"CALL get_data({min_mag})"    # quakes grater than min_mag by experiment (4.9)
+        # Create fresh connection for export (avoids cursor state issues)
+        self._connect_db()
+
+        sql = f"CALL get_data({min_mag})"
         self.mycursor.execute(sql)
         rows = self.mycursor.fetchall()
 
-        cols = [i[0] for i in self.mycursor.description]
+        # Consume any remaining results from stored procedure
+        while self.mycursor.nextset():
+            pass
 
-        fp = open(self.fname, 'w')
-        myFile = csv.writer(fp, lineterminator = '\n')
-        myFile.writerow(cols)
-        myFile.writerows(rows)
-        fp.close()
+        cols = [i[0] for i in self.mycursor.description] if self.mycursor.description else []
+
+        if rows and cols:
+            fp = open(self.fname, 'w')
+            myFile = csv.writer(fp, lineterminator = '\n')
+            myFile.writerow(cols)
+            myFile.writerows(rows)
+            fp.close()
+            print(f"Exported {len(rows)} records to CSV")
+
         self.mydb.close()
         
     def usgs2DB(self):
@@ -475,65 +488,86 @@ class DataC():
         self.mycursor.execute("delete from usgs_tmp")
 
         min_magnitude = 2
-        hdr = "insert into usgs_tmp(us_code, us_date, us_time, us_datetime, us_lat, us_lon, us_dep, us_mag, us_place, us_type, us_magType, us_x, us_y, us_d, us_m) VALUES "
+        all_values = []
 
+        # Collect all data from USGS API first
         for i in range(3, 0, -1):
             start_time = f"now-{i}days"
-            end_time =  f"now-{(i-1)}days"
+            end_time = f"now-{(i-1)}days"
             path = f"https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime={start_time}&endtime={end_time}&minmagnitude={min_magnitude}"
-            url = requests.get(path)
-            dataset = url.json()
-            features = dataset['features']
 
-            sql = ""
-            for feature in features:
-                code = feature['id']
-                mag = feature['properties']['mag']
-                if mag==None:
-                    mag = 0
-                plc = feature['properties']['place']
-                if plc!= None:
-                    plc = plc.replace("'", "").replace('"',"")
+            try:
+                response = requests.get(path, timeout=30)
+                dataset = response.json()
+                features = dataset['features']
+                print(f"Fetched {len(features)} earthquakes for day -{i}")
 
-                dtm = pd.to_datetime(feature['properties']['time'], unit='ms').strftime('%y/%m/%d %H:%M:%S')
-                dat = pd.to_datetime(feature['properties']['time'], unit='ms').strftime('%y/%m/%d')
-                tim = pd.to_datetime(feature['properties']['time'], unit='ms').strftime('%H:%M:%S')
+                for feature in features:
+                    code = feature['id']
+                    mag = feature['properties']['mag'] or 0
+                    plc = feature['properties']['place']
+                    if plc:
+                        plc = plc.replace("'", "").replace('"', "")
+                    else:
+                        plc = ""
 
-                typ = feature['properties']['type']
-                magType = feature['properties']['magType']
+                    dtm = pd.to_datetime(feature['properties']['time'], unit='ms').strftime('%y/%m/%d %H:%M:%S')
+                    dat = pd.to_datetime(feature['properties']['time'], unit='ms').strftime('%y/%m/%d')
+                    tim = pd.to_datetime(feature['properties']['time'], unit='ms').strftime('%H:%M:%S')
 
-                lon = feature['geometry']['coordinates'][0]
-                lat = feature['geometry']['coordinates'][1]
-                dep = feature['geometry']['coordinates'][2]
-                x = lat + 90
-                y = lon + 180
-                if dep == None:
-                    dep = 0
-                if dep<0:
-                    dep = 0
-                d = dep/10
-                m = mag
-                n_sql = hdr +  f"( '{code}', '{dat}', '{tim}', '{dtm}', {lat}, {lon}, {dep}, {mag}, '{plc}', '{typ}', '{magType}', '{x}', '{y}', '{d}', '{m*10}' )"
-                try:
-                    self.mycursor.execute(n_sql)
-                    print(f"executed in  {i} {plc} {mag} ")
-                except:
-                    print(f"execution in error  :  {i} ")
-            self.mydb.commit()        
+                    typ = feature['properties']['type'] or ''
+                    magType = feature['properties']['magType'] or ''
+
+                    lon = feature['geometry']['coordinates'][0]
+                    lat = feature['geometry']['coordinates'][1]
+                    dep = feature['geometry']['coordinates'][2] or 0
+                    if dep < 0:
+                        dep = 0
+                    x = lat + 90
+                    y = lon + 180
+                    d = dep / 10
+                    m = mag * 10
+
+                    all_values.append((code, dat, tim, dtm, lat, lon, dep, mag, plc, typ, magType, x, y, d, m))
+
+            except Exception as e:
+                print(f"Error fetching USGS data for day -{i}: {e}")
+
+        # Batch insert all records at once
+        if all_values:
+            self._ensure_connection()
+            sql = """INSERT INTO usgs_tmp(us_code, us_date, us_time, us_datetime, us_lat, us_lon,
+                     us_dep, us_mag, us_place, us_type, us_magType, us_x, us_y, us_d, us_m)
+                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+            try:
+                self.mycursor.executemany(sql, all_values)
+                self.mydb.commit()
+                print(f"Batch inserted {len(all_values)} earthquakes")
+            except Exception as e:
+                print(f"Batch insert error: {e}")
+
+        # Run stored procedure to merge into main table
+        self._ensure_connection()
         try:
-            res = self.mycursor.execute("call ins_quakes(); ") # new eartguakes are inserting to usgs table
-            print(f"executed out {res} ")
-        except:
-            print(f"error out  ")
+            self.mycursor.execute("call ins_quakes()")
+            print("Executed ins_quakes()")
+        except Exception as e:
+            print(f"Error ins_quakes: {e}")
 
-        self.mycursor.execute("SELECT us_id, us_mag, us_place FROM usgs WHERE us_t is null")
-        rows =  self.mycursor.fetchall()
-        for row in rows:
-            # print(row)
-            id = row[0]
-            sql = f"call calc_dt({id})"
-            self.mycursor.execute(sql)
-        self.mydb.commit();
+        # Calculate time differences for new records
+        self._ensure_connection()
+        self.mycursor.execute("SELECT us_id FROM usgs WHERE us_t is null")
+        rows = self.mycursor.fetchall()
+        if rows:
+            print(f"Calculating dt for {len(rows)} new records...")
+            for row in rows:
+                try:
+                    self.mycursor.execute(f"call calc_dt({row[0]})")
+                except Exception as e:
+                    print(f"Error calc_dt for {row[0]}: {e}")
+                    self._ensure_connection()
+            self.mydb.commit()
+            print("Done calculating dt")
         
     def getData(self):
         

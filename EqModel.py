@@ -486,24 +486,32 @@ class ComplexEqModel(nn.Module):
             if torch.isnan(logits).any() or torch.isinf(logits).any():
                 logits = torch.nan_to_num(logits, nan=0.0, posinf=100.0, neginf=-100.0)
 
-        temperature = 1.0
+        # Use higher temperature for more variation
+        temperature = 2.0
 
-        # Sample from each distribution
+        # Sample from each distribution with temperature scaling
         lat_probs = FN.softmax(lat_logits / temperature, dim=-1)
         lon_probs = FN.softmax(lon_logits / temperature, dim=-1)
         dt_probs = FN.softmax(dt_logits / temperature, dim=-1)
         mag_probs = FN.softmax(mag_logits / temperature, dim=-1)
 
+        # Use multinomial sampling for variety
         lat_pred = torch.multinomial(lat_probs, num_samples=1)
         lon_pred = torch.multinomial(lon_probs, num_samples=1)
         dt_pred = torch.multinomial(dt_probs, num_samples=1)
         mag_pred = torch.multinomial(mag_probs, num_samples=1)
 
+        # Clamp values to valid ranges
+        lat_val = min(max(lat_pred.item(), 0), 180)
+        lon_val = min(max(lon_pred.item(), 0), 360)
+        dt_val = min(max(dt_pred.item(), 1), 150)  # At least 1 minute
+        mag_val = min(max(mag_pred.item(), 40), 90)  # M4.0 to M9.0
+
         return {
-            'lat': lat_pred.item(),  # 0-180 encoded
-            'lon': lon_pred.item(),  # 0-360 encoded
-            'dt': dt_pred.item(),    # 0-150 minutes
-            'mag': mag_pred.item()   # 0-91 (mag * 10)
+            'lat': lat_val,   # 0-180 encoded
+            'lon': lon_val,   # 0-360 encoded
+            'dt': dt_val,     # 1-150 minutes
+            'mag': mag_val    # 40-90 (mag * 10, so M4.0-M9.0)
         }
 
 class EqModel(nn.Module):

@@ -1,18 +1,15 @@
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchLiveData, makePrediction, recordMatch, resetMatchRecorded } from '../store/earthquakeSlice';
+import { fetchLiveData } from '../store/earthquakeSlice';
 
 function LiveDashboard() {
   const dispatch = useDispatch();
-  const { liveData, isLoadingLive, isPredicting, isRecordingMatch, matchRecorded } = useSelector((state) => state.earthquake);
+  const { liveData, isLoadingLive, isPredicting } = useSelector((state) => state.earthquake);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [minMagFilter, setMinMagFilter] = useState(0); // 0 = show all
   const [isFlashing, setIsFlashing] = useState(false);
-  const [matchedEarthquakeId, setMatchedEarthquakeId] = useState(null);
-  const hasTriggeredNewPrediction = useRef(false);
-  const hasRecordedMatch = useRef(false);
   const lastPredictionId = useRef(null);
-  const previousBestMatch = useRef(null);
+  const lastMatchState = useRef(false);
 
   // Update current time every second
   useEffect(() => {
@@ -20,20 +17,27 @@ function LiveDashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  // Reset trigger flags when prediction changes
+  // Reset flash when prediction changes
   useEffect(() => {
     if (liveData?.latest_prediction?.id !== lastPredictionId.current) {
       lastPredictionId.current = liveData?.latest_prediction?.id;
-      hasTriggeredNewPrediction.current = false;
-      hasRecordedMatch.current = false;
-      previousBestMatch.current = null;
-      setMatchedEarthquakeId(null);
+      lastMatchState.current = false;
       setIsFlashing(false);
-      dispatch(resetMatchRecorded());
     }
-  }, [liveData?.latest_prediction?.id, dispatch]);
+  }, [liveData?.latest_prediction?.id]);
 
-  const { latest_prediction, recent_earthquakes, stats, timestamp } = liveData || {};
+  const { latest_prediction, recent_earthquakes, stats, match_info, closest_match } = liveData || {};
+
+  // Flash when a new match is detected (from backend)
+  useEffect(() => {
+    const hasMatch = match_info?.is_match || match_info?.verified_match;
+    if (hasMatch && !lastMatchState.current) {
+      // New match detected - trigger flash
+      setIsFlashing(true);
+      lastMatchState.current = true;
+      setTimeout(() => setIsFlashing(false), 3000);
+    }
+  }, [match_info]);
 
   // Parse UTC time
   const parseUTC = (isoString) => {
@@ -71,36 +75,20 @@ function LiveDashboard() {
     return { expired: false, text, progress, seconds: totalSeconds };
   }, [expectedEventTime, currentTime, latest_prediction?.predicted_dt]);
 
-  // Auto-trigger new prediction when window expires
-  useEffect(() => {
-    if (countdownInfo?.expired && !hasTriggeredNewPrediction.current && !isPredicting && !latest_prediction?.verified) {
-      hasTriggeredNewPrediction.current = true;
-      const timeout = setTimeout(() => {
-        dispatch(makePrediction()).then(() => dispatch(fetchLiveData()));
-      }, 5000);
-      return () => clearTimeout(timeout);
-    }
-  }, [countdownInfo?.expired, isPredicting, latest_prediction?.verified, dispatch]);
-
-  // Calculate distance from prediction for each earthquake
+  // Filter earthquakes by magnitude (distance already calculated by backend)
   const earthquakesWithDistance = useMemo(() => {
     if (!recent_earthquakes) return [];
 
     return recent_earthquakes
       .filter(eq => eq.mag >= minMagFilter)
-      .map(eq => {
-        // Calculate distance only if we have a prediction
-        if (latest_prediction) {
-          const latDiff = Math.abs((latest_prediction.predicted_lat || 0) - (eq.lat || 0));
-          let lonDiff = Math.abs((latest_prediction.predicted_lon || 0) - (eq.lon || 0));
-          lonDiff = Math.min(lonDiff, 360 - lonDiff);
-          const distance = Math.sqrt(latDiff * latDiff + lonDiff * lonDiff);
-          const isMatch = distance <= 15;
-          return { ...eq, distance, isMatch, latDiff, lonDiff };
-        }
-        return { ...eq, distance: null, isMatch: false, latDiff: null, lonDiff: null };
-      }).sort((a, b) => new Date(b.time) - new Date(a.time));
-  }, [latest_prediction, recent_earthquakes, minMagFilter]);
+      .map(eq => ({
+        ...eq,
+        // Use API-provided values, with fallbacks
+        distance: eq.distance ?? null,
+        isMatch: eq.is_match ?? false
+      }))
+      .sort((a, b) => new Date(b.time) - new Date(a.time));
+  }, [recent_earthquakes, minMagFilter]);
 
   // Get row background color based on magnitude
   const getMagRowColor = (mag, isMatch) => {
@@ -113,42 +101,9 @@ function LiveDashboard() {
     return 'bg-zinc-800/30 border border-transparent';
   };
 
-  // Best match (closest earthquake)
-  const bestMatch = earthquakesWithDistance.find(eq => eq.isMatch);
-  const closestEq = earthquakesWithDistance[0];
-
-  // Handle new match detection - flash, record, and trigger new prediction
-  useEffect(() => {
-    // Check if we have a new match that we haven't processed yet
-    if (bestMatch && !hasRecordedMatch.current && latest_prediction && !latest_prediction.verified) {
-      const isNewMatch = !previousBestMatch.current || previousBestMatch.current.id !== bestMatch.id;
-
-      if (isNewMatch) {
-        console.log('Match found!', bestMatch);
-        hasRecordedMatch.current = true;
-        previousBestMatch.current = bestMatch;
-        setMatchedEarthquakeId(bestMatch.id);
-
-        // 1. Flash the match box
-        setIsFlashing(true);
-        setTimeout(() => setIsFlashing(false), 3000);
-
-        // 2. Record the match in the database
-        dispatch(recordMatch({
-          predictionId: latest_prediction.id,
-          earthquake: bestMatch,
-          distance: bestMatch.distance,
-        }));
-
-        // 3. Trigger a new prediction after a short delay
-        setTimeout(() => {
-          dispatch(makePrediction()).then(() => {
-            dispatch(fetchLiveData());
-          });
-        }, 5000);
-      }
-    }
-  }, [bestMatch, latest_prediction, dispatch]);
+  // Best match from API (already detected by backend)
+  const bestMatch = match_info?.is_match ? earthquakesWithDistance.find(eq => eq.id === match_info.earthquake_id) : null;
+  const closestEq = closest_match ? earthquakesWithDistance.find(eq => eq.id === closest_match.earthquake_id) : earthquakesWithDistance[0];
 
   // Format functions
   const formatTimeUTC = (date) => date?.toLocaleString('en-US', {
@@ -251,7 +206,7 @@ function LiveDashboard() {
               <>
                 {/* Location Header */}
                 <div className={`rounded-xl p-6 border transition-all duration-500 ${
-                  bestMatch
+                  match_info?.is_match || match_info?.verified_match
                     ? 'bg-gradient-to-r from-green-600/20 to-green-500/10 border-green-500/50'
                     : 'bg-gradient-to-r from-orange-600/20 to-orange-500/10 border-orange-500/30'
                 } ${isFlashing ? 'animate-flash-match' : ''}`}>
@@ -259,24 +214,19 @@ function LiveDashboard() {
                     <div>
                       <div className="flex items-center gap-2 mb-2">
                         <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          bestMatch
+                          match_info?.is_match || match_info?.verified_match
                             ? 'bg-green-500 text-white animate-pulse'
                             : latest_prediction.verified
                               ? (latest_prediction.correct ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400')
                               : 'bg-yellow-500/20 text-yellow-400'
                         }`}>
-                          {bestMatch ? '✓ MATCH FOUND!' : latest_prediction.verified ? (latest_prediction.correct ? 'Verified Correct' : 'Verified Incorrect') : 'Awaiting Verification'}
+                          {match_info?.is_match || match_info?.verified_match
+                            ? '✓ MATCH FOUND!'
+                            : latest_prediction.verified
+                              ? (latest_prediction.correct ? 'Verified Correct' : 'Verified Incorrect')
+                              : 'Awaiting Verification'}
                         </span>
-                        {isRecordingMatch && (
-                          <span className="px-2 py-1 rounded-full text-xs bg-blue-500/20 text-blue-400 flex items-center gap-1">
-                            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                            </svg>
-                            Recording...
-                          </span>
-                        )}
-                        {matchRecorded && !isRecordingMatch && (
+                        {match_info?.verified_match && (
                           <span className="px-2 py-1 rounded-full text-xs bg-green-500/20 text-green-400">
                             ✓ Recorded
                           </span>
@@ -397,25 +347,25 @@ function LiveDashboard() {
                       </span>
                     </div>
                     <MatchIndicator distance={closestEq.distance} />
-                    {closestEq.isMatch && (
+                    {(closestEq?.isMatch || match_info?.is_match) && (
                       <div className="mt-3 p-3 bg-green-500/10 rounded-lg border border-green-500/30">
                         <div className="flex items-center gap-2 text-green-400">
                           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                           </svg>
-                          <span className="font-semibold">M{closestEq.mag?.toFixed(1)} - {closestEq.place}</span>
+                          <span className="font-semibold">
+                            M{match_info?.mag?.toFixed(1) || closestEq?.mag?.toFixed(1)} - {match_info?.place || closestEq?.place}
+                          </span>
                         </div>
                         <div className="text-green-300/70 text-xs mt-1">
-                          {formatTimeAgo(closestEq.time)} • Lat: {closestEq.lat?.toFixed(1)}° Lon: {closestEq.lon?.toFixed(1)}°
+                          {formatTimeAgo(closestEq?.time)} • Distance: {match_info?.distance || closestEq?.distance}°
                         </div>
-                        {matchRecorded && (
-                          <div className="mt-2 pt-2 border-t border-green-500/20 text-green-300 text-xs flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                            {isPredicting ? 'Starting new prediction...' : 'New prediction will start shortly'}
-                          </div>
-                        )}
+                        <div className="mt-2 pt-2 border-t border-green-500/20 text-green-300 text-xs flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                          New prediction starting automatically...
+                        </div>
                       </div>
                     )}
                   </div>
@@ -438,10 +388,10 @@ function LiveDashboard() {
                           className="absolute top-0.5 bottom-0.5 w-3 bg-orange-500 rounded-full shadow-lg shadow-orange-500/50"
                           style={{ left: `calc(${((latest_prediction.predicted_lat + 90) / 180) * 100}% - 6px)` }}
                         />
-                        {bestMatch && (
+                        {(match_info?.is_match || match_info?.verified_match) && closestEq && (
                           <div
                             className="absolute top-0.5 bottom-0.5 w-3 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50"
-                            style={{ left: `calc(${((bestMatch.lat + 90) / 180) * 100}% - 6px)` }}
+                            style={{ left: `calc(${((closestEq.lat + 90) / 180) * 100}% - 6px)` }}
                           />
                         )}
                       </div>
@@ -459,10 +409,10 @@ function LiveDashboard() {
                           className="absolute top-0.5 bottom-0.5 w-3 bg-blue-500 rounded-full shadow-lg shadow-blue-500/50"
                           style={{ left: `calc(${((latest_prediction.predicted_lon + 180) / 360) * 100}% - 6px)` }}
                         />
-                        {bestMatch && (
+                        {(match_info?.is_match || match_info?.verified_match) && closestEq && (
                           <div
                             className="absolute top-0.5 bottom-0.5 w-3 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50"
-                            style={{ left: `calc(${((bestMatch.lon + 180) / 360) * 100}% - 6px)` }}
+                            style={{ left: `calc(${((closestEq.lon + 180) / 360) * 100}% - 6px)` }}
                           />
                         )}
                       </div>
@@ -515,7 +465,7 @@ function LiveDashboard() {
                   <div
                     key={eq.id || index}
                     className={`p-3 rounded-lg transition-all duration-300 ${getMagRowColor(eq.mag, eq.isMatch)} ${
-                      matchedEarthquakeId === eq.id ? 'ring-2 ring-green-400 ring-offset-2 ring-offset-zinc-900 animate-pulse-matched' : ''
+                      eq.isMatch ? 'ring-2 ring-green-400 ring-offset-2 ring-offset-zinc-900 animate-pulse-matched' : ''
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -571,19 +521,19 @@ function LiveDashboard() {
         {stats && (
           <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="card p-4 text-center">
-              <div className="text-3xl font-bold text-orange-500">{stats.success_rate?.toFixed(1) || 0}%</div>
+              <div className="text-3xl font-bold text-orange-500">{(parseFloat(stats.success_rate) || 0).toFixed(1)}%</div>
               <div className="text-zinc-500 text-sm">Success Rate</div>
             </div>
             <div className="card p-4 text-center">
-              <div className="text-3xl font-bold text-white">{stats.total_predictions || 0}</div>
+              <div className="text-3xl font-bold text-white">{parseInt(stats.total_predictions) || 0}</div>
               <div className="text-zinc-500 text-sm">Total Predictions</div>
             </div>
             <div className="card p-4 text-center">
-              <div className="text-3xl font-bold text-green-500">{stats.correct_predictions || 0}</div>
+              <div className="text-3xl font-bold text-green-500">{parseInt(stats.correct_predictions) || 0}</div>
               <div className="text-zinc-500 text-sm">Correct</div>
             </div>
             <div className="card p-4 text-center">
-              <div className="text-3xl font-bold text-zinc-400">{stats.verified_predictions || 0}</div>
+              <div className="text-3xl font-bold text-zinc-400">{parseInt(stats.verified_predictions) || 0}</div>
               <div className="text-zinc-500 text-sm">Verified</div>
             </div>
           </div>

@@ -290,55 +290,202 @@ def auto_verify_predictions():
         traceback.print_exc()
 
 
-def run_prediction_cycle():
-    """Full prediction cycle: fetch data, reload model if new, predict, verify"""
+def check_and_handle_prediction():
+    """
+    Main prediction cycle logic:
+    1. Check if current prediction has a match -> verify & new prediction
+    2. Check if current prediction expired -> new prediction
+    3. If no active prediction -> new prediction
+
+    Returns: dict with status info or None
+    """
     global dataC
 
-    print(f"\n[{datetime.now()}] Starting prediction cycle...")
+    if dataC is None:
+        return None
 
     try:
-        # 1. Check for new checkpoint from training
-        reload_if_new_checkpoint()
+        dataC._ensure_connection()
 
-        # 2. Pull latest USGS data
-        print("Pulling USGS data...")
+        # Get the latest prediction
+        latest = dataC.get_latest_prediction(min_mag=4.0)
+
+        # No prediction exists - make one
+        if not latest:
+            print(f"[{datetime.now()}] No active prediction, creating new one...")
+            make_prediction()
+            return {'action': 'new_prediction', 'reason': 'no_prediction'}
+
+        # Prediction already verified - make new one
+        if latest.get('verified'):
+            print(f"[{datetime.now()}] Previous prediction verified, creating new one...")
+            make_prediction()
+            return {'action': 'new_prediction', 'reason': 'previous_verified'}
+
+        # Active unverified prediction - check for match or expiry
+        pr_id = latest['id']
+        pr_timestamp = datetime.fromisoformat(latest['timestamp'])
+        pr_lat = latest.get('predicted_lat')
+        pr_lon = latest.get('predicted_lon')
+        pr_mag = latest.get('predicted_mag')
+        pr_dt = latest.get('predicted_dt') or 60  # Default 60 min if not set
+
+        if pr_lat is None or pr_lon is None:
+            return None
+
+        # Get recent earthquakes since prediction was made
+        end_time = datetime.now()
+        recent_quakes = dataC.get_earthquakes_in_window(pr_timestamp, end_time, min_mag=4.0)
+
+        # Check for match
+        if recent_quakes:
+            for quake in recent_quakes:
+                us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = quake
+
+                # Calculate circular distance
+                lat_diff = abs((pr_lat + 90) - us_x)
+                lon_diff = abs((pr_lon + 180) - us_y)
+                lon_diff = min(lon_diff, 360 - lon_diff)
+                distance = math.sqrt(lat_diff ** 2 + lon_diff ** 2)
+
+                if distance <= DISTANCE_RADIUS:
+                    # MATCH FOUND!
+                    print(f"\n{'='*60}")
+                    print(f"[{datetime.now()}] MATCH FOUND!")
+                    print(f"  Prediction #{pr_id}: {pr_lat:.1f}°, {pr_lon:.1f}°")
+                    print(f"  Actual: {us_x-90:.1f}°, {us_y-180:.1f}° - M{us_mag} - {us_place}")
+                    print(f"  Distance: {distance:.1f}° (threshold: {DISTANCE_RADIUS}°)")
+                    print(f"{'='*60}\n")
+
+                    # Calculate differences
+                    actual_dt = int((us_datetime - pr_timestamp).total_seconds() / 60)
+                    diff_dt = abs(pr_dt - actual_dt) if pr_dt else None
+                    diff_mag = abs(pr_mag - us_mag) if pr_mag and us_mag else None
+
+                    # Update prediction as verified and correct
+                    dataC.verify_prediction(
+                        pr_id=pr_id,
+                        actual_id=us_id,
+                        actual_lat=us_x,
+                        actual_lon=us_y,
+                        actual_dt=actual_dt,
+                        actual_mag=int(us_mag * 10) if us_mag else None,
+                        actual_time=us_datetime,
+                        diff_lat=int(lat_diff),
+                        diff_lon=int(lon_diff),
+                        diff_dt=int(diff_dt) if diff_dt else None,
+                        diff_mag=diff_mag,
+                        correct=True
+                    )
+
+                    # Make new prediction
+                    print(f"[{datetime.now()}] Starting new prediction after match...")
+                    make_prediction()
+
+                    return {
+                        'action': 'match_found',
+                        'prediction_id': pr_id,
+                        'earthquake_id': us_id,
+                        'distance': distance,
+                        'place': us_place,
+                        'mag': us_mag
+                    }
+
+        # Check if prediction window has expired
+        expected_event_time = pr_timestamp + timedelta(minutes=pr_dt)
+        if datetime.now() > expected_event_time:
+            print(f"[{datetime.now()}] Prediction #{pr_id} expired (waited {pr_dt} min), creating new prediction...")
+            # Make new prediction (old one will be verified later by auto_verify)
+            make_prediction()
+            return {'action': 'expired', 'prediction_id': pr_id}
+
+        # Still waiting - no action needed
+        remaining = (expected_event_time - datetime.now()).total_seconds() / 60
+        return {'action': 'waiting', 'prediction_id': pr_id, 'remaining_minutes': round(remaining, 1)}
+
+    except Exception as e:
+        print(f"Error in check_and_handle_prediction: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def refresh_data():
+    """Pull latest USGS data and export to CSV"""
+    global dataC
+
+    try:
+        print(f"[{datetime.now()}] Refreshing USGS data...")
+
+        if dataC is None:
+            dataC = DataC()
+
         dataC.usgs2DB()
-
-        # 3. Export to CSV
-        print("Exporting to CSV...")
         dataC.db2File(min_mag=3.9)
 
-        # Reconnect after db2File
+        # Reconnect after db2File closes connection
         dataC = DataC()
         dataC.getData()
 
-        # 4. Make prediction
-        print("Making prediction...")
-        make_prediction()
-
-        # 5. Verify old predictions
-        print("Verifying predictions...")
-        auto_verify_predictions()
-
-        print(f"[{datetime.now()}] Prediction cycle complete\n")
+        print(f"[{datetime.now()}] Data refresh complete")
+        return True
 
     except Exception as e:
-        print(f"Error in prediction cycle: {e}")
+        print(f"Error refreshing data: {e}")
         try:
             dataC = DataC()
             dataC.getData()
         except:
             pass
+        return False
+
+
+def monitor_cycle():
+    """
+    Main monitoring loop - runs every 30 seconds:
+    1. Refresh USGS data
+    2. Check prediction status (match/expire/waiting)
+    3. Verify old predictions
+    """
+    global dataC
+
+    # Run within Flask app context
+    with app.app_context():
+        try:
+            # Check for new model checkpoint
+            reload_if_new_checkpoint()
+
+            # Refresh earthquake data
+            refresh_data()
+
+            # Check and handle current prediction
+            result = check_and_handle_prediction()
+            if result:
+                print(f"[{datetime.now()}] Status: {result.get('action')} - {result}")
+
+            # Verify old predictions (>24 hours)
+            auto_verify_predictions()
+
+        except Exception as e:
+            print(f"Error in monitor cycle: {e}")
+            try:
+                dataC = DataC()
+                dataC.getData()
+            except:
+                pass
 
 
 def start_scheduler():
-    """Start background scheduler for predictions"""
+    """Start background scheduler"""
     global scheduler
 
     scheduler = BackgroundScheduler()
-    scheduler.add_job(func=run_prediction_cycle, trigger="interval", minutes=5, id='prediction_cycle')
+
+    # Single monitoring job every 30 seconds
+    scheduler.add_job(func=monitor_cycle, trigger="interval", seconds=30, id='monitor_cycle')
+
     scheduler.start()
-    print("Scheduler started: predictions every 5 minutes")
+    print("Scheduler started: monitoring every 30 seconds")
 
     atexit.register(lambda: scheduler.shutdown())
 
@@ -362,7 +509,7 @@ def serve_static(path):
 
 @app.route('/api/live', methods=['GET'])
 def get_live_data():
-    """Get live data: latest prediction, recent earthquakes, stats"""
+    """Get live data: latest prediction, recent earthquakes, stats, and match info"""
     global dataC
 
     if dataC is None:
@@ -373,12 +520,62 @@ def get_live_data():
         recent_earthquakes = dataC.get_recent_earthquakes(limit=50, min_mag=2.0)
         stats = dataC.get_prediction_stats()
 
+        # Calculate match info for each earthquake (so frontend doesn't need to)
+        match_info = None
+        closest_match = None
+
+        if latest_prediction and not latest_prediction.get('verified'):
+            pr_lat = latest_prediction.get('predicted_lat')
+            pr_lon = latest_prediction.get('predicted_lon')
+
+            if pr_lat is not None and pr_lon is not None:
+                min_distance = float('inf')
+
+                for eq in recent_earthquakes:
+                    eq_lat = eq.get('lat')
+                    eq_lon = eq.get('lon')
+
+                    if eq_lat is not None and eq_lon is not None:
+                        lat_diff = abs(pr_lat - eq_lat)
+                        lon_diff = abs(pr_lon - eq_lon)
+                        lon_diff = min(lon_diff, 360 - lon_diff)
+                        distance = math.sqrt(lat_diff ** 2 + lon_diff ** 2)
+
+                        eq['distance'] = round(distance, 1)
+                        eq['is_match'] = distance <= DISTANCE_RADIUS
+
+                        if distance < min_distance:
+                            min_distance = distance
+                            closest_match = {
+                                'earthquake_id': eq.get('id'),
+                                'distance': round(distance, 1),
+                                'is_match': distance <= DISTANCE_RADIUS,
+                                'place': eq.get('place'),
+                                'mag': eq.get('mag')
+                            }
+
+                if closest_match and closest_match['is_match']:
+                    match_info = closest_match
+
+        # If prediction is verified, include the matched earthquake info
+        if latest_prediction and latest_prediction.get('verified') and latest_prediction.get('correct'):
+            match_info = {
+                'verified_match': True,
+                'actual_lat': latest_prediction.get('actual_lat'),
+                'actual_lon': latest_prediction.get('actual_lon'),
+                'actual_mag': latest_prediction.get('actual_mag'),
+                'diff_lat': latest_prediction.get('diff_lat'),
+                'diff_lon': latest_prediction.get('diff_lon')
+            }
+
         return jsonify({
             'success': True,
             'timestamp': datetime.now().isoformat(),
             'latest_prediction': latest_prediction,
             'recent_earthquakes': recent_earthquakes,
-            'stats': stats
+            'stats': stats,
+            'match_info': match_info,
+            'closest_match': closest_match
         })
 
     except Exception as e:
@@ -539,12 +736,12 @@ def reload_model():
 
 @app.route('/api/cycle', methods=['POST'])
 def trigger_cycle():
-    """Manually trigger a full prediction cycle"""
+    """Manually trigger a monitoring cycle"""
     try:
-        run_prediction_cycle()
+        monitor_cycle()
         return jsonify({
             'success': True,
-            'message': 'Prediction cycle completed'
+            'message': 'Monitor cycle completed'
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -615,7 +812,7 @@ def init_app():
     print("=" * 60)
     print(f"Device: {device}")
 
-    # Just load data and model - don't do full cycle
+    # Load data and model
     print("\nLoading data...")
     dataC = DataC()
     dataC.getData()
@@ -623,16 +820,20 @@ def init_app():
     print("\nLoading model...")
     load_model()
 
+    # Check if we have an active prediction, if not create one
+    print("\nChecking for active prediction...")
+    latest = dataC.get_latest_prediction(min_mag=4.0)
+    if not latest or latest.get('verified'):
+        print("No active prediction found, creating initial prediction...")
+        make_prediction()
+    else:
+        print(f"Active prediction found: #{latest['id']}")
+
     print("\nStarting scheduler...")
     start_scheduler()
 
-    # Schedule initial cycle to run after 10 seconds (non-blocking)
-    scheduler.add_job(func=run_prediction_cycle, trigger="date",
-                      run_date=datetime.now() + timedelta(seconds=10),
-                      id='initial_cycle')
-
     print("=" * 60)
-    print("Server ready! Initial prediction cycle will run in 10 seconds.")
+    print("Server ready! Monitoring every 30 seconds.")
     print("=" * 60)
 
 

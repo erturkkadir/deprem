@@ -196,9 +196,9 @@ const earthquakeSlice = createSlice({
       .addCase(fetchStats.fulfilled, (state, action) => {
         if (action.payload.success) {
           state.stats = {
-            successRate: action.payload.stats.success_rate || 0,
-            totalPredictions: action.payload.stats.total_predictions || 0,
-            correctPredictions: action.payload.stats.correct_predictions || 0,
+            successRate: parseFloat(action.payload.stats.success_rate) || 0,
+            totalPredictions: parseInt(action.payload.stats.total_predictions) || 0,
+            correctPredictions: parseInt(action.payload.stats.correct_predictions) || 0,
             lastUpdated: action.payload.stats.last_updated,
           };
           state.predictions = action.payload.recent_predictions || [];
@@ -297,9 +297,9 @@ const earthquakeSlice = createSlice({
           state.matchRecorded = true;
           if (action.payload.stats) {
             state.stats = {
-              successRate: action.payload.stats.success_rate || 0,
-              totalPredictions: action.payload.stats.total_predictions || 0,
-              correctPredictions: action.payload.stats.correct_predictions || 0,
+              successRate: parseFloat(action.payload.stats.success_rate) || 0,
+              totalPredictions: parseInt(action.payload.stats.total_predictions) || 0,
+              correctPredictions: parseInt(action.payload.stats.correct_predictions) || 0,
               lastUpdated: Date.now(),
             };
           }
