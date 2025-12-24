@@ -14,7 +14,7 @@ from EqModel import ComplexEqModel
 # ============= CONFIGURATION =============
 MODEL_DIR = '/var/www/syshuman/quake'
 MODEL_PREFIX = 'eqModel_complex'
-CHECKPOINT_INTERVAL = 2000  # Save every N iterations
+CHECKPOINT_INTERVAL = 200   # Save every N iterations
 KEEP_CHECKPOINTS = 5       # Keep last N checkpoints
 
 # Model hyperparameters
@@ -25,11 +25,11 @@ n_embed = C
 n_heads = 8
 n_layer = 8
 dropout = 0.01
-p_max = 180        # Prediction classes (latitude)
-col = 2            # Target column (latitude)
+p_max = 180        # Legacy prediction classes (for backward compat)
+# Multi-target training: we train lat, lon, dt, mag heads simultaneously
 
 # Training hyperparameters
-LEARNING_RATE = 3e-4
+LEARNING_RATE = 1e-4
 RELOAD_DATA_EVERY = 1000  # Reload fresh data from DB every N iterations
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -141,9 +141,10 @@ def load_model(sizes):
 def train():
     """Main training loop - runs forever"""
     print("=" * 60)
-    print("EARTHQUAKE PREDICTION - STANDALONE TRAINING")
+    print("EARTHQUAKE PREDICTION - MULTI-TARGET TRAINING")
     print("=" * 60)
     print(f"Device: {device}")
+    print(f"Training: lat, lon, dt, mag heads simultaneously")
     print(f"Checkpoint interval: every {CHECKPOINT_INTERVAL} iterations")
     print(f"Learning rate: {LEARNING_RATE}")
     print(f"Batch size: {B}, Sequence length: {T}")
@@ -180,27 +181,31 @@ def train():
                 except Exception as e:
                     print(f"Error reloading data: {e}, continuing with existing data")
 
-            # Get batch
+            # Get batch with all 4 targets
             try:
-                x, y = dataC.getBatch(B, T, 'train', col)
+                x, targets = dataC.getBatchMulti(B, T, 'train')
                 x = x.to(device)
-                y = y.to(device)
+                # Move each target tensor to device
+                targets = {k: v.to(device) for k, v in targets.items()}
             except Exception as e:
                 print(f"Error getting batch: {e}")
                 continue
 
-            # Forward pass
+            # Forward pass with multi-target training
             optimizer.zero_grad(set_to_none=True)
 
             if use_amp:
                 with torch.amp.autocast('cuda', dtype=torch.bfloat16):
-                    logits, loss = model(x, y)
+                    logits, loss = model(x, targets)
                 scaler.scale(loss).backward()
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 scaler.step(optimizer)
                 scaler.update()
             else:
-                logits, loss = model(x, y)
+                logits, loss = model(x, targets)
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 optimizer.step()
 
             # Track loss

@@ -188,7 +188,7 @@ def make_prediction():
         x_test = x_test.to(device)
 
         with torch.no_grad():
-            predictions = model.generate_multi(x_test)
+            predictions = model.generate(x_test)
 
         lat_encoded = predictions['lat']
         lon_encoded = predictions['lon']
@@ -410,17 +410,22 @@ def check_and_handle_prediction():
         return None
 
 
-def refresh_data():
-    """Pull latest USGS data and export to CSV"""
+def refresh_data(full_refresh=False):
+    """Pull latest USGS data and export to CSV
+
+    Args:
+        full_refresh: If True, fetch 3 days. If False, only fetch last day (faster)
+    """
     global dataC
 
     try:
-        print(f"[{datetime.now()}] Refreshing USGS data...")
+        days = 3 if full_refresh else 1
+        print(f"[{datetime.now()}] Refreshing USGS data (last {days} day(s))...")
 
         if dataC is None:
             dataC = DataC()
 
-        dataC.usgs2DB()
+        dataC.usgs2DB(days=days)
         dataC.db2File(min_mag=3.9)
 
         # Reconnect after db2File closes connection
@@ -442,10 +447,10 @@ def refresh_data():
 
 def monitor_cycle():
     """
-    Main monitoring loop - runs every 30 seconds:
-    1. Refresh USGS data
+    Main monitoring loop - runs every 60 seconds:
+    1. Quick refresh USGS data (last day only, no CSV export)
     2. Check prediction status (match/expire/waiting)
-    3. Verify old predictions
+    3. Only export CSV if prediction needs to be made
     """
     global dataC
 
@@ -455,13 +460,23 @@ def monitor_cycle():
             # Check for new model checkpoint
             reload_if_new_checkpoint()
 
-            # Refresh earthquake data
-            refresh_data()
+            # Quick USGS data refresh (just update DB, skip CSV)
+            if dataC is None:
+                dataC = DataC()
+            dataC._ensure_connection()
+            dataC.usgs2DB(days=1)
 
             # Check and handle current prediction
             result = check_and_handle_prediction()
             if result:
-                print(f"[{datetime.now()}] Status: {result.get('action')} - {result}")
+                action = result.get('action')
+                print(f"[{datetime.now()}] Status: {action} - {result}")
+
+                # Only do full refresh + CSV export when making new prediction
+                if action in ['new_prediction', 'match_found', 'expired']:
+                    dataC.db2File(min_mag=3.9)
+                    dataC = DataC()
+                    dataC.getData()
 
             # Verify old predictions (>24 hours)
             auto_verify_predictions()
@@ -481,11 +496,11 @@ def start_scheduler():
 
     scheduler = BackgroundScheduler()
 
-    # Single monitoring job every 30 seconds
-    scheduler.add_job(func=monitor_cycle, trigger="interval", seconds=30, id='monitor_cycle')
+    # Single monitoring job every 60 seconds (gives enough time to complete)
+    scheduler.add_job(func=monitor_cycle, trigger="interval", seconds=60, id='monitor_cycle')
 
     scheduler.start()
-    print("Scheduler started: monitoring every 30 seconds")
+    print("Scheduler started: monitoring every 60 seconds")
 
     atexit.register(lambda: scheduler.shutdown())
 

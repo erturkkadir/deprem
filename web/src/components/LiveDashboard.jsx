@@ -327,6 +327,10 @@ function LiveDashboard() {
                           M{latest_prediction.predicted_mag?.toFixed(1)}
                         </span>
                       </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-zinc-500">Time Window</span>
+                        <span className="text-xl font-bold text-purple-500">{latest_prediction.predicted_dt || 60} min</span>
+                      </div>
                       <div className="pt-2 border-t border-zinc-700">
                         <div className="text-zinc-500 text-xs">Predicted at</div>
                         <div className="text-zinc-300 text-sm">{formatTimeUTC(parseUTC(latest_prediction.timestamp))}</div>

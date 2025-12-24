@@ -32,7 +32,7 @@ class ComplexEmbedding(nn.Module):
 
 class ComplexLayerNorm(nn.Module):
     """Layer normalization for complex values"""
-    def __init__(self, features, eps=1e-6):
+    def __init__(self, features, eps=1e-4):
         super().__init__()
         self.eps = eps
         self.gamma_real = nn.Parameter(torch.ones(features))
@@ -202,9 +202,11 @@ class ComplexFeedForward(nn.Module):
         # First layer with complex ReLU (modReLU)
         x_real, x_imag = self.linear1(x_real, x_imag)
         # modReLU activation: ReLU on magnitude, preserve phase
-        magnitude = torch.sqrt(x_real**2 + x_imag**2 + 1e-8)
-        phase_real = x_real / (magnitude + 1e-8)
-        phase_imag = x_imag / (magnitude + 1e-8)
+        # Use larger epsilon for bfloat16 stability
+        eps = 1e-4
+        magnitude = torch.sqrt(x_real**2 + x_imag**2 + eps)
+        phase_real = x_real / magnitude
+        phase_imag = x_imag / magnitude
         activated_mag = FN.relu(magnitude)
         x_real = activated_mag * phase_real
         x_imag = activated_mag * phase_imag
@@ -234,8 +236,8 @@ class ComplexHead(nn.Module):
         wei_real = q_real @ k_real.transpose(-2, -1) + q_imag @ k_imag.transpose(-2, -1)
         wei_imag = q_imag @ k_real.transpose(-2, -1) - q_real @ k_imag.transpose(-2, -1)
 
-        # Use magnitude for attention weights
-        wei_magnitude = torch.sqrt(wei_real**2 + wei_imag**2 + 1e-8) * (self.head_size ** -0.5)
+        # Use magnitude for attention weights (larger eps for bfloat16)
+        wei_magnitude = torch.sqrt(wei_real**2 + wei_imag**2 + 1e-4) * (self.head_size ** -0.5)
         wei_magnitude = wei_magnitude.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
         wei = FN.softmax(wei_magnitude, dim=-1)
         wei = self.dropout(wei)
@@ -378,15 +380,12 @@ class ComplexEqModel(nn.Module):
         self.blocks = nn.ModuleList([ComplexBlock(n_embed, n_heads, T, dropout) for _ in range(n_layer)])
         self.layer_norm = ComplexLayerNorm(n_embed)
 
-        # Output projection heads (from complex to real for classification)
-        # Four separate heads for latitude, longitude, time difference, and magnitude
+        # Output projection heads for 4-parameter prediction
         self.lat_head = nn.Linear(n_embed * 2, 181, bias=False)   # Latitude: 0-180
         self.lon_head = nn.Linear(n_embed * 2, 361, bias=False)   # Longitude: 0-360
         self.dt_head = nn.Linear(n_embed * 2, 151, bias=False)    # Time diff: 0-150 minutes
         self.mag_head = nn.Linear(n_embed * 2, 92, bias=False)    # Magnitude: 0-91 (mag*10)
 
-        # Keep legacy linear for backward compatibility with saved models
-        self.lm_linear = nn.Linear(n_embed * 2, p_max, bias=False)
         self.apply(self._init_weights)
         self.device = device
 
@@ -401,6 +400,13 @@ class ComplexEqModel(nn.Module):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, idx, targets=None):
+        """
+        Forward pass for 4-parameter prediction (lat, lon, dt, mag).
+
+        Args:
+            idx: Input tensor [B, T, 7] - sequence of earthquakes
+            targets: Dict {'lat': [B], 'lon': [B], 'dt': [B], 'mag': [B]}
+        """
         B, T, F = idx.shape
 
         # Complex embedding
@@ -418,37 +424,34 @@ class ComplexEqModel(nn.Module):
 
         # Combine real and imaginary parts for output
         x_combined = torch.cat([x_real, x_imag], dim=-1)
-        logits = self.lm_linear(x_combined)
+
+        # Compute all 4 heads
+        lat_logits = self.lat_head(x_combined)
+        lon_logits = self.lon_head(x_combined)
+        dt_logits = self.dt_head(x_combined)
+        mag_logits = self.mag_head(x_combined)
 
         if targets is None:
             loss = None
         else:
-            B, T, C = logits.shape
-            logits_flat = logits.view(B * T, C)
-            targets_flat = targets.view(B * T)
-            loss = FN.cross_entropy(logits_flat, targets_flat, ignore_index=0)
+            # 4-parameter training (no ignore_index - all values are valid)
+            lat_loss = FN.cross_entropy(lat_logits[:, -1, :], targets['lat'])
+            lon_loss = FN.cross_entropy(lon_logits[:, -1, :], targets['lon'])
+            dt_loss = FN.cross_entropy(dt_logits[:, -1, :], targets['dt'])
+            mag_loss = FN.cross_entropy(mag_logits[:, -1, :], targets['mag'])
+            loss = lat_loss + lon_loss + dt_loss + mag_loss
 
+        # Return logits dict for consistency
+        logits = {
+            'lat': lat_logits,
+            'lon': lon_logits,
+            'dt': dt_logits,
+            'mag': mag_logits
+        }
         return logits, loss
 
     @torch.no_grad()
     def generate(self, x_test):
-        """Generate predictions for latitude, longitude, and time difference"""
-        logits, _ = self(x_test)
-        logits = logits[:, -1, :]
-
-        has_nan = torch.isnan(logits).any()
-        has_inf = torch.isinf(logits).any()
-        if has_nan or has_inf:
-            logits = torch.nan_to_num(logits, nan=0.0, posinf=100.0, neginf=-100.0)
-
-        temperature = 1.0
-        logits = logits / temperature
-        probs = FN.softmax(logits, dim=-1)
-        idx_next = torch.multinomial(probs, num_samples=1)
-        return idx_next
-
-    @torch.no_grad()
-    def generate_multi(self, x_test):
         """Generate predictions for latitude, longitude, time difference, and magnitude
 
         Returns:

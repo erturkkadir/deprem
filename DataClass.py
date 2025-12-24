@@ -460,44 +460,60 @@ class DataC():
             return {'total_predictions': 0, 'verified_predictions': 0, 'correct_predictions': 0, 'success_rate': 0.0}
         
     def db2File(self, min_mag):
-        # Create fresh connection for export (avoids cursor state issues)
-        self._connect_db()
+        # Create completely fresh connection for export
+        try:
+            db = mysql.connector.connect(
+                host=config.DB_HOST,
+                user=config.DB_USER,
+                password=config.DB_PASS,
+                database=config.DB_NAME,
+                ssl_disabled=True
+            )
+            cursor = db.cursor()
 
-        sql = f"CALL get_data({min_mag})"
-        self.mycursor.execute(sql)
-        rows = self.mycursor.fetchall()
+            sql = f"CALL get_data({min_mag})"
+            cursor.execute(sql)
+            rows = cursor.fetchall()
 
-        # Consume any remaining results from stored procedure
-        while self.mycursor.nextset():
-            pass
+            cols = [i[0] for i in cursor.description] if cursor.description else []
 
-        cols = [i[0] for i in self.mycursor.description] if self.mycursor.description else []
+            # Consume any remaining results
+            try:
+                while cursor.nextset():
+                    pass
+            except:
+                pass
 
-        if rows and cols:
-            fp = open(self.fname, 'w')
-            myFile = csv.writer(fp, lineterminator = '\n')
-            myFile.writerow(cols)
-            myFile.writerows(rows)
-            fp.close()
-            print(f"Exported {len(rows)} records to CSV")
+            if rows and cols:
+                fp = open(self.fname, 'w')
+                myFile = csv.writer(fp, lineterminator='\n')
+                myFile.writerow(cols)
+                myFile.writerows(rows)
+                fp.close()
+                print(f"Exported {len(rows)} records to CSV")
 
-        self.mydb.close()
+            cursor.close()
+            db.close()
+
+        except Exception as e:
+            print(f"Error in db2File: {e}")
         
-    def usgs2DB(self):
+    def usgs2DB(self, days=1):
+        """Fetch USGS data. days=1 for quick updates, days=3 for full refresh"""
         self._ensure_connection()
         self.mycursor.execute("delete from usgs_tmp")
 
         min_magnitude = 2
         all_values = []
 
-        # Collect all data from USGS API first
-        for i in range(3, 0, -1):
+        # Collect data from USGS API
+        for i in range(days, 0, -1):
             start_time = f"now-{i}days"
             end_time = f"now-{(i-1)}days"
             path = f"https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime={start_time}&endtime={end_time}&minmagnitude={min_magnitude}"
 
             try:
-                response = requests.get(path, timeout=30)
+                response = requests.get(path, timeout=15)
                 dataset = response.json()
                 features = dataset['features']
                 print(f"Fetched {len(features)} earthquakes for day -{i}")
@@ -634,12 +650,12 @@ class DataC():
         return data
     
     def getBatch(self, B, T, split, col):
-        
-        if (len(self.data)<1):            
+
+        if (len(self.data)<1):
             self.getData()
 
         data_ = self.train if split=='train' else self.valid
-        
+
         dataT = torch.from_numpy(data_[:, col]) # latitude
         data_ = torch.from_numpy(data_)
 
@@ -658,6 +674,42 @@ class DataC():
         # y => B, T
 
         return x.long(), y.long()
+
+    def getBatchMulti(self, B, T, split):
+        """Get batch with all 4 targets for multi-target training.
+
+        Returns:
+            x: Input sequences [B, T, 7]
+            targets: Dict with 'lat', 'lon', 'dt', 'mag' tensors [B]
+                - lat: column 2 (latitude 0-180)
+                - lon: column 3 (longitude 0-360)
+                - mag: column 4 (magnitude 0-91)
+                - dt:  column 6 (time difference 0-150, clamped)
+        """
+        if len(self.data) < 1:
+            self.getData()
+
+        data_ = self.train if split == 'train' else self.valid
+        data_tensor = torch.from_numpy(data_)
+
+        ix = torch.randint(len(data_) - T - 1, (B,))
+
+        # x is the input sequence
+        x = torch.stack([data_tensor[i:i+T] for i in ix])
+
+        # Get next position (T+1) for all samples - this is what we predict
+        next_pos = torch.stack([data_tensor[i+T] for i in ix])
+
+        # Extract each target column from the next position
+        # Clamp values to valid model output ranges
+        targets = {
+            'lat': torch.clamp(next_pos[:, 2], 0, 180).long(),  # latitude (0-180)
+            'lon': torch.clamp(next_pos[:, 3], 0, 360).long(),  # longitude (0-360)
+            'mag': torch.clamp(next_pos[:, 4], 0, 91).long(),   # magnitude (0-91)
+            'dt':  torch.clamp(next_pos[:, 6], 0, 150).long(),  # time difference (0-150)
+        }
+
+        return x.long(), targets
         
 
     def getLast(self, B, T, split, col):
