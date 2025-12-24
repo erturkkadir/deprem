@@ -627,11 +627,12 @@ def predict():
 
 
 @app.route('/api/refresh', methods=['POST'])
-def refresh_data():
+def api_refresh_data():
     """Manually trigger USGS data refresh"""
     global dataC
 
     try:
+        dataC._ensure_connection()
         dataC.usgs2DB()
         return jsonify({
             'success': True,

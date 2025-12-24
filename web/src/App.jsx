@@ -20,11 +20,10 @@ function App() {
     dispatch(fetchLiveData());
     dispatch(fetchPredictions(20));
 
-    // Poll for earthquakes every 60 seconds (1 minute)
-    // This fetches latest earthquakes - prediction updates are handled by LiveDashboard
+    // Poll for live data every 10 seconds
     const earthquakeInterval = setInterval(() => {
       dispatch(fetchLiveData());
-    }, 60000);
+    }, 10000);
 
     // Poll stats & predictions table every 2 minutes
     const statsInterval = setInterval(() => {
