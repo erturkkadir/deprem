@@ -585,27 +585,145 @@ class DataC():
             self.mydb.commit()
             print("Done calculating dt")
         
-    def getData(self):
-        
+    def getData(self, from_db=True, min_mag=3.9):
+        """Load training data from database or CSV.
+
+        Args:
+            from_db: If True, load directly from database (faster, no CSV export needed)
+                     If False, load from CSV file
+            min_mag: Minimum magnitude filter (default 3.9)
+        """
+        if from_db:
+            return self.getDataFromDB(min_mag)
+
+        # Legacy: load from CSV
         df1 = pd.read_csv(self.fname)
         df1.fillna(0, inplace=True)
         self.data = np.array(df1.values)
-        n = int(self.n*len(self.data))
+        self._update_data_splits()
+        return self.data
+
+    def getDataFromDB(self, min_mag=3.9):
+        """Load training data directly from database using stored procedure.
+
+        This eliminates the need for CSV export, making data loading much faster.
+        Uses get_data_fast which reads pre-computed us_t values directly.
+        Columns returned: [year, month, x, y, m, d, t]
+        """
+        try:
+            # Use fresh connection for data loading
+            db = mysql.connector.connect(
+                host=config.DB_HOST,
+                user=config.DB_USER,
+                password=config.DB_PASS,
+                database=config.DB_NAME,
+                ssl_disabled=True
+            )
+            cursor = db.cursor()
+
+            # Call optimized stored procedure (uses pre-computed us_t)
+            cursor.execute(f"CALL get_data_fast({min_mag})")
+            rows = cursor.fetchall()
+
+            # Consume any remaining results
+            try:
+                while cursor.nextset():
+                    pass
+            except:
+                pass
+
+            cursor.close()
+            db.close()
+
+            if rows:
+                self.data = np.array(rows, dtype=np.float64)
+                self.data = np.nan_to_num(self.data, 0)
+                print(f"Loaded {len(self.data):,} records from database")
+                self._update_data_splits()
+            else:
+                print("No data returned from database")
+                self.data = np.array([])
+
+            return self.data
+
+        except Exception as e:
+            print(f"Error loading from DB: {e}")
+            import traceback
+            traceback.print_exc()
+            return np.array([])
+
+    def _update_data_splits(self):
+        """Update train/valid splits and max values from loaded data."""
+        n = int(self.n * len(self.data))
         self.train = self.data[:n]
         self.valid = self.data[n:]
-        # print(f"&& data size  {len(self.data ):,}")
-        # print(f"&& train size {len(self.train):,}")
-        # print(f"&& valid size {len(self.valid):,}")
-        
-        self.yr_max = self.data[:, 0].max() + 1  # year 0 to 54
-        self.mt_max = self.data[:, 1].max() + 1 
-        self.x_max  = self.data[:, 2].max() + 1 
-        self.y_max  = self.data[:, 3].max() + 1 
-        self.m_max  = self.data[:, 4].max() + 1 
-        self.d_max  = self.data[:, 5].max() + 1 
-        self.t_max  = self.data[:, 6].max() + 1 
-        
-        return self.data
+
+        self.yr_max = int(self.data[:, 0].max()) + 1  # year 0 to 54
+        self.mt_max = int(self.data[:, 1].max()) + 1
+        self.x_max  = int(self.data[:, 2].max()) + 1
+        self.y_max  = int(self.data[:, 3].max()) + 1
+        self.m_max  = int(self.data[:, 4].max()) + 1
+        self.d_max  = int(self.data[:, 5].max()) + 1
+        self.t_max  = int(self.data[:, 6].max()) + 1
+
+    def getDataHybrid(self, input_mag=2.0, target_mag=4.0):
+        """Load hybrid training data: ALL earthquakes >= input_mag as context,
+        but only earthquakes >= target_mag are valid training targets.
+
+        Args:
+            input_mag: Minimum magnitude for input sequences (default 2.0 for all context)
+            target_mag: Minimum magnitude for training targets (default 4.0 for M4+)
+
+        Returns:
+            data array with columns: [year, month, x, y, m, d, t, is_target]
+            is_target=1 for M4+ earthquakes, 0 for smaller ones
+        """
+        try:
+            db = mysql.connector.connect(
+                host=config.DB_HOST,
+                user=config.DB_USER,
+                password=config.DB_PASS,
+                database=config.DB_NAME,
+                ssl_disabled=True
+            )
+            cursor = db.cursor()
+
+            cursor.execute(f"CALL get_data_hybrid({input_mag}, {target_mag})")
+            rows = cursor.fetchall()
+
+            try:
+                while cursor.nextset():
+                    pass
+            except:
+                pass
+
+            cursor.close()
+            db.close()
+
+            if rows:
+                self.data = np.array(rows, dtype=np.float64)
+                self.data = np.nan_to_num(self.data, 0)
+
+                # Store target indices for efficient sampling
+                self.target_indices = np.where(self.data[:, 7] == 1)[0]
+                target_count = len(self.target_indices)
+
+                print(f"Loaded {len(self.data):,} records (M{input_mag}+)")
+                print(f"  Training targets (M{target_mag}+): {target_count:,} ({100*target_count/len(self.data):.1f}%)")
+
+                self._update_data_splits()
+            else:
+                print("No data returned from database")
+                self.data = np.array([])
+                self.target_indices = np.array([])
+
+            return self.data
+
+        except Exception as e:
+            print(f"Error loading hybrid data: {e}")
+            import traceback
+            traceback.print_exc()
+            return np.array([])
         
     def getSizes(self):
         if (len(self.data)<1):
@@ -710,33 +828,94 @@ class DataC():
         }
 
         return x.long(), targets
-        
+
+    def getBatchHybrid(self, B, T, split):
+        """Get batch for hybrid training: input has ALL earthquakes, targets are M4+ only.
+
+        This method requires getDataHybrid() to be called first.
+        Samples sequences where the target position is a M4+ earthquake.
+
+        Returns:
+            x: Input sequences [B, T, 7] - includes all earthquakes as context
+            targets: Dict with 'lat', 'lon', 'dt', 'mag' tensors [B] - only M4+ targets
+        """
+        if len(self.data) < 1 or not hasattr(self, 'target_indices'):
+            raise ValueError("Call getDataHybrid() first to load hybrid data")
+
+        # Get train/valid split
+        n_train = int(self.n * len(self.data))
+
+        if split == 'train':
+            # Target indices that are in training set and have enough context
+            valid_targets = self.target_indices[
+                (self.target_indices >= T) & (self.target_indices < n_train)
+            ]
+        else:
+            # Target indices that are in validation set
+            valid_targets = self.target_indices[
+                (self.target_indices >= n_train + T)
+            ]
+
+        if len(valid_targets) < B:
+            raise ValueError(f"Not enough M4+ targets in {split} set (need {B}, have {len(valid_targets)})")
+
+        # Sample B random M4+ target positions
+        sample_idx = torch.randint(len(valid_targets), (B,))
+        target_positions = valid_targets[sample_idx.numpy()]
+
+        # Ensure target_positions is always iterable
+        if not hasattr(target_positions, '__len__') or len(target_positions.shape) == 0:
+            target_positions = [target_positions.item()]
+
+        # Get input sequences (T positions before each target)
+        # Only use first 7 columns (exclude is_target column)
+        data_tensor = torch.from_numpy(self.data[:, :7])
+
+        x = torch.stack([data_tensor[int(pos)-T:int(pos)] for pos in target_positions])
+
+        # Get target values from the M4+ positions
+        next_pos = torch.stack([data_tensor[int(pos)] for pos in target_positions])
+
+        targets = {
+            'lat': torch.clamp(next_pos[:, 2], 0, 180).long(),
+            'lon': torch.clamp(next_pos[:, 3], 0, 360).long(),
+            'mag': torch.clamp(next_pos[:, 4], 0, 91).long(),
+            'dt':  torch.clamp(next_pos[:, 6], 0, 150).long(),
+        }
+
+        return x.long(), targets
 
     def getLast(self, B, T, split, col):
-        
-        if (len(self.data)<1):            
+        """Get the LAST sequence of T earthquakes for inference prediction.
+
+        Args:
+            B: Batch size (typically 1 for inference)
+            T: Sequence length
+            split: 'train' or 'val'
+            col: Column index for target (not used in hybrid mode)
+
+        Returns:
+            x: Last T earthquakes [B, T, 7]
+            y: Target values [B]
+        """
+        if len(self.data) < 1:
             self.getData()
 
-        data_ = self.train if split=='train' else self.valid
-                
-        data_ = torch.from_numpy(data_)
+        # Use all data for getting the latest context
+        # Only use first 7 columns (exclude is_target flag if present)
+        num_cols = min(7, self.data.shape[1])
+        data_ = torch.from_numpy(self.data[:, :num_cols])
 
-        ix = torch.randint(len(data_)-T, (B,))
-        
-        # ix = range(B)
-        # print(f"IX IX {ix}")
-    
+        # Get the LAST T records for prediction
+        start_idx = len(data_) - T
+        if start_idx < 0:
+            raise ValueError(f"Not enough data: have {len(data_)}, need {T}")
 
-        x = torch.stack([data_[i:i+T] for i in ix])
-        y = torch.stack([data_[i+T:i+T+1] for i in ix])
-        # print(f"INFERENCE X {x.shape} {y.shape}")
+        x = data_[start_idx:].unsqueeze(0)  # [1, T, 7]
 
+        # For y, return the last record's target column (used for reference only)
+        y = data_[-1, col].unsqueeze(0)  # [1]
 
-        y = y[-1, :, col]
-        # print(f"INFERENCE X {x.shape} {y.shape}")
-        # print(f"INFERENCE X {y}")
-        # print(f"{1/0}")
-        
         return x.long(), y.long()
     
 

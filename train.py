@@ -1,8 +1,9 @@
 """
-Standalone Training Script for Earthquake Prediction Model
+Earthquake Prediction Model - Hybrid Training Script
+- Uses M2+ input context, M4+ targets
 - Runs continuously
-- Saves checkpoint every 200 iterations
-- Pulls data from database via DataClass
+- Prints loss every 2000 steps
+- Saves checkpoint every 5000 steps
 """
 import os
 import glob
@@ -14,23 +15,22 @@ from EqModel import ComplexEqModel
 # ============= CONFIGURATION =============
 MODEL_DIR = '/var/www/syshuman/quake'
 MODEL_PREFIX = 'eqModel_complex'
-CHECKPOINT_INTERVAL = 200   # Save every N iterations
+PRINT_INTERVAL = 200       # Print loss every N iterations
+CHECKPOINT_INTERVAL = 500  # Save every N iterations
 KEEP_CHECKPOINTS = 5       # Keep last N checkpoints
 
 # Model hyperparameters
-B = 1              # Batch size
-T = 1024           # Sequence length
-C = 1190           # Embedding size
-n_embed = C
+B = 4              # Batch size
+T = 512            # Sequence length
+n_embed = 1176     # Embedding size (divisible by 7 features and 8 heads)
 n_heads = 8
 n_layer = 8
 dropout = 0.01
-p_max = 180        # Legacy prediction classes (for backward compat)
-# Multi-target training: we train lat, lon, dt, mag heads simultaneously
 
 # Training hyperparameters
-LEARNING_RATE = 1e-4
-RELOAD_DATA_EVERY = 1000  # Reload fresh data from DB every N iterations
+LEARNING_RATE = 3e-4
+INPUT_MAG = 2.0    # Min magnitude for input context
+TARGET_MAG = 4.0   # Min magnitude for targets
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -44,11 +44,6 @@ def get_latest_checkpoint():
         checkpoints.sort(key=os.path.getmtime, reverse=True)
         return checkpoints[0]
 
-    # Fallback to legacy path
-    legacy = f'{MODEL_DIR}/{MODEL_PREFIX}.pth'
-    if os.path.exists(legacy):
-        return legacy
-
     return None
 
 
@@ -57,23 +52,11 @@ def save_checkpoint(model, iteration, loss):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     checkpoint_path = f'{MODEL_DIR}/{MODEL_PREFIX}_{timestamp}.pth'
 
-    # Handle torch.compile() wrapped models
-    if hasattr(model, '_orig_mod'):
-        state_dict = model._orig_mod.state_dict()
-    else:
-        state_dict = model.state_dict()
+    torch.save(model.state_dict(), checkpoint_path)
 
-    # Clean state dict keys
-    clean_state_dict = {}
-    for key, value in state_dict.items():
-        new_key = key.replace('_orig_mod.', '')
-        clean_state_dict[new_key] = value
-
-    torch.save(clean_state_dict, checkpoint_path)
-
-    # Also save to legacy path
-    legacy_path = f'{MODEL_DIR}/{MODEL_PREFIX}.pth'
-    torch.save(clean_state_dict, legacy_path)
+    # Also save to standard path for server
+    standard_path = f'{MODEL_DIR}/{MODEL_PREFIX}.pth'
+    torch.save(model.state_dict(), standard_path)
 
     print(f"[{datetime.now()}] Checkpoint saved: {checkpoint_path} (iter={iteration}, loss={loss:.4f})")
 
@@ -93,144 +76,107 @@ def cleanup_old_checkpoints():
         for old_checkpoint in checkpoints[KEEP_CHECKPOINTS:]:
             try:
                 os.remove(old_checkpoint)
-                print(f"Removed old checkpoint: {old_checkpoint}")
-            except Exception as e:
-                print(f"Error removing checkpoint: {e}")
+            except:
+                pass
 
 
 def load_data():
-    """Load fresh data from database"""
-    print(f"[{datetime.now()}] Loading data from database...")
+    """Load hybrid data from database"""
+    print(f"[{datetime.now()}] Loading hybrid data (M{INPUT_MAG}+ input, M{TARGET_MAG}+ targets)...")
     dataC = DataC()
-    dataC.getData()
+    dataC.getDataHybrid(input_mag=INPUT_MAG, target_mag=TARGET_MAG)
     sizes = dataC.getSizes()
-    print(f"Data loaded: {len(dataC.train):,} train, {len(dataC.valid):,} valid samples")
     return dataC, sizes
 
 
-def load_model(sizes):
-    """Initialize or load model from checkpoint"""
-    print(f"[{datetime.now()}] Initializing model...")
-
-    model = ComplexEqModel(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max)
-    model.to(device)
-
-    checkpoint_path = get_latest_checkpoint()
-
-    if checkpoint_path:
-        print(f"Loading weights from: {checkpoint_path}")
-        state_dict = torch.load(checkpoint_path, map_location=device, weights_only=True)
-
-        # Clean keys
-        new_state_dict = {}
-        for key, value in state_dict.items():
-            new_key = key.replace('_orig_mod.', '')
-            new_state_dict[new_key] = value
-
-        missing, unexpected = model.load_state_dict(new_state_dict, strict=False)
-        if missing:
-            print(f"Missing keys: {missing}")
-        if unexpected:
-            print(f"Unexpected keys: {unexpected}")
-    else:
-        print("No checkpoint found, starting from scratch")
-
-    return model
-
-
 def train():
-    """Main training loop - runs forever"""
+    """Main training loop"""
     print("=" * 60)
-    print("EARTHQUAKE PREDICTION - MULTI-TARGET TRAINING")
+    print("EARTHQUAKE PREDICTION - HYBRID TRAINING")
     print("=" * 60)
     print(f"Device: {device}")
-    print(f"Training: lat, lon, dt, mag heads simultaneously")
-    print(f"Checkpoint interval: every {CHECKPOINT_INTERVAL} iterations")
+    print(f"Input: M{INPUT_MAG}+  |  Targets: M{TARGET_MAG}+")
+    print(f"Batch: {B}  |  Seq len: {T}  |  Embed: {n_embed}")
+    print(f"Print every: {PRINT_INTERVAL}  |  Save every: {CHECKPOINT_INTERVAL}")
     print(f"Learning rate: {LEARNING_RATE}")
-    print(f"Batch size: {B}, Sequence length: {T}")
     print("=" * 60)
 
-    # Initial data load
+    # Load data
     dataC, sizes = load_data()
 
-    # Load or initialize model
-    model = load_model(sizes)
+    # Create model
+    print(f"\n[{datetime.now()}] Creating model...")
+    model = ComplexEqModel(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max=181)
+    model.to(device)
+
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"Model parameters: {total_params:,}")
+
+    # Load checkpoint if exists
+    checkpoint_path = get_latest_checkpoint()
+    if checkpoint_path:
+        print(f"Resuming from: {checkpoint_path}")
+        state_dict = torch.load(checkpoint_path, map_location=device, weights_only=True)
+        model.load_state_dict(state_dict, strict=False)
+    else:
+        print("Starting from scratch")
+
     model.train()
 
     # Optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
 
-    # Use mixed precision if on CUDA
-    use_amp = device == "cuda"
-    scaler = torch.amp.GradScaler('cuda') if use_amp else None
-
     iteration = 0
     running_loss = 0.0
-    loss_count = 0
+    best_loss = float('inf')
 
-    print(f"\n[{datetime.now()}] Starting training loop...\n")
+    print(f"\n[{datetime.now()}] Training started...\n")
 
     try:
-        while True:  # Run forever
+        while True:
             iteration += 1
 
-            # Reload data periodically
-            if iteration % RELOAD_DATA_EVERY == 0:
-                try:
-                    dataC, sizes = load_data()
-                except Exception as e:
-                    print(f"Error reloading data: {e}, continuing with existing data")
-
-            # Get batch with all 4 targets
+            # Get batch
             try:
-                x, targets = dataC.getBatchMulti(B, T, 'train')
+                x, targets = dataC.getBatchHybrid(B, T, 'train')
                 x = x.to(device)
-                # Move each target tensor to device
                 targets = {k: v.to(device) for k, v in targets.items()}
             except Exception as e:
-                print(f"Error getting batch: {e}")
+                print(f"Batch error: {e}")
                 continue
 
-            # Forward pass with multi-target training
+            # Forward pass (no autocast - complex tensors don't support bfloat16)
             optimizer.zero_grad(set_to_none=True)
+            logits, loss = model(x, targets)
 
-            if use_amp:
-                with torch.amp.autocast('cuda', dtype=torch.bfloat16):
-                    logits, loss = model(x, targets)
-                scaler.scale(loss).backward()
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                logits, loss = model(x, targets)
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                optimizer.step()
+            # Backward pass
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
 
-            # Track loss
             running_loss += loss.item()
-            loss_count += 1
 
-            # Log progress
-            if iteration % 50 == 0:
-                avg_loss = running_loss / loss_count
-                print(f"[{datetime.now()}] Iter {iteration:,}: loss = {avg_loss:.4f}")
+            # Print progress
+            if iteration % PRINT_INTERVAL == 0:
+                avg_loss = running_loss / PRINT_INTERVAL
+                print(f"step {iteration:6d} | loss {avg_loss:.4f}")
+
+                if avg_loss < best_loss:
+                    best_loss = avg_loss
+                    print(f"  -> New best loss!")
+
+                running_loss = 0.0
 
             # Save checkpoint
             if iteration % CHECKPOINT_INTERVAL == 0:
-                avg_loss = running_loss / loss_count
                 save_checkpoint(model, iteration, avg_loss)
-                running_loss = 0.0
-                loss_count = 0
 
     except KeyboardInterrupt:
-        print(f"\n[{datetime.now()}] Training interrupted by user")
-        # Save final checkpoint
-        if loss_count > 0:
-            avg_loss = running_loss / loss_count
+        print(f"\n[{datetime.now()}] Interrupted by user")
+        if running_loss > 0:
+            avg_loss = running_loss / (iteration % PRINT_INTERVAL or 1)
             save_checkpoint(model, iteration, avg_loss)
-        print("Final checkpoint saved. Exiting.")
+        print("Checkpoint saved. Exiting.")
 
 
 if __name__ == '__main__':

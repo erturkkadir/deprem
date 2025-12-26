@@ -1,0 +1,54 @@
+nohup: ignoring input
+============================================================
+EARTHQUAKE PREDICTION SERVER
+============================================================
+Device: cpu
+Model: n_embed=1176, T=512, heads=8, layers=8
+Hybrid: M2.0+ input, M4.0+ targets
+
+Loading hybrid data...
+Loaded 1,480,835 records (M2.0+)
+  Training targets (M4.0+): 518,878 (35.0%)
+
+Loading model...
+[2025-12-26 00:09:31.740322] Loading model...
+Loaded 1,480,835 records (M2.0+)
+  Training targets (M4.0+): 518,878 (35.0%)
+[2025-12-26 00:10:44.879962] Loaded checkpoint: eqModel_complex_20251225_235953.pth
+
+Checking for active prediction...
+Active prediction found: #106 (58.6 minutes remaining)
+
+Starting scheduler...
+Scheduler started: monitoring every 60 seconds
+============================================================
+Server ready! Monitoring every 30 seconds.
+============================================================
+Server starting on http://0.0.0.0:3000
+ * Serving Flask app 'server'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:3000
+ * Running on http://192.168.1.177:3000
+[33mPress CTRL+C to quit[0m
+45.43.154.230 - - [26/Dec/2025 00:10:45] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:10:55] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:11:05] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:11:15] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:11:25] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:11:35] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:11:45] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:11:55] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:11:55] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:11:55] "GET /api/predictions HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:12:05] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:12:15] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:12:25] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:12:35] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:12:45] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:12:55] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:13:05] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:13:15] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:13:25] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [26/Dec/2025 00:13:35] "GET /api/live HTTP/1.1" 200 -

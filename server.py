@@ -73,18 +73,19 @@ def reverse_geocode(lat, lon):
 app = Flask(__name__, static_folder='web/dist')
 CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
 
-# Model configuration
+# Model configuration - must match train.py
 # Use CPU for server (training uses GPU)
 device = "cpu"
 col = 2  # Latitude prediction
-p_max = 180
+p_max = 181
 B = 1
-T = 1024
-C = 1190
-n_embed = C
+T = 512           # Sequence length (must match training)
+n_embed = 1176    # Embedding size (must match training, divisible by 8 heads)
 n_heads = 8
 n_layer = 8
 dropout = 0.01
+INPUT_MAG = 2.0   # Min magnitude for input context
+TARGET_MAG = 4.0  # Min magnitude for targets
 
 # Global state
 model = None
@@ -132,7 +133,7 @@ def load_model(force_reload=False):
     print(f"[{datetime.now()}] Loading model...")
 
     dataC = DataC()
-    dataC.getData()
+    dataC.getDataHybrid(input_mag=INPUT_MAG, target_mag=TARGET_MAG)
     sizes = dataC.getSizes()
 
     model = ComplexEqModel(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max)
@@ -180,8 +181,8 @@ def make_prediction():
         return None
 
     try:
-        # Reload data to get latest earthquakes
-        dataC.getData()
+        # Reload data to get latest earthquakes (hybrid: M2+ input, M4+ targets)
+        dataC.getDataHybrid(input_mag=INPUT_MAG, target_mag=TARGET_MAG)
 
         # Get last sequence from data
         x_test, y_actual = dataC.getLast(1, T, 'val', col=col)
@@ -343,6 +344,8 @@ def check_and_handle_prediction():
                 us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = quake
 
                 # Calculate circular distance
+                # pr_lat/lon are actual coords (-90 to 90, -180 to 180)
+                # us_x/y are encoded (0-180, 0-360), so convert pr to encoded
                 lat_diff = abs((pr_lat + 90) - us_x)
                 lon_diff = abs((pr_lon + 180) - us_y)
                 lon_diff = min(lon_diff, 360 - lon_diff)
@@ -411,7 +414,7 @@ def check_and_handle_prediction():
 
 
 def refresh_data(full_refresh=False):
-    """Pull latest USGS data and export to CSV
+    """Pull latest USGS data and reload hybrid data
 
     Args:
         full_refresh: If True, fetch 3 days. If False, only fetch last day (faster)
@@ -426,11 +429,10 @@ def refresh_data(full_refresh=False):
             dataC = DataC()
 
         dataC.usgs2DB(days=days)
-        dataC.db2File(min_mag=3.9)
 
-        # Reconnect after db2File closes connection
+        # Reload hybrid data
         dataC = DataC()
-        dataC.getData()
+        dataC.getDataHybrid(input_mag=INPUT_MAG, target_mag=TARGET_MAG)
 
         print(f"[{datetime.now()}] Data refresh complete")
         return True
@@ -439,7 +441,7 @@ def refresh_data(full_refresh=False):
         print(f"Error refreshing data: {e}")
         try:
             dataC = DataC()
-            dataC.getData()
+            dataC.getDataHybrid(input_mag=INPUT_MAG, target_mag=TARGET_MAG)
         except:
             pass
         return False
@@ -448,9 +450,8 @@ def refresh_data(full_refresh=False):
 def monitor_cycle():
     """
     Main monitoring loop - runs every 60 seconds:
-    1. Quick refresh USGS data (last day only, no CSV export)
+    1. Quick refresh USGS data (last day only)
     2. Check prediction status (match/expire/waiting)
-    3. Only export CSV if prediction needs to be made
     """
     global dataC
 
@@ -460,7 +461,7 @@ def monitor_cycle():
             # Check for new model checkpoint
             reload_if_new_checkpoint()
 
-            # Quick USGS data refresh (just update DB, skip CSV)
+            # Quick USGS data refresh (just update DB)
             if dataC is None:
                 dataC = DataC()
             dataC._ensure_connection()
@@ -472,12 +473,6 @@ def monitor_cycle():
                 action = result.get('action')
                 print(f"[{datetime.now()}] Status: {action} - {result}")
 
-                # Only do full refresh + CSV export when making new prediction
-                if action in ['new_prediction', 'match_found', 'expired']:
-                    dataC.db2File(min_mag=3.9)
-                    dataC = DataC()
-                    dataC.getData()
-
             # Verify old predictions (>24 hours)
             auto_verify_predictions()
 
@@ -485,7 +480,7 @@ def monitor_cycle():
             print(f"Error in monitor cycle: {e}")
             try:
                 dataC = DataC()
-                dataC.getData()
+                dataC.getDataHybrid(input_mag=INPUT_MAG, target_mag=TARGET_MAG)
             except:
                 pass
 
@@ -549,6 +544,7 @@ def get_live_data():
                 for eq in recent_earthquakes:
                     eq_lat = eq.get('lat')
                     eq_lon = eq.get('lon')
+                    eq_mag = eq.get('mag') or 0
 
                     if eq_lat is not None and eq_lon is not None:
                         lat_diff = abs(pr_lat - eq_lat)
@@ -557,16 +553,18 @@ def get_live_data():
                         distance = math.sqrt(lat_diff ** 2 + lon_diff ** 2)
 
                         eq['distance'] = round(distance, 1)
-                        eq['is_match'] = distance <= DISTANCE_RADIUS
+                        # Only M4+ earthquakes can be matches
+                        eq['is_match'] = distance <= DISTANCE_RADIUS and eq_mag >= MIN_MAG_DISPLAY
 
-                        if distance < min_distance:
+                        # Track closest M4+ earthquake
+                        if eq_mag >= MIN_MAG_DISPLAY and distance < min_distance:
                             min_distance = distance
                             closest_match = {
                                 'earthquake_id': eq.get('id'),
                                 'distance': round(distance, 1),
                                 'is_match': distance <= DISTANCE_RADIUS,
                                 'place': eq.get('place'),
-                                'mag': eq.get('mag')
+                                'mag': eq_mag
                             }
 
                 if closest_match and closest_match['is_match']:
@@ -827,11 +825,13 @@ def init_app():
     print("EARTHQUAKE PREDICTION SERVER")
     print("=" * 60)
     print(f"Device: {device}")
+    print(f"Model: n_embed={n_embed}, T={T}, heads={n_heads}, layers={n_layer}")
+    print(f"Hybrid: M{INPUT_MAG}+ input, M{TARGET_MAG}+ targets")
 
     # Load data and model
-    print("\nLoading data...")
+    print("\nLoading hybrid data...")
     dataC = DataC()
-    dataC.getData()
+    dataC.getDataHybrid(input_mag=INPUT_MAG, target_mag=TARGET_MAG)
 
     print("\nLoading model...")
     load_model()
@@ -843,7 +843,17 @@ def init_app():
         print("No active prediction found, creating initial prediction...")
         make_prediction()
     else:
-        print(f"Active prediction found: #{latest['id']}")
+        # Check if the existing prediction has expired
+        pr_timestamp = datetime.fromisoformat(latest['timestamp'])
+        pr_dt = latest.get('predicted_dt') or 60
+        expected_event_time = pr_timestamp + timedelta(minutes=pr_dt)
+
+        if datetime.now() > expected_event_time:
+            print(f"Active prediction #{latest['id']} has expired, creating new prediction...")
+            make_prediction()
+        else:
+            remaining = (expected_event_time - datetime.now()).total_seconds() / 60
+            print(f"Active prediction found: #{latest['id']} ({remaining:.1f} minutes remaining)")
 
     print("\nStarting scheduler...")
     start_scheduler()
