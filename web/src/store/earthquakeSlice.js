@@ -112,6 +112,8 @@ const initialState = {
     device: 'unknown',
     modelType: 'unknown',
     config: {},
+    currentCheckpoint: null,
+    checkpointTime: null,
   },
 
   // Statistics
@@ -181,7 +183,7 @@ const earthquakeSlice = createSlice({
           device: action.payload.device,
           modelType: action.payload.model_type,
           config: action.payload.config,
-          latestCheckpoint: action.payload.latest_checkpoint,
+          currentCheckpoint: action.payload.current_checkpoint,
           checkpointTime: action.payload.checkpoint_time,
         };
         state.isConnected = true;

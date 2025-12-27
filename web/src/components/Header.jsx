@@ -33,11 +33,24 @@ export default function Header() {
 
             {/* Model Status */}
             {modelStatus.loaded && (
-              <div className="hidden md:flex items-center gap-2 bg-zinc-800 px-3 py-1.5 rounded-full">
-                <span className="text-xs text-zinc-400">Model:</span>
-                <span className="text-xs text-orange-400 font-semibold">
-                  {modelStatus.device?.toUpperCase()}
-                </span>
+              <div className="hidden md:flex items-center gap-3 bg-zinc-800 px-3 py-1.5 rounded-lg">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                  <span className="text-xs text-green-400 font-medium">
+                    {modelStatus.device?.toUpperCase()}
+                  </span>
+                </div>
+                {modelStatus.currentCheckpoint && (
+                  <>
+                    <div className="w-px h-4 bg-zinc-600"></div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-zinc-500 uppercase tracking-wide">Checkpoint</span>
+                      <span className="text-xs text-orange-400 font-mono">
+                        {modelStatus.currentCheckpoint.replace('eqModel_complex_', '').replace('.pth', '')}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>

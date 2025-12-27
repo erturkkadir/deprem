@@ -181,8 +181,9 @@ def make_prediction():
         return None
 
     try:
-        # Reload data to get latest earthquakes (hybrid: M2+ input, M4+ targets)
-        dataC.getDataHybrid(input_mag=INPUT_MAG, target_mag=TARGET_MAG)
+        # Note: We don't reload all 1.5M records here anymore - too slow!
+        # Data is loaded at startup and usgs2DB updates the DB.
+        # The dataC already has sufficient data for predictions.
 
         # Get last sequence from data
         x_test, y_actual = dataC.getLast(1, T, 'val', col=col)
@@ -491,11 +492,11 @@ def start_scheduler():
 
     scheduler = BackgroundScheduler()
 
-    # Single monitoring job every 60 seconds (gives enough time to complete)
-    scheduler.add_job(func=monitor_cycle, trigger="interval", seconds=60, id='monitor_cycle')
+    # Single monitoring job every 120 seconds (safer interval)
+    scheduler.add_job(func=monitor_cycle, trigger="interval", seconds=120, id='monitor_cycle')
 
     scheduler.start()
-    print("Scheduler started: monitoring every 60 seconds")
+    print("Scheduler started: monitoring every 120 seconds")
 
     atexit.register(lambda: scheduler.shutdown())
 
@@ -713,14 +714,14 @@ def model_status():
     global current_checkpoint
 
     checkpoint_time = None
-    if current_checkpoint:
+    checkpoint_exists = current_checkpoint and os.path.exists(current_checkpoint)
+    if checkpoint_exists:
         checkpoint_time = datetime.fromtimestamp(os.path.getmtime(current_checkpoint)).isoformat()
-
     return jsonify({
         'loaded': model is not None,
         'device': device,
         'model_type': 'ComplexEqModel',
-        'current_checkpoint': os.path.basename(current_checkpoint) if current_checkpoint else None,
+        'current_checkpoint': os.path.basename(current_checkpoint) if checkpoint_exists else None,
         'checkpoint_time': checkpoint_time,
         'config': {
             'sequence_length': T,

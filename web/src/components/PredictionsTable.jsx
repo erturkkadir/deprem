@@ -1,4 +1,39 @@
+import { useState } from 'react';
 import { useSelector } from 'react-redux';
+
+const FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'matched', label: 'Matched' },
+  { key: 'missed', label: 'Missed' },
+];
+
+function getStatus(pred) {
+  if (!pred.verified) return 'pending';
+  return pred.correct ? 'matched' : 'missed';
+}
+
+function FilterButton({ active, label, count, onClick, colorClass }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+        active
+          ? `${colorClass} ring-1 ring-current`
+          : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+      }`}
+    >
+      {label}
+      {count !== undefined && (
+        <span className={`ml-1.5 px-1.5 py-0.5 rounded text-xs ${
+          active ? 'bg-black/20' : 'bg-zinc-700'
+        }`}>
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
 
 function StatusBadge({ verified, correct }) {
   if (!verified) {
@@ -88,8 +123,29 @@ function ParamCompare({ label, predicted, actual, diff, unit, tolerance, colorCl
 
 export default function PredictionsTable() {
   const { predictions } = useSelector((state) => state.earthquake);
+  const [filter, setFilter] = useState('all');
 
   const sortedPredictions = [...predictions].reverse();
+
+  // Count by status
+  const counts = {
+    all: sortedPredictions.length,
+    pending: sortedPredictions.filter(p => getStatus(p) === 'pending').length,
+    matched: sortedPredictions.filter(p => getStatus(p) === 'matched').length,
+    missed: sortedPredictions.filter(p => getStatus(p) === 'missed').length,
+  };
+
+  // Filter predictions
+  const filteredPredictions = filter === 'all'
+    ? sortedPredictions
+    : sortedPredictions.filter(p => getStatus(p) === filter);
+
+  const filterColors = {
+    all: 'bg-orange-900/30 text-orange-400',
+    pending: 'bg-yellow-900/30 text-yellow-400',
+    matched: 'bg-green-900/30 text-green-400',
+    missed: 'bg-red-900/30 text-red-400',
+  };
 
   const formatTime = (timeStr) => {
     if (!timeStr) return '—';
@@ -110,20 +166,34 @@ export default function PredictionsTable() {
   return (
     <section className="py-8">
       <div className="max-w-7xl mx-auto px-4">
-        <h2 className="text-2xl font-bold text-orange-500 mb-6">
-          Recent Predictions
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <h2 className="text-2xl font-bold text-orange-500">
+            Recent Predictions
+          </h2>
+          <div className="flex gap-2">
+            {FILTERS.map(f => (
+              <FilterButton
+                key={f.key}
+                active={filter === f.key}
+                label={f.label}
+                count={counts[f.key]}
+                onClick={() => setFilter(f.key)}
+                colorClass={filterColors[f.key]}
+              />
+            ))}
+          </div>
+        </div>
 
-        {sortedPredictions.length === 0 ? (
+        {filteredPredictions.length === 0 ? (
           <div className="card text-center py-12 text-zinc-500">
             <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
-            <p>No predictions yet</p>
+            <p>{filter === 'all' ? 'No predictions yet' : `No ${filter} predictions`}</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {sortedPredictions.map((pred, index) => (
+            {filteredPredictions.map((pred, index) => (
               <div
                 key={pred.id}
                 className={`card p-4 ${index === 0 ? 'ring-2 ring-orange-500/50' : ''}`}
