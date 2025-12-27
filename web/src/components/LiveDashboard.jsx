@@ -75,12 +75,28 @@ function LiveDashboard() {
     return { expired: false, text, progress, seconds: totalSeconds };
   }, [expectedEventTime, currentTime, latest_prediction?.predicted_dt]);
 
-  // Filter earthquakes by magnitude (distance already calculated by backend)
+  // Filter earthquakes by magnitude and prediction window
   const earthquakesWithDistance = useMemo(() => {
     if (!recent_earthquakes) return [];
 
+    // Get prediction window times
+    const predStartTime = latest_prediction?.timestamp ? parseUTC(latest_prediction.timestamp) : null;
+    const predEndTime = expectedEventTime;
+
     return recent_earthquakes
-      .filter(eq => eq.mag >= minMagFilter)
+      .filter(eq => {
+        // Filter by magnitude
+        if (eq.mag < minMagFilter) return false;
+
+        // Filter by prediction window (only show earthquakes within the window)
+        if (predStartTime && predEndTime) {
+          const eqTime = parseUTC(eq.time);
+          if (!eqTime) return false;
+          // Show earthquakes that occurred between prediction time and expiration
+          return eqTime >= predStartTime && eqTime <= predEndTime;
+        }
+        return false; // No prediction, show nothing
+      })
       .map(eq => ({
         ...eq,
         // Use API-provided values, with fallbacks
@@ -88,7 +104,7 @@ function LiveDashboard() {
         isMatch: eq.is_match ?? false
       }))
       .sort((a, b) => new Date(b.time) - new Date(a.time));
-  }, [recent_earthquakes, minMagFilter]);
+  }, [recent_earthquakes, minMagFilter, latest_prediction?.timestamp, expectedEventTime]);
 
   // Get row background color based on magnitude
   const getMagRowColor = (mag, isMatch) => {
@@ -105,11 +121,7 @@ function LiveDashboard() {
   const bestMatch = match_info?.is_match ? earthquakesWithDistance.find(eq => eq.id === match_info.earthquake_id) : null;
   const closestEq = closest_match ? earthquakesWithDistance.find(eq => eq.id === closest_match.earthquake_id) : earthquakesWithDistance[0];
 
-  // Format functions
-  const formatTimeUTC = (date) => date?.toLocaleString('en-US', {
-    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'UTC'
-  }) + ' UTC';
-
+  // Format functions - all times shown in local timezone
   const formatTimeLocal = (date) => date?.toLocaleString('en-US', {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit'
   });
@@ -191,10 +203,6 @@ function LiveDashboard() {
               Real-time earthquake prediction tracking • Updates every minute
             </p>
           </div>
-          <div className="text-right">
-            <div className="text-zinc-500 text-xs">Current Time (UTC)</div>
-            <div className="text-white font-mono">{formatTimeUTC(currentTime)}</div>
-          </div>
         </div>
 
         {/* Main Grid */}
@@ -260,14 +268,29 @@ function LiveDashboard() {
                 {/* Countdown & Stats Grid */}
                 <div className="grid md:grid-cols-2 gap-4">
                   {/* Countdown Timer */}
-                  <div className="card p-6 flex items-center justify-center">
+                  <div className="card p-6">
                     <div className="text-center">
-                      <CircularProgress progress={countdownInfo?.progress || 0} size={140}>
+                      {/* Prediction Window Header */}
+                      <div className="mb-4 pb-3 border-b border-zinc-700">
+                        <div className="text-zinc-400 text-xs uppercase tracking-wide mb-1">Prediction Window</div>
+                        <div className="flex items-center justify-center gap-2 text-sm">
+                          <span className="text-green-400 font-mono">
+                            {latest_prediction.timestamp ? formatTimeLocal(parseUTC(latest_prediction.timestamp)) : 'N/A'}
+                          </span>
+                          <span className="text-zinc-500">→</span>
+                          <span className="text-red-400 font-mono">
+                            {expectedEventTime ? formatTimeLocal(expectedEventTime) : 'N/A'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Countdown Circle */}
+                      <CircularProgress progress={countdownInfo?.progress || 0} size={120}>
                         <div className="text-center">
                           {countdownInfo?.expired ? (
                             isPredicting ? (
                               <div className="text-orange-400">
-                                <svg className="w-8 h-8 mx-auto animate-spin" fill="none" viewBox="0 0 24 24">
+                                <svg className="w-6 h-6 mx-auto animate-spin" fill="none" viewBox="0 0 24 24">
                                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                 </svg>
@@ -275,33 +298,30 @@ function LiveDashboard() {
                               </div>
                             ) : (
                               <div className="text-zinc-400">
-                                <svg className="w-8 h-8 mx-auto" fill="currentColor" viewBox="0 0 20 20">
+                                <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 20 20">
                                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                                 </svg>
-                                <div className="text-xs mt-1">Refreshing...</div>
+                                <div className="text-xs mt-1">Expired</div>
                               </div>
                             )
                           ) : (
                             <>
-                              <div className={`text-2xl font-bold font-mono ${
+                              <div className={`text-xl font-bold font-mono ${
                                 countdownInfo?.progress > 80 ? 'text-red-400' :
                                 countdownInfo?.progress > 60 ? 'text-yellow-400' : 'text-green-400'
                               }`}>
                                 {countdownInfo?.text}
                               </div>
-                              <div className="text-zinc-500 text-xs">remaining</div>
+                              <div className="text-zinc-500 text-[10px]">remaining</div>
                             </>
                           )}
                         </div>
                       </CircularProgress>
-                      <div className="mt-4 space-y-1">
-                        <div className="text-zinc-400 text-xs">Expected Event</div>
-                        <div className="text-white text-sm font-medium">
-                          {expectedEventTime ? formatTimeUTC(expectedEventTime) : 'N/A'}
-                        </div>
-                        <div className="text-zinc-500 text-xs">
-                          Local: {expectedEventTime ? formatTimeLocal(expectedEventTime) : 'N/A'}
-                        </div>
+
+                      {/* Current Time */}
+                      <div className="mt-3 pt-3 border-t border-zinc-700">
+                        <div className="text-zinc-500 text-xs">Current Time</div>
+                        <div className="text-white text-sm font-mono">{formatTimeLocal(currentTime)}</div>
                       </div>
                     </div>
                   </div>
@@ -333,7 +353,7 @@ function LiveDashboard() {
                       </div>
                       <div className="pt-2 border-t border-zinc-700">
                         <div className="text-zinc-500 text-xs">Predicted at</div>
-                        <div className="text-zinc-300 text-sm">{formatTimeUTC(parseUTC(latest_prediction.timestamp))}</div>
+                        <div className="text-zinc-300 text-sm">{formatTimeLocal(parseUTC(latest_prediction.timestamp))}</div>
                       </div>
                     </div>
                   </div>
@@ -440,27 +460,42 @@ function LiveDashboard() {
             )}
           </div>
 
-          {/* Right: Recent Earthquakes */}
+          {/* Right: Earthquakes in Prediction Window */}
           <div className="card p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                Recent Quakes
-              </h3>
-              <select
-                value={minMagFilter}
-                onChange={(e) => setMinMagFilter(Number(e.target.value))}
-                className="bg-zinc-800 text-zinc-300 text-xs px-2 py-1 rounded border border-zinc-700 focus:outline-none focus:border-orange-500"
-              >
-                <option value={0}>All</option>
-                <option value={2}>M2.0+</option>
-                <option value={3}>M3.0+</option>
-                <option value={4}>M4.0+</option>
-                <option value={5}>M5.0+</option>
-                <option value={6}>M6.0+</option>
-              </select>
+            <div className="mb-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Quakes in Window
+                </h3>
+                <select
+                  value={minMagFilter}
+                  onChange={(e) => setMinMagFilter(Number(e.target.value))}
+                  className="bg-zinc-800 text-zinc-300 text-xs px-2 py-1 rounded border border-zinc-700 focus:outline-none focus:border-orange-500"
+                >
+                  <option value={0}>All</option>
+                  <option value={2}>M2.0+</option>
+                  <option value={3}>M3.0+</option>
+                  <option value={4}>M4.0+</option>
+                  <option value={5}>M5.0+</option>
+                  <option value={6}>M6.0+</option>
+                </select>
+              </div>
+              {/* Window time range */}
+              {latest_prediction && (
+                <div className="mt-2 text-xs text-zinc-500 flex items-center gap-1">
+                  <span className="text-green-400">
+                    {formatTimeLocal(parseUTC(latest_prediction.timestamp))?.split(',')[1]?.trim() || ''}
+                  </span>
+                  <span>→</span>
+                  <span className="text-red-400">
+                    {expectedEventTime ? formatTimeLocal(expectedEventTime)?.split(',')[1]?.trim() || '' : ''}
+                  </span>
+                  <span className="ml-1 text-zinc-600">({earthquakesWithDistance.length} found)</span>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2 max-h-[600px] overflow-y-auto custom-scrollbar pr-1">
@@ -514,7 +549,7 @@ function LiveDashboard() {
                   <svg className="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                   </svg>
-                  No recent data
+                  No earthquakes in prediction window yet
                 </div>
               )}
             </div>

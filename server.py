@@ -541,7 +541,8 @@ def serve_static(path):
 
 @app.route('/api/live', methods=['GET'])
 def get_live_data():
-    """Get live data: latest prediction, recent earthquakes, stats, and match info"""
+    """Get live data: latest prediction, recent earthquakes, stats, and match info.
+    Also handles match detection and triggers new prediction when match found."""
     global dataC
 
     if dataC is None:
@@ -552,13 +553,22 @@ def get_live_data():
         recent_earthquakes = dataC.get_recent_earthquakes(limit=50, min_mag=2.0)
         stats = dataC.get_prediction_stats()
 
-        # Calculate match info for each earthquake (so frontend doesn't need to)
+        # Calculate match info for each earthquake
         match_info = None
         closest_match = None
+        matched_earthquake = None  # Track the matched EQ for auto-verification
 
         if latest_prediction and not latest_prediction.get('verified'):
+            pr_id = latest_prediction.get('id')
             pr_lat = latest_prediction.get('predicted_lat')
             pr_lon = latest_prediction.get('predicted_lon')
+            pr_mag = latest_prediction.get('predicted_mag')
+            pr_dt = latest_prediction.get('predicted_dt') or 60
+            pr_timestamp = datetime.fromisoformat(latest_prediction.get('timestamp'))
+
+            # Check if prediction window has expired
+            expected_event_time = pr_timestamp + timedelta(minutes=pr_dt)
+            is_expired = datetime.now() > expected_event_time
 
             if pr_lat is not None and pr_lon is not None:
                 min_distance = float('inf')
@@ -567,6 +577,7 @@ def get_live_data():
                     eq_lat = eq.get('lat')
                     eq_lon = eq.get('lon')
                     eq_mag = eq.get('mag') or 0
+                    eq_time = eq.get('time')
 
                     if eq_lat is not None and eq_lon is not None:
                         lat_diff = abs(pr_lat - eq_lat)
@@ -576,7 +587,8 @@ def get_live_data():
 
                         eq['distance'] = round(distance, 1)
                         # Only M4+ earthquakes can be matches
-                        eq['is_match'] = distance <= DISTANCE_RADIUS and eq_mag >= MIN_MAG_DISPLAY
+                        is_match = distance <= DISTANCE_RADIUS and eq_mag >= MIN_MAG_DISPLAY
+                        eq['is_match'] = is_match
 
                         # Track closest M4+ earthquake
                         if eq_mag >= MIN_MAG_DISPLAY and distance < min_distance:
@@ -584,13 +596,50 @@ def get_live_data():
                             closest_match = {
                                 'earthquake_id': eq.get('id'),
                                 'distance': round(distance, 1),
-                                'is_match': distance <= DISTANCE_RADIUS,
+                                'is_match': is_match,
                                 'place': eq.get('place'),
                                 'mag': eq_mag
                             }
+                            if is_match:
+                                matched_earthquake = eq
 
                 if closest_match and closest_match['is_match']:
                     match_info = closest_match
+
+            # AUTO-HANDLE: If match found, verify prediction and create new one
+            if matched_earthquake:
+                print(f"\n{'='*60}")
+                print(f"[{datetime.now()}] MATCH DETECTED via /api/live!")
+                print(f"  Prediction #{pr_id}: {pr_lat:.1f}°, {pr_lon:.1f}°")
+                print(f"  Matched: M{matched_earthquake.get('mag')} - {matched_earthquake.get('place')}")
+                print(f"  Distance: {matched_earthquake.get('distance')}°")
+                print(f"{'='*60}\n")
+
+                # Record the match
+                dataC.update_prediction_match(
+                    pr_id=pr_id,
+                    earthquake_id=matched_earthquake.get('id'),
+                    earthquake_lat=matched_earthquake.get('lat'),
+                    earthquake_lon=matched_earthquake.get('lon'),
+                    earthquake_mag=matched_earthquake.get('mag'),
+                    earthquake_time=matched_earthquake.get('time'),
+                    distance=matched_earthquake.get('distance')
+                )
+
+                # Create new prediction
+                print(f"[{datetime.now()}] Starting new prediction after match...")
+                make_prediction()
+
+                # Refresh data to get new prediction
+                latest_prediction = dataC.get_latest_prediction()
+                stats = dataC.get_prediction_stats()
+                match_info['verified_match'] = True
+
+            # AUTO-HANDLE: If expired without match, create new prediction
+            elif is_expired:
+                print(f"[{datetime.now()}] Prediction #{pr_id} expired, creating new prediction...")
+                make_prediction()
+                latest_prediction = dataC.get_latest_prediction()
 
         # If prediction is verified, include the matched earthquake info
         if latest_prediction and latest_prediction.get('verified') and latest_prediction.get('correct'):
@@ -614,6 +663,9 @@ def get_live_data():
         })
 
     except Exception as e:
+        print(f"Error in /api/live: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
@@ -815,12 +867,19 @@ def record_match():
         )
 
         if success:
+            print(f"[{datetime.now()}] Match recorded via API for prediction #{prediction_id}")
+
+            # Trigger new prediction after recording match
+            print(f"[{datetime.now()}] Starting new prediction after match...")
+            new_pred = make_prediction()
+
             # Get updated stats
             stats = dataC.get_prediction_stats()
             return jsonify({
                 'success': True,
                 'message': f'Match recorded for prediction {prediction_id}',
-                'stats': stats
+                'stats': stats,
+                'new_prediction': new_pred
             })
         else:
             return jsonify({'error': 'Failed to update prediction'}), 500

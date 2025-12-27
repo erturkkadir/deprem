@@ -9,7 +9,18 @@ const FILTERS = [
 ];
 
 function getStatus(pred) {
-  if (!pred.verified) return 'pending';
+  if (!pred.verified) {
+    // If prediction date is before today (in local time), treat as missed
+    if (pred.prediction_time) {
+      const predTime = new Date(pred.prediction_time);
+      const now = new Date();
+      // Compare dates only (ignore time) in local timezone
+      const predDate = new Date(predTime.getFullYear(), predTime.getMonth(), predTime.getDate());
+      const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      if (predDate < todayDate) return 'missed';
+    }
+    return 'pending';
+  }
   return pred.correct ? 'matched' : 'missed';
 }
 
@@ -153,6 +164,7 @@ export default function PredictionsTable() {
       const date = new Date(timeStr);
       if (isNaN(date.getTime())) return '—';
       return date.toLocaleString('en-US', {
+        year: 'numeric',
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
@@ -160,6 +172,26 @@ export default function PredictionsTable() {
       });
     } catch {
       return '—';
+    }
+  };
+
+  const getTimeAgo = (timeStr) => {
+    if (!timeStr) return '';
+    try {
+      const date = new Date(timeStr);
+      if (isNaN(date.getTime())) return '';
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return 'just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      return `${diffDays}d ago`;
+    } catch {
+      return '';
     }
   };
 
@@ -203,7 +235,10 @@ export default function PredictionsTable() {
                   <div className="flex items-center gap-4">
                     <span className="text-2xl font-bold text-orange-500">#{pred.id}</span>
                     <div>
-                      <div className="text-white font-medium">{formatTime(pred.prediction_time)}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-white font-medium">{formatTime(pred.prediction_time)}</span>
+                        <span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded">{getTimeAgo(pred.prediction_time)}</span>
+                      </div>
                       <div className="flex items-center gap-2 text-sm">
                         <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />

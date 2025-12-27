@@ -18,3 +18,116 @@ Resuming from: /var/www/syshuman/quake/eqModel_complex_20251227_163722.pth
 
 [2025-12-27 16:47:03.427293] Training started...
 
+step    200 | loss 16.5916
+  -> New best loss!
+step    400 | loss 16.6414
+[2025-12-27 16:56:27.755472] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_165613.pth (iter=500, loss=16.6414)
+step    600 | loss 16.4887
+  -> New best loss!
+step    800 | loss 16.4213
+  -> New best loss!
+step   1000 | loss 16.4415
+[2025-12-27 17:05:53.418494] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_170537.pth (iter=1000, loss=16.4415)
+step   1200 | loss 16.5163
+step   1400 | loss 16.6100
+[2025-12-27 17:15:22.387514] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_171503.pth (iter=1500, loss=16.6100)
+step   1600 | loss 16.5751
+step   1800 | loss 16.4144
+  -> New best loss!
+step   2000 | loss 16.5832
+[2025-12-27 17:24:45.266920] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_172432.pth (iter=2000, loss=16.5832)
+step   2200 | loss 16.5642
+step   2400 | loss 16.5373
+[2025-12-27 17:34:13.306745] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_173355.pth (iter=2500, loss=16.5373)
+step   2600 | loss 16.4521
+step   2800 | loss 16.5826
+step   3000 | loss 16.5941
+[2025-12-27 17:43:38.719969] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_174323.pth (iter=3000, loss=16.5941)
+step   3200 | loss 16.6057
+step   3400 | loss 16.4712
+[2025-12-27 17:53:01.259523] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_175248.pth (iter=3500, loss=16.4712)
+step   3600 | loss 16.4595
+step   3800 | loss 16.6191
+step   4000 | loss 16.6714
+[2025-12-27 18:02:26.020925] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_180211.pth (iter=4000, loss=16.6714)
+step   4200 | loss 16.5270
+step   4400 | loss 16.5994
+[2025-12-27 18:11:52.885837] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_181136.pth (iter=4500, loss=16.5994)
+step   4600 | loss 16.6298
+step   4800 | loss 16.4857
+step   5000 | loss 16.5348
+[2025-12-27 18:21:13.558002] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_182102.pth (iter=5000, loss=16.5348)
+step   5200 | loss 16.6330
+step   5400 | loss 16.5241
+[2025-12-27 18:30:42.090770] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_183023.pth (iter=5500, loss=16.5241)
+step   5600 | loss 16.4517
+step   5800 | loss 16.5749
+step   6000 | loss 16.5814
+[2025-12-27 18:40:05.160590] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_183952.pth (iter=6000, loss=16.5814)
+step   6200 | loss 16.4858
+step   6400 | loss 16.6124
+[2025-12-27 18:49:32.047368] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_184915.pth (iter=6500, loss=16.6124)
+step   6600 | loss 16.4708
+step   6800 | loss 16.5709
+step   7000 | loss 16.5259
+[2025-12-27 18:58:54.509188] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_185842.pth (iter=7000, loss=16.5259)
+step   7200 | loss 16.4365
+step   7400 | loss 16.6029
+[2025-12-27 19:08:24.853767] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_190805.pth (iter=7500, loss=16.6029)
+step   7600 | loss 16.4258
+step   7800 | loss 16.4611
+step   8000 | loss 16.5665
+[2025-12-27 19:17:52.309180] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_191734.pth (iter=8000, loss=16.5665)
+step   8200 | loss 16.5009
+step   8400 | loss 16.5082
+[2025-12-27 19:27:16.807363] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_192702.pth (iter=8500, loss=16.5082)
+step   8600 | loss 16.5426
+step   8800 | loss 16.4796
+step   9000 | loss 16.5157
+[2025-12-27 19:36:40.624260] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_193626.pth (iter=9000, loss=16.5157)
+step   9200 | loss 16.4124
+  -> New best loss!
+step   9400 | loss 16.5707
+[2025-12-27 19:46:01.654943] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_194550.pth (iter=9500, loss=16.5707)
+step   9600 | loss 16.5576
+step   9800 | loss 16.4094
+  -> New best loss!
+step  10000 | loss 16.5289
+[2025-12-27 19:55:24.480888] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_195511.pth (iter=10000, loss=16.5289)
+step  10200 | loss 16.4141
+step  10400 | loss 16.4993
+[2025-12-27 20:04:48.402376] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_200434.pth (iter=10500, loss=16.4993)
+step  10600 | loss 16.5718
+step  10800 | loss 16.4071
+  -> New best loss!
+step  11000 | loss 16.5597
+[2025-12-27 20:14:10.455580] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_201358.pth (iter=11000, loss=16.5597)
+step  11200 | loss 16.6839
+step  11400 | loss 16.4639
+[2025-12-27 20:23:33.358774] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_202320.pth (iter=11500, loss=16.4639)
+step  11600 | loss 16.4986
+step  11800 | loss 16.4699
+step  12000 | loss 16.6670
+[2025-12-27 20:32:54.623528] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_203243.pth (iter=12000, loss=16.6670)
+step  12200 | loss 16.4957
+step  12400 | loss 16.4987
+[2025-12-27 20:42:17.056816] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_204204.pth (iter=12500, loss=16.4987)
+step  12600 | loss 16.5302
+step  12800 | loss 16.4672
+step  13000 | loss 16.5131
+[2025-12-27 20:51:44.562183] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_205127.pth (iter=13000, loss=16.5131)
+step  13200 | loss 16.6546
+step  13400 | loss 16.6671
+[2025-12-27 21:01:07.751729] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_210054.pth (iter=13500, loss=16.6671)
+step  13600 | loss 16.5111
+step  13800 | loss 16.5358
+step  14000 | loss 16.5205
+[2025-12-27 21:10:35.699223] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_211017.pth (iter=14000, loss=16.5205)
+step  14200 | loss 16.5216
+step  14400 | loss 16.6236
+[2025-12-27 21:20:04.605250] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_211945.pth (iter=14500, loss=16.6236)
+step  14600 | loss 16.4844
+step  14800 | loss 16.4286
+step  15000 | loss 16.5069
+[2025-12-27 21:29:26.436114] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_212914.pth (iter=15000, loss=16.5069)
+step  15200 | loss 16.5954
