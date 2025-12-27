@@ -6,11 +6,15 @@ Earthquake Prediction Model - Hybrid Training Script
 - Saves checkpoint every 5000 steps
 """
 import os
+import sys
 import glob
 import torch
 from datetime import datetime
 from DataClass import DataC
 from EqModel import ComplexEqModel
+
+# Force unbuffered output for real-time monitoring
+sys.stdout.reconfigure(line_buffering=True)
 
 # ============= CONFIGURATION =============
 MODEL_DIR = '/var/www/syshuman/quake'

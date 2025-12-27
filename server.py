@@ -7,6 +7,7 @@ Earthquake Prediction Server
 - Serves API for frontend on port 3000
 """
 import os
+import sys
 import glob
 import math
 import torch
@@ -20,6 +21,9 @@ from torch.nn import functional as F
 
 from DataClass import DataC
 from EqModel import ComplexEqModel
+
+# Force unbuffered output for real-time monitoring
+sys.stdout.reconfigure(line_buffering=True)
 
 
 def reverse_geocode(lat, lon):
@@ -285,6 +289,23 @@ def auto_verify_predictions():
                         correct=correct
                     )
                     print(f"[{datetime.now()}] Verified prediction {pr_id}: distance={circular_distance:.1f}, correct={correct}")
+            else:
+                # No earthquakes found in window - mark as missed
+                dataC.verify_prediction(
+                    pr_id=pr_id,
+                    actual_id=None,
+                    actual_lat=None,
+                    actual_lon=None,
+                    actual_dt=None,
+                    actual_mag=None,
+                    actual_time=None,
+                    diff_lat=None,
+                    diff_lon=None,
+                    diff_dt=None,
+                    diff_mag=None,
+                    correct=False
+                )
+                print(f"[{datetime.now()}] Prediction {pr_id} marked as missed (no M4.0+ earthquakes in 24h window)")
 
     except Exception as e:
         print(f"Error in auto-verification: {e}")

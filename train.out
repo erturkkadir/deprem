@@ -8,18 +8,13 @@ Batch: 4  |  Seq len: 512  |  Embed: 1176
 Print every: 200  |  Save every: 500
 Learning rate: 0.0003
 ============================================================
-[2025-12-26 00:07:29.012821] Loading hybrid data (M2.0+ input, M4.0+ targets)...
-Loaded 1,480,835 records (M2.0+)
-  Training targets (M4.0+): 518,878 (35.0%)
+[2025-12-27 16:45:49.689902] Loading hybrid data (M2.0+ input, M4.0+ targets)...
+Loaded 1,480,949 records (M2.0+)
+  Training targets (M4.0+): 518,908 (35.0%)
 
-[2025-12-26 00:08:34.871993] Creating model...
+[2025-12-27 16:46:55.107114] Creating model...
 Model parameters: 268,269,456
-Resuming from: /var/www/syshuman/quake/eqModel_complex_20251225_235953.pth
+Resuming from: /var/www/syshuman/quake/eqModel_complex_20251227_163722.pth
 
-[2025-12-26 00:08:43.202571] Training started...
+[2025-12-27 16:47:03.427293] Training started...
 
-step 116400 | loss 16.6186
-[2025-12-27 12:43:22.512264] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251227_124310.pth (iter=116500, loss=16.6186)
-step 116600 | loss 16.5285
-step 116800 | loss 16.6269
-step 117000 | loss 16.5349

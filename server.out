@@ -7,18 +7,17 @@ Model: n_embed=1176, T=512, heads=8, layers=8
 Hybrid: M2.0+ input, M4.0+ targets
 
 Loading hybrid data...
-Loaded 1,480,944 records (M2.0+)
-  Training targets (M4.0+): 518,906 (35.0%)
+Loaded 1,480,949 records (M2.0+)
+  Training targets (M4.0+): 518,908 (35.0%)
 
 Loading model...
-[2025-12-27 16:21:26.924792] Loading model...
-Loaded 1,480,944 records (M2.0+)
-  Training targets (M4.0+): 518,906 (35.0%)
-[2025-12-27 16:22:39.882283] Loaded checkpoint: eqModel_complex_20251227_161829.pth
+[2025-12-27 16:44:48.575948] Loading model...
+Loaded 1,480,949 records (M2.0+)
+  Training targets (M4.0+): 518,908 (35.0%)
+[2025-12-27 16:46:01.709882] Loaded checkpoint: eqModel_complex_20251227_163722.pth
 
 Checking for active prediction...
-No active prediction found, creating initial prediction...
-[2025-12-27 16:22:46.022120] Prediction: lat=74, lon=-96 near ᓄᓇᕗᑦ Nunavut, Canada, dt=13min, mag=4.3 (id=153)
+Active prediction found: #154 (101.4 minutes remaining)
 
 Starting scheduler...
 Scheduler started: monitoring every 120 seconds
@@ -33,107 +32,18 @@ Server starting on http://0.0.0.0:3000
  * Running on http://127.0.0.1:3000
  * Running on http://192.168.1.177:3000
 [33mPress CTRL+C to quit[0m
-45.43.154.230 - - [27/Dec/2025 16:22:53] "GET /api/predictions HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:22:53] "GET /api/model/status HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:22:53] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:22:53] "GET /api/stats HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:23:03] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:23:13] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:23:23] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:23:33] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:23:43] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:23:53] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:24:03] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:24:13] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:24:23] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:24:33] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:24:43] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:24:53] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:24:53] "GET /api/stats HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:24:53] "GET /api/predictions HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:25:03] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:25:13] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:25:23] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:25:33] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:25:43] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:25:53] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:26:03] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:26:13] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:26:23] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:26:33] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:26:43] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:26:53] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:26:54] "GET /api/stats HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:26:54] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:26:54] "GET /api/model/status HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:26:54] "GET /api/predictions HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:27:04] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:27:14] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:27:24] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:27:34] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:27:44] "GET /api/live HTTP/1.1" 200 -
-87.121.84.154 - - [27/Dec/2025 16:27:53] "[31m[1mPOST / HTTP/1.1[0m" 405 -
-87.121.84.154 - - [27/Dec/2025 16:27:54] "[31m[1mPOST /_next HTTP/1.1[0m" 405 -
-87.121.84.154 - - [27/Dec/2025 16:27:54] "[31m[1mPOST /api HTTP/1.1[0m" 405 -
-87.121.84.154 - - [27/Dec/2025 16:27:54] "[31m[1mPOST /_next/server HTTP/1.1[0m" 405 -
-45.43.154.230 - - [27/Dec/2025 16:27:54] "GET /api/live HTTP/1.1" 200 -
-87.121.84.154 - - [27/Dec/2025 16:27:55] "[31m[1mPOST /app HTTP/1.1[0m" 405 -
-87.121.84.154 - - [27/Dec/2025 16:27:55] "[31m[1mPOST /api/route HTTP/1.1[0m" 405 -
-45.43.154.230 - - [27/Dec/2025 16:28:04] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:28:14] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:28:24] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:28:34] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:28:44] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:28:54] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:28:54] "GET /api/stats HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:28:54] "GET /api/predictions HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:29:04] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:29:14] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:29:24] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:29:34] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:29:44] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:29:54] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:30:04] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:30:14] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:30:24] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:30:34] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:30:44] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:30:54] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:30:54] "GET /api/stats HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:30:54] "GET /api/predictions HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:31:04] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:31:14] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:31:24] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:31:34] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:31:44] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:31:54] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:31:54] "GET /api/model/status HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:32:04] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:32:14] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:32:24] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:32:34] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:32:44] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:32:54] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:32:54] "GET /api/stats HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:32:54] "GET /api/predictions HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:33:04] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:33:14] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:33:24] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:33:34] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:33:44] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:33:49] "GET /api/stats HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:33:49] "GET /api/model/status HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:33:49] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:33:49] "GET /api/predictions HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:33:59] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:34:09] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:34:19] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:34:29] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:34:39] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:34:50] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:34:50] "GET /api/model/status HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:34:50] "GET /api/predictions HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:34:51] "GET /api/stats HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:35:00] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:35:10] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [27/Dec/2025 16:35:20] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [27/Dec/2025 16:46:05] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [27/Dec/2025 16:46:13] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [27/Dec/2025 16:46:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [27/Dec/2025 16:46:13] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [27/Dec/2025 16:46:13] "GET /api/predictions HTTP/1.1" 200 -
+45.43.154.230 - - [27/Dec/2025 16:46:23] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [27/Dec/2025 16:46:33] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [27/Dec/2025 16:46:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [27/Dec/2025 16:46:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [27/Dec/2025 16:47:03] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [27/Dec/2025 16:47:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [27/Dec/2025 16:47:23] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [27/Dec/2025 16:47:33] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [27/Dec/2025 16:47:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [27/Dec/2025 16:47:53] "GET /api/live HTTP/1.1" 200 -
