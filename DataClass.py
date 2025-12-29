@@ -219,9 +219,41 @@ class DataC():
         Args:
             limit: Maximum number of predictions to return
             min_mag: Minimum predicted magnitude to show (default 4.0)
+
+        Note: Always includes ALL matched predictions (pr_correct=TRUE) regardless of limit
         """
         self._ensure_connection()
+        # Use UNION to get both recent predictions AND all matched predictions
+        # This ensures matched predictions are always shown even if they're old
         sql = """
+        SELECT * FROM (
+            SELECT
+                p.pr_id,
+                p.pr_timestamp,
+                p.pr_lat_predicted - 90 as predicted_lat,
+                p.pr_lon_predicted - 180 as predicted_lon,
+                p.pr_dt_predicted as predicted_dt,
+                p.pr_mag_predicted / 10.0 as predicted_mag,
+                p.pr_place as predicted_place,
+                p.pr_lat_actual - 90 as actual_lat,
+                p.pr_lon_actual - 180 as actual_lon,
+                p.pr_dt_actual as actual_dt,
+                p.pr_mag_actual / 10.0 as actual_mag,
+                p.pr_diff_lat as diff_lat,
+                p.pr_diff_lon as diff_lon,
+                p.pr_diff_dt as diff_dt,
+                p.pr_diff_mag as diff_mag,
+                p.pr_verified,
+                p.pr_correct,
+                p.pr_actual_time,
+                u.us_place as actual_place
+            FROM predictions p
+            LEFT JOIN usgs u ON p.pr_actual_id = u.us_id
+            WHERE p.pr_mag_predicted >= %s
+            ORDER BY p.pr_timestamp DESC
+            LIMIT %s
+        ) as recent
+        UNION
         SELECT
             p.pr_id,
             p.pr_timestamp,
@@ -244,13 +276,13 @@ class DataC():
             u.us_place as actual_place
         FROM predictions p
         LEFT JOIN usgs u ON p.pr_actual_id = u.us_id
-        WHERE p.pr_mag_predicted >= %s
-        ORDER BY p.pr_timestamp DESC
-        LIMIT %s
+        WHERE p.pr_correct = TRUE AND p.pr_mag_predicted >= %s
+        ORDER BY pr_timestamp DESC
         """
         try:
             # min_mag stored as encoded (mag * 10), so multiply threshold
-            self.mycursor.execute(sql, (min_mag * 10, limit,))
+            encoded_mag = min_mag * 10
+            self.mycursor.execute(sql, (encoded_mag, limit, encoded_mag))
             columns = ['id', 'prediction_time', 'predicted_lat', 'predicted_lon', 'predicted_dt', 'predicted_mag', 'predicted_place',
                       'actual_lat', 'actual_lon', 'actual_dt', 'actual_mag', 'diff_lat', 'diff_lon', 'diff_dt', 'diff_mag',
                       'verified', 'correct', 'actual_time', 'actual_place']

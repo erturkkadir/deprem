@@ -1195,3 +1195,8 @@ step 166200 | loss 16.4711
 step 166400 | loss 16.4499
 [2025-12-29 20:47:23.916053] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251229_204712.pth (iter=166500, loss=16.4499)
 step 166600 | loss 16.5748
+step 166800 | loss 16.5904
+step 167000 | loss 16.5976
+[2025-12-29 20:56:45.810739] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20251229_205634.pth (iter=167000, loss=16.5976)
+step 167200 | loss 16.4064
+step 167400 | loss 16.4437
