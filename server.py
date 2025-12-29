@@ -15,7 +15,7 @@ import atexit
 import requests
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from apscheduler.schedulers.background import BackgroundScheduler
 from torch.nn import functional as F
 
@@ -185,6 +185,17 @@ def make_prediction():
         return None
 
     try:
+        # RACE CONDITION PREVENTION: Check if there's already a pending prediction
+        # This prevents multiple predictions from being created simultaneously
+        dataC._ensure_connection()
+        existing = dataC.get_latest_prediction(min_mag=4.0)
+        if existing and not existing.get('verified'):
+            pr_timestamp = datetime.fromisoformat(existing['timestamp'])
+            # If existing prediction was created in last 60 seconds, skip creating new one
+            if (datetime.now() - pr_timestamp).total_seconds() < 60:
+                print(f"[{datetime.now()}] Skipping - recent pending prediction #{existing['id']} exists")
+                return existing['id']
+
         # Note: We don't reload all 1.5M records here anymore - too slow!
         # Data is loaded at startup and usgs2DB updates the DB.
         # The dataC already has sufficient data for predictions.
@@ -419,10 +430,28 @@ def check_and_handle_prediction():
         # Check if prediction window has expired
         expected_event_time = pr_timestamp + timedelta(minutes=pr_dt)
         if datetime.now() > expected_event_time:
-            print(f"[{datetime.now()}] Prediction #{pr_id} expired (waited {pr_dt} min), creating new prediction...")
-            # Make new prediction (old one will be verified later by auto_verify)
+            print(f"[{datetime.now()}] Prediction #{pr_id} expired (waited {pr_dt} min), marking as MISSED...")
+
+            # Mark the expired prediction as missed (verified=true, correct=false)
+            dataC.verify_prediction(
+                pr_id=pr_id,
+                actual_id=None,
+                actual_lat=None,
+                actual_lon=None,
+                actual_dt=None,
+                actual_mag=None,
+                actual_time=None,
+                diff_lat=None,
+                diff_lon=None,
+                diff_dt=None,
+                diff_mag=None,
+                correct=False
+            )
+
+            # Create new prediction
+            print(f"[{datetime.now()}] Creating new prediction...")
             make_prediction()
-            return {'action': 'expired', 'prediction_id': pr_id}
+            return {'action': 'expired_marked_missed', 'prediction_id': pr_id}
 
         # Still waiting - no action needed
         remaining = (expected_event_time - datetime.now()).total_seconds() / 60
@@ -542,7 +571,7 @@ def serve_static(path):
 @app.route('/api/live', methods=['GET'])
 def get_live_data():
     """Get live data: latest prediction, recent earthquakes, stats, and match info.
-    Also handles match detection and triggers new prediction when match found."""
+    Also handles match detection and triggers new prediction when match found or expired."""
     global dataC
 
     if dataC is None:
@@ -556,7 +585,9 @@ def get_live_data():
         # Calculate match info for each earthquake
         match_info = None
         closest_match = None
-        matched_earthquake = None  # Track the matched EQ for auto-verification
+        matched_earthquake = None
+        prediction_status = None  # Will hold computed status info for frontend
+        now = datetime.now(timezone.utc).replace(tzinfo=None)  # Use UTC for consistency
 
         if latest_prediction and not latest_prediction.get('verified'):
             pr_id = latest_prediction.get('id')
@@ -566,10 +597,27 @@ def get_live_data():
             pr_dt = latest_prediction.get('predicted_dt') or 60
             pr_timestamp = datetime.fromisoformat(latest_prediction.get('timestamp'))
 
-            # Check if prediction window has expired
+            # Calculate time window
             expected_event_time = pr_timestamp + timedelta(minutes=pr_dt)
-            is_expired = datetime.now() > expected_event_time
+            is_expired = now > expected_event_time
 
+            # Calculate remaining/elapsed time
+            if is_expired:
+                elapsed_seconds = int((now - expected_event_time).total_seconds())
+                time_remaining_seconds = -elapsed_seconds  # Negative means expired
+            else:
+                time_remaining_seconds = int((expected_event_time - now).total_seconds())
+
+            # Build prediction status for frontend (UTC times with Z suffix)
+            prediction_status = {
+                'is_expired': is_expired,
+                'time_remaining_seconds': time_remaining_seconds,
+                'start_time': pr_timestamp.isoformat() + 'Z',
+                'end_time': expected_event_time.isoformat() + 'Z',
+                'current_time': now.isoformat() + 'Z'
+            }
+
+            # Calculate distance for each earthquake
             if pr_lat is not None and pr_lon is not None:
                 min_distance = float('inf')
 
@@ -577,7 +625,6 @@ def get_live_data():
                     eq_lat = eq.get('lat')
                     eq_lon = eq.get('lon')
                     eq_mag = eq.get('mag') or 0
-                    eq_time = eq.get('time')
 
                     if eq_lat is not None and eq_lon is not None:
                         lat_diff = abs(pr_lat - eq_lat)
@@ -586,11 +633,9 @@ def get_live_data():
                         distance = math.sqrt(lat_diff ** 2 + lon_diff ** 2)
 
                         eq['distance'] = round(distance, 1)
-                        # Only M4+ earthquakes can be matches
                         is_match = distance <= DISTANCE_RADIUS and eq_mag >= MIN_MAG_DISPLAY
                         eq['is_match'] = is_match
 
-                        # Track closest M4+ earthquake
                         if eq_mag >= MIN_MAG_DISPLAY and distance < min_distance:
                             min_distance = distance
                             closest_match = {
@@ -609,13 +654,12 @@ def get_live_data():
             # AUTO-HANDLE: If match found, verify prediction and create new one
             if matched_earthquake:
                 print(f"\n{'='*60}")
-                print(f"[{datetime.now()}] MATCH DETECTED via /api/live!")
+                print(f"[{now}] MATCH DETECTED via /api/live!")
                 print(f"  Prediction #{pr_id}: {pr_lat:.1f}°, {pr_lon:.1f}°")
                 print(f"  Matched: M{matched_earthquake.get('mag')} - {matched_earthquake.get('place')}")
                 print(f"  Distance: {matched_earthquake.get('distance')}°")
                 print(f"{'='*60}\n")
 
-                # Record the match
                 dataC.update_prediction_match(
                     pr_id=pr_id,
                     earthquake_id=matched_earthquake.get('id'),
@@ -626,20 +670,54 @@ def get_live_data():
                     distance=matched_earthquake.get('distance')
                 )
 
-                # Create new prediction
-                print(f"[{datetime.now()}] Starting new prediction after match...")
+                print(f"[{now}] Starting new prediction after match...")
                 make_prediction()
 
-                # Refresh data to get new prediction
                 latest_prediction = dataC.get_latest_prediction()
+                recent_earthquakes = dataC.get_recent_earthquakes(limit=50, min_mag=2.0)
                 stats = dataC.get_prediction_stats()
-                match_info['verified_match'] = True
+                if match_info:
+                    match_info['verified_match'] = True
 
-            # AUTO-HANDLE: If expired without match, create new prediction
+            # AUTO-HANDLE: If expired without match, mark as missed and create new prediction
             elif is_expired:
-                print(f"[{datetime.now()}] Prediction #{pr_id} expired, creating new prediction...")
+                print(f"[{now}] Prediction #{pr_id} EXPIRED (by {-time_remaining_seconds}s), marking as MISSED...")
+
+                # Mark expired prediction as missed
+                dataC.verify_prediction(
+                    pr_id=pr_id,
+                    actual_id=None,
+                    actual_lat=None,
+                    actual_lon=None,
+                    actual_dt=None,
+                    actual_mag=None,
+                    actual_time=None,
+                    diff_lat=None,
+                    diff_lon=None,
+                    diff_dt=None,
+                    diff_mag=None,
+                    correct=False
+                )
+
+                print(f"[{now}] Creating new prediction...")
                 make_prediction()
+
                 latest_prediction = dataC.get_latest_prediction()
+                recent_earthquakes = dataC.get_recent_earthquakes(limit=50, min_mag=2.0)
+                stats = dataC.get_prediction_stats()
+
+                # Recalculate status for new prediction
+                if latest_prediction:
+                    new_pr_dt = latest_prediction.get('predicted_dt') or 60
+                    new_pr_timestamp = datetime.fromisoformat(latest_prediction.get('timestamp'))
+                    new_expected_time = new_pr_timestamp + timedelta(minutes=new_pr_dt)
+                    prediction_status = {
+                        'is_expired': False,
+                        'time_remaining_seconds': int((new_expected_time - now).total_seconds()),
+                        'start_time': new_pr_timestamp.isoformat() + 'Z',
+                        'end_time': new_expected_time.isoformat() + 'Z',
+                        'current_time': now.isoformat() + 'Z'
+                    }
 
         # If prediction is verified, include the matched earthquake info
         if latest_prediction and latest_prediction.get('verified') and latest_prediction.get('correct'):
@@ -654,12 +732,13 @@ def get_live_data():
 
         return jsonify({
             'success': True,
-            'timestamp': datetime.now().isoformat(),
+            'server_time': now.isoformat(),
             'latest_prediction': latest_prediction,
             'recent_earthquakes': recent_earthquakes,
             'stats': stats,
             'match_info': match_info,
-            'closest_match': closest_match
+            'closest_match': closest_match,
+            'prediction_status': prediction_status
         })
 
     except Exception as e:

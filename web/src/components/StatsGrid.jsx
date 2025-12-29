@@ -9,11 +9,11 @@ function StatCard({ value, label, color = 'orange', animate = false }) {
   };
 
   return (
-    <div className="stat-card group">
-      <div className={`text-4xl font-bold ${colorClasses[color]} ${animate ? 'animate-pulse' : ''}`}>
+    <div className="stat-card group !p-3">
+      <div className={`text-2xl font-bold ${colorClasses[color]} ${animate ? 'animate-pulse' : ''}`}>
         {value}
       </div>
-      <div className="text-zinc-400 text-sm mt-2 group-hover:text-zinc-300 transition-colors">
+      <div className="text-zinc-400 text-xs mt-1 group-hover:text-zinc-300 transition-colors">
         {label}
       </div>
     </div>
@@ -21,13 +21,7 @@ function StatCard({ value, label, color = 'orange', animate = false }) {
 }
 
 export default function StatsGrid() {
-  const { stats, lastFetchTime } = useSelector((state) => state.earthquake);
-
-  const formatTime = (timestamp) => {
-    if (!timestamp) return 'Never';
-    const date = new Date(timestamp);
-    return date.toLocaleString();
-  };
+  const { stats, liveData, lastFetchTime } = useSelector((state) => state.earthquake);
 
   const timeSinceUpdate = () => {
     if (!lastFetchTime) return '';
@@ -37,42 +31,50 @@ export default function StatsGrid() {
     return `${Math.floor(seconds / 3600)}h ago`;
   };
 
+  // Use liveData.stats if available (updates every 10s), fallback to stats (updates every 2min)
+  const liveStats = liveData?.stats;
+  const total = liveStats?.total_predictions ?? stats.totalPredictions ?? 0;
+  const verified = liveStats?.verified_predictions ?? stats.verifiedPredictions ?? 0;
+  const matched = liveStats?.correct_predictions ?? stats.correctPredictions ?? 0;
+  const missed = verified - matched;
+  const pending = total - verified; // Should be 1 (current active prediction)
+  const successRate = liveStats?.success_rate ?? stats.successRate ?? 0;
+
   return (
-    <section className="py-8">
+    <section className="py-4">
       <div className="max-w-7xl mx-auto px-4">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-orange-500">
-            Prediction Statistics
-          </h2>
-          <div className="flex items-center gap-2 text-zinc-500 text-sm">
-            <svg className="w-4 h-4 animate-spin-slow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            <span>Updated {timeSinceUpdate()}</span>
-          </div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-orange-500">Statistics</h2>
+          <span className="text-zinc-500 text-xs">Updated {timeSinceUpdate()}</span>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <StatCard
-            value={`${stats.successRate?.toFixed(1) || 0}%`}
-            label="Success Rate"
-            color="green"
-            animate={stats.successRate > 50}
-          />
-          <StatCard
-            value={stats.totalPredictions || 0}
-            label="Total Predictions"
+            value={total}
+            label="Total"
             color="blue"
           />
           <StatCard
-            value={stats.correctPredictions || 0}
-            label="Correct Predictions"
+            value={matched}
+            label="Matched"
+            color="green"
+          />
+          <StatCard
+            value={missed}
+            label="Missed"
             color="purple"
           />
           <StatCard
-            value={formatTime(stats.lastUpdated).split(',')[0] || 'Never'}
-            label="Last Updated"
+            value={pending}
+            label="Pending"
             color="orange"
+            animate={pending > 0}
+          />
+          <StatCard
+            value={`${successRate.toFixed(1)}%`}
+            label="Success Rate"
+            color="green"
+            animate={successRate > 50}
           />
         </div>
       </div>

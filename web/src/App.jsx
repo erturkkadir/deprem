@@ -4,7 +4,6 @@ import { fetchModelStatus, fetchStats, fetchLiveData, fetchPredictions } from '.
 
 import Header from './components/Header';
 import LiveDashboard from './components/LiveDashboard';
-import StatsGrid from './components/StatsGrid';
 import PredictionsTable from './components/PredictionsTable';
 import About from './components/About';
 
@@ -47,42 +46,35 @@ function App() {
     <div className="min-h-screen bg-zinc-900">
       <Header />
 
-      {/* Hero Section */}
-      <section className="py-8">
+      {/* Hero Section - Compact */}
+      <section className="py-4">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="bg-gradient-to-br from-orange-600 to-orange-500 rounded-xl py-12 px-6 text-center">
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+          <div className="bg-gradient-to-br from-orange-600 to-orange-500 rounded-xl py-6 px-4 text-center">
+            <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
               AI-Powered Earthquake Prediction
             </h2>
-            <p className="text-xl text-orange-100 mb-6 max-w-2xl mx-auto">
-              Fully automated system predicting latitude, longitude, magnitude, and timing
-              using complex-valued transformer neural networks
+            <p className="text-sm text-orange-100 mb-4 max-w-xl mx-auto">
+              Fully automated prediction using complex-valued transformer neural networks
             </p>
 
-            <div className="flex flex-wrap justify-center gap-4">
-              <div className="flex items-center gap-2 bg-white/10 backdrop-blur px-4 py-2 rounded-full">
+            <div className="flex flex-wrap justify-center gap-2">
+              <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur px-3 py-1.5 rounded-full">
                 <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
-                <span className="text-white text-sm">
-                  {isConnected ? 'System Online' : 'System Offline'}
+                <span className="text-white text-xs">
+                  {isConnected ? 'Online' : 'Offline'}
                 </span>
               </div>
-              <div className="flex items-center gap-2 bg-white/10 backdrop-blur px-4 py-2 rounded-full">
-                <svg className="w-4 h-4 text-white animate-spin-slow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span className="text-white text-sm">Auto-updates every 5 min</span>
-              </div>
-              <div className="flex items-center gap-2 bg-white/10 backdrop-blur px-4 py-2 rounded-full">
-                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur px-3 py-1.5 rounded-full">
+                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                 </svg>
-                <span className="text-white text-sm font-mono">
-                  {modelStatus?.currentCheckpoint?.replace('eqModel_complex_', '').replace('.pth', '') || 'Loading...'}
+                <span className="text-white text-xs font-mono">
+                  {modelStatus?.currentCheckpoint?.replace('eqModel_complex_', '').replace('.pth', '') || '...'}
                 </span>
               </div>
               {modelStatus?.device === 'cuda' && (
-                <div className="flex items-center gap-2 bg-white/10 backdrop-blur px-4 py-2 rounded-full">
-                  <span className="text-white text-sm">GPU Accelerated</span>
+                <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur px-3 py-1.5 rounded-full">
+                  <span className="text-white text-xs">GPU</span>
                 </div>
               )}
             </div>
@@ -91,7 +83,6 @@ function App() {
       </section>
 
       <LiveDashboard />
-      <StatsGrid />
       <PredictionsTable />
       <About />
 

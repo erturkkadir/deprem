@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Earthquake Prediction Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #18181b;
+      color: #fff;
+      min-height: 100vh;
+    }
+    .header {
+      background: linear-gradient(135deg, #ea580c, #f97316);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .header h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+    .header .info {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .header .badge {
+      background: rgba(255,255,255,0.2);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.875rem;
+    }
+    .badge.matched { background: rgba(34, 197, 94, 0.3); }
+    .badge.missed { background: rgba(239, 68, 68, 0.3); }
+    .badge.pending { background: rgba(234, 179, 8, 0.3); }
+    .timer-badge {
+      background: rgba(59, 130, 246, 0.3);
+      font-family: monospace;
+      font-weight: bold;
+    }
+    .timer-badge.expired { background: rgba(239, 68, 68, 0.3); }
+    .timer-badge.urgent { background: rgba(234, 179, 8, 0.5); animation: pulse 1s infinite; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    #map {
+      height: calc(100vh - 180px);
+      width: 100%;
+    }
+    .legend {
+      background: #27272a;
+      padding: 16px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .legend-items {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.875rem;
+      color: #a1a1aa;
+    }
+    .legend-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid white;
+    }
+    .legend-dot.predicted { background: #f97316; }
+    .legend-dot.matched { background: #22c55e; }
+    .legend-dot.missed { background: #ef4444; }
+    .legend-circle {
+      width: 20px;
+      height: 10px;
+      border: 2px dashed #f97316;
+      border-radius: 50%;
+    }
+    .stats {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .stat {
+      text-align: center;
+      padding: 8px 16px;
+      background: #3f3f46;
+      border-radius: 8px;
+    }
+    .stat-value { font-size: 1.125rem; font-weight: 700; }
+    .stat-value.green { color: #22c55e; }
+    .stat-value.red { color: #ef4444; }
+    .stat-value.orange { color: #f97316; }
+    .stat-value.blue { color: #3b82f6; }
+    .stat-label { font-size: 0.75rem; color: #71717a; }
+    .no-data {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: calc(100vh - 120px);
+      color: #71717a;
+      font-size: 1.25rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Prediction #<span id="pred-id">-</span></h1>
+    <div class="info">
+      <span class="badge" id="status-badge">Loading...</span>
+      <span class="badge" id="time-badge"></span>
+      <span class="badge timer-badge" id="timer-badge" style="display:none;">
+        <span id="timer-icon">⏱</span>
+        <span id="timer-value">--:--</span>
+      </span>
+    </div>
+  </div>
+
+  <div id="map"></div>
+
+  <div class="legend">
+    <div class="legend-items">
+      <div class="legend-item">
+        <div class="legend-dot predicted"></div>
+        <span>Predicted Location</span>
+      </div>
+      <div class="legend-item" id="actual-legend" style="display:none;">
+        <div class="legend-dot" id="actual-dot"></div>
+        <span id="actual-label">Actual Earthquake</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-circle"></div>
+        <span>100 km Match Radius</span>
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <script>
+    // Parse URL parameters
+    const params = new URLSearchParams(window.location.search);
+    const predId = params.get('id');
+    const predLat = parseFloat(params.get('plat'));
+    const predLon = parseFloat(params.get('plon'));
+    const predMag = parseFloat(params.get('pmag'));
+    const predDt = params.get('pdt');
+    const predPlace = params.get('pplace');
+    const actLat = parseFloat(params.get('alat'));
+    const actLon = parseFloat(params.get('alon'));
+    const actMag = parseFloat(params.get('amag'));
+    const actDt = params.get('adt');
+    const actPlace = params.get('aplace');
+    const diffLat = parseFloat(params.get('dlat'));
+    const diffLon = parseFloat(params.get('dlon'));
+    const verified = params.get('verified') === 'true';
+    const correct = params.get('correct') === 'true';
+    const time = params.get('time');
+
+    // Update header
+    document.getElementById('pred-id').textContent = predId || '-';
+
+    const statusBadge = document.getElementById('status-badge');
+    if (verified) {
+      if (correct) {
+        statusBadge.textContent = 'Matched';
+        statusBadge.classList.add('matched');
+      } else {
+        statusBadge.textContent = 'Missed';
+        statusBadge.classList.add('missed');
+      }
+    } else {
+      statusBadge.textContent = 'Pending';
+      statusBadge.classList.add('pending');
+    }
+
+    if (time) {
+      document.getElementById('time-badge').textContent = new Date(time + 'Z').toLocaleString();
+    }
+
+    // Timer countdown
+    const timerBadge = document.getElementById('timer-badge');
+    const timerValue = document.getElementById('timer-value');
+    const timerIcon = document.getElementById('timer-icon');
+
+    if (time && predDt && !verified) {
+      timerBadge.style.display = 'inline-flex';
+
+      function updateTimer() {
+        const predTimeMs = new Date(time + 'Z').getTime();
+        const windowEndMs = predTimeMs + (parseInt(predDt) * 60 * 1000);
+        const now = Date.now();
+        const remainingMs = windowEndMs - now;
+
+        if (remainingMs <= 0) {
+          // Expired
+          timerBadge.classList.remove('urgent');
+          timerBadge.classList.add('expired');
+          timerIcon.textContent = '⏱';
+          const expiredMins = Math.floor(Math.abs(remainingMs) / 60000);
+          const expiredSecs = Math.floor((Math.abs(remainingMs) % 60000) / 1000);
+          timerValue.textContent = `-${expiredMins}:${expiredSecs.toString().padStart(2, '0')} EXPIRED`;
+        } else {
+          // Still counting down
+          const mins = Math.floor(remainingMs / 60000);
+          const secs = Math.floor((remainingMs % 60000) / 1000);
+          timerValue.textContent = `${mins}:${secs.toString().padStart(2, '0')} left`;
+
+          // Urgent if less than 5 minutes
+          if (mins < 5) {
+            timerBadge.classList.add('urgent');
+            timerIcon.textContent = '⚠️';
+          } else {
+            timerBadge.classList.remove('urgent');
+            timerIcon.textContent = '⏱';
+          }
+        }
+      }
+
+      updateTimer();
+      setInterval(updateTimer, 1000);
+    } else if (verified) {
+      // Already verified - don't show timer
+      timerBadge.style.display = 'none';
+    }
+
+    // Check for valid coordinates
+    if (isNaN(predLat) || isNaN(predLon)) {
+      document.getElementById('map').innerHTML = '<div class="no-data">No prediction coordinates available</div>';
+    } else {
+      // Initialize map
+      const hasActual = !isNaN(actLat) && !isNaN(actLon);
+      const bounds = [[predLat, predLon]];
+      if (hasActual) bounds.push([actLat, actLon]);
+
+      const map = L.map('map').fitBounds(bounds, { padding: [50, 50], maxZoom: 6 });
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+
+      // Predicted marker (orange)
+      const predIcon = L.divIcon({
+        className: 'custom-marker',
+        html: '<div style="background:#f97316;width:24px;height:24px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div>',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+        popupAnchor: [0, -12]
+      });
+
+      L.marker([predLat, predLon], { icon: predIcon })
+        .addTo(map)
+        .bindPopup(`
+          <div style="min-width:150px;">
+            <div style="font-weight:700;color:#ea580c;margin-bottom:8px;">Predicted Location</div>
+            <div><strong>Lat:</strong> ${predLat.toFixed(2)}°</div>
+            <div><strong>Lon:</strong> ${predLon.toFixed(2)}°</div>
+            ${!isNaN(predMag) ? `<div><strong>Mag:</strong> ${predMag.toFixed(1)}</div>` : ''}
+            ${predDt ? `<div><strong>Time:</strong> ${predDt} min</div>` : ''}
+            ${predPlace ? `<div style="margin-top:4px;color:#666;">${decodeURIComponent(predPlace)}</div>` : ''}
+          </div>
+        `);
+
+      // 100 km radius circle
+      L.circle([predLat, predLon], {
+        radius: 100000, // 100 km in meters
+        color: '#f97316',
+        fillColor: '#f97316',
+        fillOpacity: 0.1,
+        weight: 2,
+        dashArray: '5, 5'
+      }).addTo(map);
+
+      // Actual marker if exists
+      if (hasActual) {
+        const actualColor = correct ? '#22c55e' : '#ef4444';
+        const actIcon = L.divIcon({
+          className: 'custom-marker',
+          html: `<div style="background:${actualColor};width:24px;height:24px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+          popupAnchor: [0, -12]
+        });
+
+        L.marker([actLat, actLon], { icon: actIcon })
+          .addTo(map)
+          .bindPopup(`
+            <div style="min-width:150px;">
+              <div style="font-weight:700;color:${actualColor};margin-bottom:8px;">Actual Earthquake</div>
+              <div><strong>Lat:</strong> ${actLat.toFixed(2)}°</div>
+              <div><strong>Lon:</strong> ${actLon.toFixed(2)}°</div>
+              ${!isNaN(actMag) ? `<div><strong>Mag:</strong> ${actMag.toFixed(1)}</div>` : ''}
+              ${actDt ? `<div><strong>Time:</strong> ${actDt} min</div>` : ''}
+              ${actPlace ? `<div style="margin-top:4px;color:#666;">${decodeURIComponent(actPlace)}</div>` : ''}
+            </div>
+          `);
+
+        // Show actual legend
+        document.getElementById('actual-legend').style.display = 'flex';
+        document.getElementById('actual-dot').classList.add(correct ? 'matched' : 'missed');
+        document.getElementById('actual-label').textContent = correct ? 'Actual (Match)' : 'Actual (Miss)';
+
+        // Draw line between points
+        L.polyline([[predLat, predLon], [actLat, actLon]], {
+          color: '#71717a',
+          weight: 2,
+          dashArray: '4, 4'
+        }).addTo(map);
+      }
+
+      // Haversine formula to calculate distance in km
+      function haversineDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Earth's radius in km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+      }
+
+      // Stats
+      const statsHtml = [];
+      if (!isNaN(predLat)) {
+        statsHtml.push(`<div class="stat"><div class="stat-value orange">${predLat.toFixed(1)}°</div><div class="stat-label">Pred Lat</div></div>`);
+      }
+      if (!isNaN(predLon)) {
+        statsHtml.push(`<div class="stat"><div class="stat-value blue">${predLon.toFixed(1)}°</div><div class="stat-label">Pred Lon</div></div>`);
+      }
+      if (hasActual) {
+        const distanceKm = haversineDistance(predLat, predLon, actLat, actLon);
+        statsHtml.push(`<div class="stat"><div class="stat-value ${correct ? 'green' : 'red'}">${distanceKm.toFixed(0)} km</div><div class="stat-label">Distance Error</div></div>`);
+      }
+      document.getElementById('stats').innerHTML = statsHtml.join('');
+    }
+  </script>
+</body>
+</html>

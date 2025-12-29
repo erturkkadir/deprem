@@ -120,6 +120,7 @@ const initialState = {
   stats: {
     successRate: 0,
     totalPredictions: 0,
+    verifiedPredictions: 0,
     correctPredictions: 0,
     lastUpdated: null,
   },
@@ -200,6 +201,7 @@ const earthquakeSlice = createSlice({
           state.stats = {
             successRate: parseFloat(action.payload.stats.success_rate) || 0,
             totalPredictions: parseInt(action.payload.stats.total_predictions) || 0,
+            verifiedPredictions: parseInt(action.payload.stats.verified_predictions) || 0,
             correctPredictions: parseInt(action.payload.stats.correct_predictions) || 0,
             lastUpdated: action.payload.stats.last_updated,
           };
@@ -249,7 +251,10 @@ const earthquakeSlice = createSlice({
             latest_prediction: action.payload.latest_prediction,
             recent_earthquakes: action.payload.recent_earthquakes || [],
             stats: action.payload.stats,
-            timestamp: action.payload.timestamp,
+            match_info: action.payload.match_info,
+            closest_match: action.payload.closest_match,
+            prediction_status: action.payload.prediction_status,
+            server_time: action.payload.server_time,
           };
           state.isConnected = true;
         }
@@ -301,6 +306,7 @@ const earthquakeSlice = createSlice({
             state.stats = {
               successRate: parseFloat(action.payload.stats.success_rate) || 0,
               totalPredictions: parseInt(action.payload.stats.total_predictions) || 0,
+              verifiedPredictions: parseInt(action.payload.stats.verified_predictions) || 0,
               correctPredictions: parseInt(action.payload.stats.correct_predictions) || 0,
               lastUpdated: Date.now(),
             };
