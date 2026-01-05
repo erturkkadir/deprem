@@ -9,7 +9,11 @@
   }
 
   $path = $_SERVER['PATH_INFO'] ?? '';
+  $query = $_SERVER['QUERY_STRING'] ?? '';
   $api_url = 'http://vanc.syshuman.com:3000/api' . $path;
+  if ($query) {
+      $api_url .= '?' . $query;
+  }
 
   if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $data = file_get_contents('php://input');

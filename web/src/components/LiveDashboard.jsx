@@ -19,7 +19,7 @@ function getPredictionStatus(pred) {
 
 function LiveDashboard() {
   const dispatch = useDispatch();
-  const { liveData, isLoadingLive, isPredicting, predictions } = useSelector((state) => state.earthquake);
+  const { liveData, isLoadingLive, isPredicting } = useSelector((state) => state.earthquake);
   const [minMagFilter, setMinMagFilter] = useState(2);
   const [isFlashing, setIsFlashing] = useState(false);
   const [displayTime, setDisplayTime] = useState(new Date());
@@ -138,20 +138,19 @@ function LiveDashboard() {
   const bestMatch = match_info?.is_match ? earthquakesInWindow.find(eq => eq.id === match_info.earthquake_id) : null;
   const closestEq = closest_match ? earthquakesInWindow.find(eq => eq.id === closest_match.earthquake_id) : earthquakesInWindow[0];
 
-  // Calculate prediction counts from predictions array
+  // Use stats from backend (full database counts, not current page)
   const predictionCounts = useMemo(() => {
-    if (!predictions || predictions.length === 0) {
-      return { total: 0, matched: 0, pending: 0, missed: 0 };
+    if (!stats) {
+      return { total: 0, matched: 0, pending: 0, missed: 0, successRate: 0 };
     }
-    const counts = { total: predictions.length, matched: 0, pending: 0, missed: 0 };
-    predictions.forEach(pred => {
-      const status = getPredictionStatus(pred);
-      if (status === 'matched') counts.matched++;
-      else if (status === 'pending') counts.pending++;
-      else if (status === 'missed') counts.missed++;
-    });
-    return counts;
-  }, [predictions]);
+    const total = parseInt(stats.total_predictions) || 0;
+    const verified = parseInt(stats.verified_predictions) || 0;
+    const matched = parseInt(stats.correct_predictions) || 0;
+    const missed = verified - matched;
+    const pending = total - verified;
+    const successRate = parseFloat(stats.success_rate) || 0;
+    return { total, matched, pending, missed, successRate };
+  }, [stats]);
 
 
   const formatTimeAgo = (isoString) => {
@@ -412,8 +411,8 @@ function LiveDashboard() {
                     <div className="text-zinc-500 text-[9px]">Missed</div>
                   </div>
                   <div className="bg-zinc-800/50 border border-zinc-700 rounded p-2 text-center">
-                    <div className={`text-lg font-bold ${predictionCounts.total > 0 ? (predictionCounts.matched / predictionCounts.total * 100 > 50 ? 'text-green-500' : 'text-orange-500') : 'text-zinc-500'}`}>
-                      {predictionCounts.total > 0 ? ((predictionCounts.matched / predictionCounts.total) * 100).toFixed(0) : 0}%
+                    <div className={`text-lg font-bold ${predictionCounts.successRate > 50 ? 'text-green-500' : predictionCounts.successRate > 0 ? 'text-orange-500' : 'text-zinc-500'}`}>
+                      {predictionCounts.successRate.toFixed(0)}%
                     </div>
                     <div className="text-zinc-500 text-[9px]">Success</div>
                   </div>

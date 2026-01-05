@@ -59,9 +59,9 @@ export default function About() {
 
         {/* Model Configuration */}
         {modelStatus.loaded && modelStatus.config && (
-          <div className="card max-w-2xl mx-auto">
+          <div className="card max-w-3xl mx-auto">
             <h3 className="text-lg font-semibold text-orange-400 mb-4">Model Configuration</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
               <div>
                 <span className="text-zinc-500 block">Sequence Length</span>
                 <span className="text-white font-mono">{modelStatus.config.sequence_length}</span>
@@ -77,6 +77,36 @@ export default function About() {
               <div>
                 <span className="text-zinc-500 block">Layers</span>
                 <span className="text-white font-mono">{modelStatus.config.num_layers}</span>
+              </div>
+            </div>
+
+            {/* Training Info */}
+            <div className="border-t border-zinc-700 pt-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                {modelStatus.currentCheckpoint && (
+                  <div>
+                    <span className="text-zinc-500 block">Checkpoint</span>
+                    <span className="text-orange-400 font-mono">
+                      {modelStatus.currentCheckpoint.replace('eqModel_complex_', '').replace('.pth', '')}
+                    </span>
+                  </div>
+                )}
+                {modelStatus.training?.latestStep && (
+                  <>
+                    <div>
+                      <span className="text-zinc-500 block">Training Step</span>
+                      <span className="text-purple-400 font-mono">
+                        {modelStatus.training.latestStep.toLocaleString()}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-zinc-500 block">Loss</span>
+                      <span className="text-cyan-400 font-mono">
+                        {modelStatus.training.latestLoss?.toFixed(4)}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

@@ -40,17 +40,6 @@ export default function Header() {
                     {modelStatus.device?.toUpperCase()}
                   </span>
                 </div>
-                {modelStatus.currentCheckpoint && (
-                  <>
-                    <div className="w-px h-4 bg-zinc-600"></div>
-                    <div className="flex flex-col">
-                      <span className="text-[10px] text-zinc-500 uppercase tracking-wide">Checkpoint</span>
-                      <span className="text-xs text-orange-400 font-mono">
-                        {modelStatus.currentCheckpoint.replace('eqModel_complex_', '').replace('.pth', '')}
-                      </span>
-                    </div>
-                  </>
-                )}
               </div>
             )}
           </div>

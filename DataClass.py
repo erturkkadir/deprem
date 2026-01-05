@@ -213,47 +213,43 @@ class DataC():
             print(f"Error verifying prediction: {e}")
             return False
 
-    def get_predictions_with_actuals(self, limit=50, min_mag=4.0):
-        """Get predictions with matched actual earthquakes for display
+    def get_predictions_with_actuals(self, limit=20, offset=0, min_mag=4.0, filter_type=None):
+        """Get predictions with matched actual earthquakes for display (paginated)
 
         Args:
-            limit: Maximum number of predictions to return
+            limit: Maximum number of predictions to return per page
+            offset: Number of predictions to skip (for pagination)
             min_mag: Minimum predicted magnitude to show (default 4.0)
+            filter_type: Optional filter - 'matched', 'missed', 'pending', or None for all
 
-        Note: Always includes ALL matched predictions (pr_correct=TRUE) regardless of limit
+        Returns:
+            dict with 'predictions' list and 'total' count
         """
         self._ensure_connection()
-        # Use UNION to get both recent predictions AND all matched predictions
-        # This ensures matched predictions are always shown even if they're old
-        sql = """
-        SELECT * FROM (
-            SELECT
-                p.pr_id,
-                p.pr_timestamp,
-                p.pr_lat_predicted - 90 as predicted_lat,
-                p.pr_lon_predicted - 180 as predicted_lon,
-                p.pr_dt_predicted as predicted_dt,
-                p.pr_mag_predicted / 10.0 as predicted_mag,
-                p.pr_place as predicted_place,
-                p.pr_lat_actual - 90 as actual_lat,
-                p.pr_lon_actual - 180 as actual_lon,
-                p.pr_dt_actual as actual_dt,
-                p.pr_mag_actual / 10.0 as actual_mag,
-                p.pr_diff_lat as diff_lat,
-                p.pr_diff_lon as diff_lon,
-                p.pr_diff_dt as diff_dt,
-                p.pr_diff_mag as diff_mag,
-                p.pr_verified,
-                p.pr_correct,
-                p.pr_actual_time,
-                u.us_place as actual_place
-            FROM predictions p
-            LEFT JOIN usgs u ON p.pr_actual_id = u.us_id
-            WHERE p.pr_mag_predicted >= %s
-            ORDER BY p.pr_timestamp DESC
-            LIMIT %s
-        ) as recent
-        UNION
+        encoded_mag = min_mag * 10
+
+        # Build WHERE clause based on filter
+        filter_clause = "p.pr_mag_predicted >= %s"
+        params = [encoded_mag]
+
+        if filter_type == 'matched':
+            filter_clause += " AND p.pr_correct = TRUE"
+        elif filter_type == 'missed':
+            filter_clause += " AND p.pr_verified = TRUE AND p.pr_correct = FALSE"
+        elif filter_type == 'pending':
+            filter_clause += " AND p.pr_verified = FALSE"
+
+        # Get total count
+        count_sql = f"SELECT COUNT(*) FROM predictions p WHERE {filter_clause}"
+        try:
+            self.mycursor.execute(count_sql, params)
+            total = self.mycursor.fetchone()[0]
+        except Exception as e:
+            print(f"Error counting predictions: {e}")
+            total = 0
+
+        # Get paginated results (latest first)
+        sql = f"""
         SELECT
             p.pr_id,
             p.pr_timestamp,
@@ -276,21 +272,21 @@ class DataC():
             u.us_place as actual_place
         FROM predictions p
         LEFT JOIN usgs u ON p.pr_actual_id = u.us_id
-        WHERE p.pr_correct = TRUE AND p.pr_mag_predicted >= %s
-        ORDER BY pr_timestamp DESC
+        WHERE {filter_clause}
+        ORDER BY p.pr_timestamp DESC
+        LIMIT %s OFFSET %s
         """
         try:
-            # min_mag stored as encoded (mag * 10), so multiply threshold
-            encoded_mag = min_mag * 10
-            self.mycursor.execute(sql, (encoded_mag, limit, encoded_mag))
+            self.mycursor.execute(sql, params + [limit, offset])
             columns = ['id', 'prediction_time', 'predicted_lat', 'predicted_lon', 'predicted_dt', 'predicted_mag', 'predicted_place',
                       'actual_lat', 'actual_lon', 'actual_dt', 'actual_mag', 'diff_lat', 'diff_lon', 'diff_dt', 'diff_mag',
                       'verified', 'correct', 'actual_time', 'actual_place']
             rows = self.mycursor.fetchall()
-            return [dict(zip(columns, row)) for row in rows]
+            predictions = [dict(zip(columns, row)) for row in rows]
+            return {'predictions': predictions, 'total': total}
         except Exception as e:
             print(f"Error getting predictions with actuals: {e}")
-            return []
+            return {'predictions': [], 'total': 0}
 
     def get_latest_prediction(self, min_mag=4.0):
         """Get the most recent prediction with magnitude >= min_mag"""

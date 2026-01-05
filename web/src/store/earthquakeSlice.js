@@ -32,8 +32,10 @@ export const fetchLiveData = createAsyncThunk(
 
 export const fetchPredictions = createAsyncThunk(
   'earthquake/fetchPredictions',
-  async (limit = 50) => {
-    const response = await fetch(`${API_BASE}/api/predictions?limit=${limit}`);
+  async ({ page = 1, limit = 20, filter = '' } = {}) => {
+    const params = new URLSearchParams({ page, limit });
+    if (filter) params.append('filter', filter);
+    const response = await fetch(`${API_BASE}/api/predictions?${params}`);
     return response.json();
   }
 );
@@ -114,6 +116,12 @@ const initialState = {
     config: {},
     currentCheckpoint: null,
     checkpointTime: null,
+    training: {
+      latestStep: null,
+      latestLoss: null,
+      checkpointStep: null,
+      checkpointLoss: null,
+    },
   },
 
   // Statistics
@@ -127,6 +135,14 @@ const initialState = {
 
   // Predictions
   predictions: [],
+  pagination: {
+    page: 1,
+    limit: 20,
+    total: 0,
+    total_pages: 1,
+    has_next: false,
+    has_prev: false,
+  },
   currentPrediction: null,
 
   // Live data (for LiveDashboard)
@@ -179,6 +195,7 @@ const earthquakeSlice = createSlice({
       })
       .addCase(fetchModelStatus.fulfilled, (state, action) => {
         state.isLoading = false;
+        const training = action.payload.training || {};
         state.modelStatus = {
           loaded: action.payload.loaded,
           device: action.payload.device,
@@ -186,6 +203,12 @@ const earthquakeSlice = createSlice({
           config: action.payload.config,
           currentCheckpoint: action.payload.current_checkpoint,
           checkpointTime: action.payload.checkpoint_time,
+          training: {
+            latestStep: training.latest_step,
+            latestLoss: training.latest_loss,
+            checkpointStep: training.checkpoint_step,
+            checkpointLoss: training.checkpoint_loss,
+          },
         };
         state.isConnected = true;
       })
@@ -266,10 +289,21 @@ const earthquakeSlice = createSlice({
       })
 
       // Fetch Predictions
+      .addCase(fetchPredictions.pending, (state) => {
+        state.isLoading = true;
+      })
       .addCase(fetchPredictions.fulfilled, (state, action) => {
+        state.isLoading = false;
         if (action.payload.success) {
           state.predictions = action.payload.predictions || [];
+          if (action.payload.pagination) {
+            state.pagination = action.payload.pagination;
+          }
         }
+      })
+      .addCase(fetchPredictions.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.error.message;
       })
 
       // Trigger Cycle

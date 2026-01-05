@@ -138,6 +138,11 @@ def load_model(force_reload=False):
 
     dataC = DataC()
     dataC.getDataHybrid(input_mag=INPUT_MAG, target_mag=TARGET_MAG)
+
+    # Override yr_max to match checkpoint (trained with data up to 2025)
+    # This prevents size mismatch when new year data is added
+    dataC.yr_max = 56  # Years 0-55 (1970-2025), model adds +1 for padding
+
     sizes = dataC.getSizes()
 
     model = ComplexEqModel(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max)
@@ -565,7 +570,13 @@ def serve_assets(path):
 
 @app.route('/<path:path>')
 def serve_static(path):
-    return send_from_directory(app.static_folder, path)
+    # For client-side routing (React Router), serve index.html for non-file paths
+    # Check if the path is an actual file in the static folder
+    file_path = os.path.join(app.static_folder, path)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return send_from_directory(app.static_folder, path)
+    # Otherwise, serve index.html and let React Router handle the route
+    return send_from_directory(app.static_folder, 'index.html')
 
 
 @app.route('/api/live', methods=['GET'])
@@ -750,15 +761,31 @@ def get_live_data():
 
 @app.route('/api/predictions', methods=['GET'])
 def get_predictions():
-    """Get predictions with actual earthquakes"""
+    """Get predictions with actual earthquakes (paginated)
+
+    Query params:
+        page: Page number (1-indexed, default 1)
+        limit: Items per page (default 20, max 100)
+        filter: Optional filter - 'matched', 'missed', 'pending', or empty for all
+    """
     global dataC
 
     if dataC is None:
         return jsonify({'error': 'Data not loaded'}), 500
 
     try:
-        limit = request.args.get('limit', 50, type=int)
-        predictions = dataC.get_predictions_with_actuals(limit=limit)
+        page = request.args.get('page', 1, type=int)
+        limit = min(request.args.get('limit', 20, type=int), 100)
+        filter_type = request.args.get('filter', None)
+
+        if filter_type == '':
+            filter_type = None
+
+        offset = (page - 1) * limit
+        result = dataC.get_predictions_with_actuals(limit=limit, offset=offset, filter_type=filter_type)
+
+        predictions = result['predictions']
+        total = result['total']
 
         for p in predictions:
             if p.get('prediction_time') and hasattr(p['prediction_time'], 'isoformat'):
@@ -766,10 +793,19 @@ def get_predictions():
             if p.get('actual_time') and hasattr(p['actual_time'], 'isoformat'):
                 p['actual_time'] = p['actual_time'].isoformat()
 
+        total_pages = (total + limit - 1) // limit if limit > 0 else 1
+
         return jsonify({
             'success': True,
             'predictions': predictions,
-            'count': len(predictions)
+            'pagination': {
+                'page': page,
+                'limit': limit,
+                'total': total,
+                'total_pages': total_pages,
+                'has_next': page < total_pages,
+                'has_prev': page > 1
+            }
         })
 
     except Exception as e:
@@ -860,6 +896,187 @@ def recent_earthquakes():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/prediction/<int:prediction_id>', methods=['GET'])
+def get_prediction_detail(prediction_id):
+    """Get detailed prediction info including earthquakes in its time window"""
+    global dataC
+
+    if dataC is None:
+        return jsonify({'error': 'Data not loaded'}), 500
+
+    try:
+        dataC._ensure_connection()
+
+        # Get the prediction
+        sql = """
+        SELECT
+            p.pr_id, p.pr_timestamp,
+            p.pr_lat_predicted, p.pr_lon_predicted, p.pr_dt_predicted, p.pr_mag_predicted, p.pr_place,
+            p.pr_lat_actual, p.pr_lon_actual, p.pr_dt_actual, p.pr_mag_actual,
+            p.pr_diff_lat, p.pr_diff_lon, p.pr_diff_dt, p.pr_diff_mag,
+            p.pr_verified, p.pr_correct, p.pr_actual_time,
+            u.us_place as actual_place
+        FROM predictions p
+        LEFT JOIN usgs u ON p.pr_actual_id = u.us_id
+        WHERE p.pr_id = %s
+        """
+        dataC.mycursor.execute(sql, (prediction_id,))
+        row = dataC.mycursor.fetchone()
+
+        if not row:
+            return jsonify({'error': 'Prediction not found'}), 404
+
+        pr_timestamp = row[1]
+        pr_dt = row[4] or 60  # Default 60 minutes if not set
+
+        prediction = {
+            'id': row[0],
+            'prediction_time': pr_timestamp.isoformat() if pr_timestamp else None,
+            'predicted_lat': (row[2] - 90) if row[2] else None,  # Decode to actual lat
+            'predicted_lon': (row[3] - 180) if row[3] else None,  # Decode to actual lon
+            'predicted_dt': pr_dt,
+            'predicted_mag': row[5] / 10.0 if row[5] else None,  # Decode magnitude
+            'predicted_place': row[6],
+            'actual_lat': (row[7] - 90) if row[7] else None,
+            'actual_lon': (row[8] - 180) if row[8] else None,
+            'actual_dt': row[9],
+            'actual_mag': row[10] / 10.0 if row[10] else None,
+            'actual_place': row[18],  # From JOIN
+            'diff_lat': row[11],
+            'diff_lon': row[12],
+            'diff_dt': row[13],
+            'diff_mag': row[14],
+            'verified': bool(row[15]),
+            'correct': bool(row[16]),
+            'actual_time': row[17].isoformat() if row[17] else None,
+        }
+
+        # Calculate prediction window
+        window_end = pr_timestamp + timedelta(minutes=pr_dt) if pr_timestamp else None
+
+        prediction['window_start'] = pr_timestamp.isoformat() if pr_timestamp else None
+        prediction['window_end'] = window_end.isoformat() if window_end else None
+
+        # Get all earthquakes that occurred during the prediction window
+        # Extend window to 24 hours to show context
+        extended_end = pr_timestamp + timedelta(hours=24) if pr_timestamp else None
+
+        earthquakes_sql = """
+        SELECT us_id, us_datetime, us_x, us_y, us_mag, us_place, us_m
+        FROM usgs
+        WHERE us_datetime BETWEEN %s AND %s
+        AND us_mag >= 2.0
+        AND us_type = 'earthquake'
+        ORDER BY us_datetime ASC
+        """
+        dataC.mycursor.execute(earthquakes_sql, (pr_timestamp, extended_end))
+        eq_rows = dataC.mycursor.fetchall()
+
+        earthquakes = []
+        for eq in eq_rows:
+            eq_time = eq[1]
+            minutes_after_prediction = int((eq_time - pr_timestamp).total_seconds() / 60) if eq_time and pr_timestamp else None
+
+            # Check if this earthquake is within the prediction window
+            in_window = minutes_after_prediction is not None and 0 <= minutes_after_prediction <= pr_dt
+
+            # Check if it matches the prediction location (within 15 degrees)
+            pr_lat_encoded = row[2]  # Still encoded
+            pr_lon_encoded = row[3]
+            eq_lat_encoded = eq[2]
+            eq_lon_encoded = eq[3]
+
+            is_match = False
+            distance = None
+            if pr_lat_encoded and pr_lon_encoded and eq_lat_encoded and eq_lon_encoded:
+                lat_diff = abs(pr_lat_encoded - eq_lat_encoded)
+                lon_diff = abs(pr_lon_encoded - eq_lon_encoded)
+                lon_diff = min(lon_diff, 360 - lon_diff)
+                distance = math.sqrt(lat_diff ** 2 + lon_diff ** 2)
+                is_match = distance <= DISTANCE_RADIUS and eq[4] >= MIN_MAG_DISPLAY
+
+            earthquakes.append({
+                'id': eq[0],
+                'time': eq_time.isoformat() if eq_time else None,
+                'lat': eq_lat_encoded - 90 if eq_lat_encoded else None,  # Decode
+                'lon': eq_lon_encoded - 180 if eq_lon_encoded else None,  # Decode
+                'mag': eq[4],
+                'place': eq[5],
+                'depth': eq[6],
+                'minutes_after': minutes_after_prediction,
+                'in_window': in_window,
+                'is_match': is_match,
+                'distance': round(distance, 1) if distance else None,
+            })
+
+        return jsonify({
+            'success': True,
+            'prediction': prediction,
+            'earthquakes': earthquakes,
+            'earthquake_count': len(earthquakes),
+            'window_earthquakes': len([e for e in earthquakes if e['in_window']]),
+            'matching_earthquakes': len([e for e in earthquakes if e['is_match']]),
+        })
+
+    except Exception as e:
+        print(f"Error getting prediction detail: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+def get_training_info():
+    """Parse train.out to get latest training info"""
+    train_out_path = os.path.join(MODEL_DIR, 'train.out')
+    training_info = {
+        'latest_step': None,
+        'latest_loss': None,
+        'checkpoint_step': None,
+        'checkpoint_loss': None,
+    }
+
+    try:
+        if os.path.exists(train_out_path):
+            import subprocess
+            # Get last 100 lines efficiently
+            result = subprocess.run(
+                ['tail', '-100', train_out_path],
+                capture_output=True, text=True, timeout=5
+            )
+            lines = result.stdout.strip().split('\n')
+
+            # Parse from bottom up to find latest info
+            for line in reversed(lines):
+                # Look for step line: "step 693200 | loss 16.3251"
+                if line.startswith('step ') and training_info['latest_step'] is None:
+                    parts = line.split('|')
+                    if len(parts) >= 2:
+                        step_part = parts[0].strip()  # "step 693200"
+                        loss_part = parts[1].strip()  # "loss 16.3251"
+                        try:
+                            training_info['latest_step'] = int(step_part.replace('step ', ''))
+                            training_info['latest_loss'] = float(loss_part.replace('loss ', ''))
+                        except:
+                            pass
+
+                # Look for checkpoint line: "Checkpoint saved: ... (iter=693000, loss=16.3798)"
+                if 'Checkpoint saved:' in line and training_info['checkpoint_step'] is None:
+                    import re
+                    match = re.search(r'iter=(\d+),\s*loss=([\d.]+)', line)
+                    if match:
+                        training_info['checkpoint_step'] = int(match.group(1))
+                        training_info['checkpoint_loss'] = float(match.group(2))
+
+                # Stop if we have all info
+                if training_info['latest_step'] and training_info['checkpoint_step']:
+                    break
+
+    except Exception as e:
+        print(f"Error parsing train.out: {e}")
+
+    return training_info
+
+
 @app.route('/api/model/status', methods=['GET'])
 def model_status():
     """Get model and server status"""
@@ -869,12 +1086,17 @@ def model_status():
     checkpoint_exists = current_checkpoint and os.path.exists(current_checkpoint)
     if checkpoint_exists:
         checkpoint_time = datetime.fromtimestamp(os.path.getmtime(current_checkpoint)).isoformat()
+
+    # Get training info from train.out
+    training_info = get_training_info()
+
     return jsonify({
         'loaded': model is not None,
         'device': device,
         'model_type': 'ComplexEqModel',
         'current_checkpoint': os.path.basename(current_checkpoint) if checkpoint_exists else None,
         'checkpoint_time': checkpoint_time,
+        'training': training_info,
         'config': {
             'sequence_length': T,
             'embedding_size': n_embed,
@@ -1029,4 +1251,4 @@ init_app()
 
 if __name__ == '__main__':
     print(f"Server starting on http://0.0.0.0:3000")
-    app.run(host='0.0.0.0', port=3000, debug=False, threaded=False, use_reloader=False)
+    app.run(host='0.0.0.0', port=3000, debug=False, threaded=True, use_reloader=False)

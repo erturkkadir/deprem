@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
+import { fetchPredictions } from '../store/earthquakeSlice';
 
 const FILTERS = [
-  { key: 'all', label: 'All' },
+  { key: '', label: 'All' },
   { key: 'pending', label: 'Pending' },
   { key: 'matched', label: 'Matched' },
   { key: 'missed', label: 'Missed' },
@@ -85,6 +87,87 @@ function StatusBadge({ pred }) {
   );
 }
 
+function TimeDiffCompare({ predictionTime, predictedWindow, actualTime, verified }) {
+  // predictedWindow = the countdown window (e.g., 60 minutes)
+  // actualTime = ISO timestamp when the matched earthquake occurred
+
+  // Calculate how many minutes after prediction the EQ occurred
+  let actualMinutesAfter = null;
+  if (predictionTime && actualTime) {
+    try {
+      const predDate = new Date(predictionTime);
+      const actualDate = new Date(actualTime);
+      if (!isNaN(predDate.getTime()) && !isNaN(actualDate.getTime())) {
+        actualMinutesAfter = Math.round((actualDate - predDate) / 60000);
+      }
+    } catch {
+      actualMinutesAfter = null;
+    }
+  }
+
+  const hasActual = actualMinutesAfter !== null;
+  const windowMinutes = predictedWindow || 60;
+
+  // Format time nicely
+  const formatTime = (minutes) => {
+    if (minutes === null || minutes === undefined) return '—';
+    const absMin = Math.abs(minutes);
+    if (absMin < 60) return `${absMin}m`;
+    if (absMin < 1440) return `${(absMin / 60).toFixed(1)}h`;
+    return `${(absMin / 1440).toFixed(1)}d`;
+  };
+
+  // Check validity and status
+  const isInvalidMatch = hasActual && actualMinutesAfter < 0; // EQ before prediction = bad data
+  const isWithinWindow = hasActual && actualMinutesAfter >= 0 && actualMinutesAfter <= windowMinutes;
+
+  return (
+    <div className="bg-zinc-800/50 rounded p-2">
+      <div className="text-[10px] font-medium mb-1 text-purple-400">TIME WINDOW</div>
+
+      <div className="flex items-center justify-between gap-2">
+        {/* Predicted Window */}
+        <div className="text-center flex-1">
+          <div className="text-[9px] text-zinc-500 uppercase">Window</div>
+          <div className="font-mono font-bold text-sm text-purple-400">
+            {formatTime(windowMinutes)}
+          </div>
+        </div>
+
+        {/* Arrow */}
+        <div className="text-zinc-600 text-xs">→</div>
+
+        {/* When EQ occurred */}
+        <div className="text-center flex-1">
+          <div className="text-[9px] text-zinc-500 uppercase">Occurred</div>
+          <div className={`font-mono font-bold text-sm ${
+            isInvalidMatch ? 'text-red-400' : 'text-white'
+          }`}>
+            {hasActual ? (isInvalidMatch ? `${actualMinutesAfter}m` : `+${formatTime(actualMinutesAfter)}`) : '—'}
+          </div>
+        </div>
+      </div>
+
+      {/* Status bar */}
+      {verified && hasActual && (
+        <div className={`mt-1.5 text-center text-[10px] font-medium px-1.5 py-0.5 rounded ${
+          isInvalidMatch
+            ? 'bg-red-900/30 text-red-400'
+            : isWithinWindow
+              ? 'bg-green-900/30 text-green-400'
+              : 'bg-yellow-900/30 text-yellow-400'
+        }`}>
+          {isInvalidMatch
+            ? '⚠ Invalid: Before prediction'
+            : isWithinWindow
+              ? `✓ Match at +${formatTime(actualMinutesAfter)}`
+              : `Outside window (+${formatTime(actualMinutesAfter)})`}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ParamCompare({ label, predicted, actual, diff, unit, tolerance, colorClass }) {
   const hasActual = actual !== null && actual !== undefined;
   const hasDiff = diff !== null && diff !== undefined;
@@ -132,9 +215,17 @@ function ParamCompare({ label, predicted, actual, diff, unit, tolerance, colorCl
 }
 
 export default function PredictionsTable() {
-  const { predictions } = useSelector((state) => state.earthquake);
-  const [filter, setFilter] = useState('all');
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { predictions, pagination, isLoading } = useSelector((state) => state.earthquake);
+  const [filter, setFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [, setTick] = useState(0);
+
+  // Fetch predictions on mount and when filter/page changes
+  useEffect(() => {
+    dispatch(fetchPredictions({ page: currentPage, limit: 20, filter }));
+  }, [dispatch, filter, currentPage]);
 
   // Force re-render every 30 seconds to update expired statuses
   useEffect(() => {
@@ -143,6 +234,15 @@ export default function PredictionsTable() {
     }, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
+  };
+
+  const handleFilterChange = (newFilter) => {
+    setFilter(newFilter);
+    setCurrentPage(1); // Reset to page 1 when filter changes
+  };
 
   const openMapInNewTab = (pred) => {
     const params = new URLSearchParams({
@@ -166,23 +266,8 @@ export default function PredictionsTable() {
     window.open(`/map.html?${params.toString()}`, '_blank');
   };
 
-  const sortedPredictions = [...predictions].reverse();
-
-  // Count by status
-  const counts = {
-    all: sortedPredictions.length,
-    pending: sortedPredictions.filter(p => getStatus(p) === 'pending').length,
-    matched: sortedPredictions.filter(p => getStatus(p) === 'matched').length,
-    missed: sortedPredictions.filter(p => getStatus(p) === 'missed').length,
-  };
-
-  // Filter predictions
-  const filteredPredictions = filter === 'all'
-    ? sortedPredictions
-    : sortedPredictions.filter(p => getStatus(p) === filter);
-
   const filterColors = {
-    all: 'bg-orange-900/30 text-orange-400',
+    '': 'bg-orange-900/30 text-orange-400',
     pending: 'bg-yellow-900/30 text-yellow-400',
     matched: 'bg-green-900/30 text-green-400',
     missed: 'bg-red-900/30 text-red-400',
@@ -229,34 +314,44 @@ export default function PredictionsTable() {
     <section className="py-4">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-          <h2 className="text-lg font-bold text-orange-500">Recent Predictions</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold text-orange-500">Predictions</h2>
+            <span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-1 rounded">
+              {pagination.total} total
+            </span>
+          </div>
           <div className="flex gap-1.5">
             {FILTERS.map(f => (
               <FilterButton
                 key={f.key}
                 active={filter === f.key}
                 label={f.label}
-                count={counts[f.key]}
-                onClick={() => setFilter(f.key)}
+                onClick={() => handleFilterChange(f.key)}
                 colorClass={filterColors[f.key]}
               />
             ))}
           </div>
         </div>
 
-        {filteredPredictions.length === 0 ? (
+        {isLoading ? (
+          <div className="card text-center py-6 text-zinc-500">
+            <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+            <p className="text-sm">Loading...</p>
+          </div>
+        ) : predictions.length === 0 ? (
           <div className="card text-center py-6 text-zinc-500">
             <svg className="w-10 h-10 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
-            <p className="text-sm">{filter === 'all' ? 'No predictions yet' : `No ${filter} predictions`}</p>
+            <p className="text-sm">{filter === '' ? 'No predictions yet' : `No ${filter} predictions`}</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {filteredPredictions.map((pred, index) => (
+            {predictions.map((pred, index) => (
               <div
                 key={pred.id}
-                className={`card !p-3 ${index === 0 ? 'ring-1 ring-orange-500/50' : ''}`}
+                className={`card !p-3 cursor-pointer hover:bg-zinc-800/80 transition-colors ${index === 0 ? 'ring-1 ring-orange-500/50' : ''}`}
+                onClick={() => navigate(`/prediction/${pred.id}`)}
               >
                 {/* Header row */}
                 <div className="flex items-center justify-between mb-2 pb-2 border-b border-zinc-700">
@@ -279,7 +374,7 @@ export default function PredictionsTable() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => openMapInNewTab(pred)}
+                      onClick={(e) => { e.stopPropagation(); openMapInNewTab(pred); }}
                       className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-900/50 hover:bg-blue-800/70 text-blue-400 hover:text-blue-300 border border-blue-700 transition-colors text-xs font-medium"
                       title="View on map"
                     >
@@ -313,14 +408,11 @@ export default function PredictionsTable() {
                     tolerance={20}
                     colorClass="text-blue-400"
                   />
-                  <ParamCompare
-                    label="TIME DIFF"
-                    predicted={pred.predicted_dt}
-                    actual={pred.actual_dt}
-                    diff={pred.diff_dt}
-                    unit="m"
-                    tolerance={30}
-                    colorClass="text-purple-400"
+                  <TimeDiffCompare
+                    predictionTime={pred.prediction_time}
+                    predictedWindow={pred.predicted_dt}
+                    actualTime={pred.actual_time}
+                    verified={pred.verified}
                   />
                   <ParamCompare
                     label="MAGNITUDE"
@@ -334,6 +426,43 @@ export default function PredictionsTable() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {pagination.total_pages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-4">
+            <button
+              onClick={() => handlePageChange(1)}
+              disabled={currentPage <= 1}
+              className="px-2 py-1 rounded text-xs bg-zinc-800 text-zinc-400 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              First
+            </button>
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage <= 1}
+              className="px-3 py-1 rounded text-xs bg-zinc-800 text-zinc-400 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Prev
+            </button>
+            <span className="px-3 py-1 text-xs text-zinc-300">
+              Page {currentPage} of {pagination.total_pages}
+            </span>
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage >= pagination.total_pages}
+              className="px-3 py-1 rounded text-xs bg-zinc-800 text-zinc-400 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+            <button
+              onClick={() => handlePageChange(pagination.total_pages)}
+              disabled={currentPage >= pagination.total_pages}
+              className="px-2 py-1 rounded text-xs bg-zinc-800 text-zinc-400 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Last
+            </button>
           </div>
         )}
       </div>
