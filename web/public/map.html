@@ -165,7 +165,9 @@
     const actLon = parseFloat(params.get('alon'));
     const actMag = parseFloat(params.get('amag'));
     const actDt = params.get('adt');
+    const actTime = params.get('atime'); // Actual earthquake timestamp
     const actPlace = params.get('aplace');
+    const windowEnd = params.get('wend'); // Window end timestamp
     const diffLat = parseFloat(params.get('dlat'));
     const diffLon = parseFloat(params.get('dlon'));
     const verified = params.get('verified') === 'true';
@@ -263,15 +265,30 @@
         popupAnchor: [0, -12]
       });
 
+      // Format datetime helper
+      const formatDateTime = (isoStr) => {
+        if (!isoStr) return '—';
+        try {
+          const d = new Date(isoStr.endsWith('Z') ? isoStr : isoStr + 'Z');
+          return d.toLocaleString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', hour12: false
+          });
+        } catch { return '—'; }
+      };
+
+      // Calculate window end if not provided
+      const windowEndTime = windowEnd || (time && predDt ? new Date(new Date(time + 'Z').getTime() + parseInt(predDt) * 60000).toISOString() : '');
+
       L.marker([predLat, predLon], { icon: predIcon })
         .addTo(map)
         .bindPopup(`
-          <div style="min-width:150px;">
+          <div style="min-width:200px;">
             <div style="font-weight:700;color:#ea580c;margin-bottom:8px;">Predicted Location</div>
             <div><strong>Lat:</strong> ${predLat.toFixed(2)}°</div>
             <div><strong>Lon:</strong> ${predLon.toFixed(2)}°</div>
             ${!isNaN(predMag) ? `<div><strong>Mag:</strong> ${predMag.toFixed(1)}</div>` : ''}
-            ${predDt ? `<div><strong>Time:</strong> ${predDt} min</div>` : ''}
+            ${windowEndTime ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #ddd;"><strong>Predicted Time:</strong> ${formatDateTime(windowEndTime)}</div>` : ''}
             ${predPlace ? `<div style="margin-top:4px;color:#666;">${decodeURIComponent(predPlace)}</div>` : ''}
           </div>
         `);
@@ -300,12 +317,12 @@
         L.marker([actLat, actLon], { icon: actIcon })
           .addTo(map)
           .bindPopup(`
-            <div style="min-width:150px;">
+            <div style="min-width:200px;">
               <div style="font-weight:700;color:${actualColor};margin-bottom:8px;">Actual Earthquake</div>
               <div><strong>Lat:</strong> ${actLat.toFixed(2)}°</div>
               <div><strong>Lon:</strong> ${actLon.toFixed(2)}°</div>
               ${!isNaN(actMag) ? `<div><strong>Mag:</strong> ${actMag.toFixed(1)}</div>` : ''}
-              ${actDt ? `<div><strong>Time:</strong> ${actDt} min</div>` : ''}
+              ${actTime ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #ddd;"><strong>Actual Time:</strong> ${formatDateTime(actTime)}</div>` : ''}
               ${actPlace ? `<div style="margin-top:4px;color:#666;">${decodeURIComponent(actPlace)}</div>` : ''}
             </div>
           `);

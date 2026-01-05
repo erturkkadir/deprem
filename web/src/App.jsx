@@ -19,7 +19,7 @@ function App() {
     dispatch(fetchModelStatus());
     dispatch(fetchStats());
     dispatch(fetchLiveData());
-    dispatch(fetchPredictions(20));
+    dispatch(fetchPredictions({ limit: 20 }));
 
     // Poll for live data every 10 seconds
     const earthquakeInterval = setInterval(() => {
@@ -29,7 +29,7 @@ function App() {
     // Poll stats & predictions table every 2 minutes
     const statsInterval = setInterval(() => {
       dispatch(fetchStats());
-      dispatch(fetchPredictions(20));
+      dispatch(fetchPredictions({ limit: 20 }));
     }, 120000);
 
     // Check model status every 5 minutes

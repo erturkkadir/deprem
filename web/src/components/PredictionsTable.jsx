@@ -245,6 +245,15 @@ export default function PredictionsTable() {
   };
 
   const openMapInNewTab = (pred) => {
+    // Calculate window end time
+    const windowMinutes = pred.predicted_dt || 60;
+    let windowEndTime = '';
+    if (pred.prediction_time) {
+      const predDate = new Date(pred.prediction_time);
+      const windowEnd = new Date(predDate.getTime() + windowMinutes * 60 * 1000);
+      windowEndTime = windowEnd.toISOString();
+    }
+
     const params = new URLSearchParams({
       id: pred.id || '',
       plat: pred.predicted_lat ?? '',
@@ -257,11 +266,13 @@ export default function PredictionsTable() {
       amag: pred.actual_mag ?? '',
       adt: pred.actual_dt ?? '',
       aplace: pred.actual_place || '',
+      atime: pred.actual_time || '', // Exact actual earthquake time
       dlat: pred.diff_lat ?? '',
       dlon: pred.diff_lon ?? '',
       verified: pred.verified ? 'true' : 'false',
       correct: pred.correct ? 'true' : 'false',
-      time: pred.prediction_time || '',
+      time: pred.prediction_time || '', // Prediction start time
+      wend: windowEndTime, // Window end time
     });
     window.open(`/map.html?${params.toString()}`, '_blank');
   };

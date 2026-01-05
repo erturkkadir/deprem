@@ -4988,3 +4988,36 @@ step 707200 | loss 16.4803
 step 707400 | loss 16.2802
 [2026-01-05 22:04:27.998447] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260105_220414.pth (iter=707500, loss=16.2802)
 step 707600 | loss 16.1970
+step 707800 | loss 16.3906
+step 708000 | loss 16.2805
+[2026-01-05 22:13:52.156977] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260105_221341.pth (iter=708000, loss=16.2805)
+step 708200 | loss 16.3718
+step 708400 | loss 16.2085
+[2026-01-05 22:23:16.668695] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260105_222305.pth (iter=708500, loss=16.2085)
+step 708600 | loss 16.0787
+step 708800 | loss 16.2085
+step 709000 | loss 16.1605
+[2026-01-05 22:32:41.117429] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260105_223230.pth (iter=709000, loss=16.1605)
+step 709200 | loss 16.3421
+step 709400 | loss 16.3767
+[2026-01-05 22:42:05.329942] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260105_224154.pth (iter=709500, loss=16.3767)
+step 709600 | loss 16.2756
+step 709800 | loss 16.2597
+step 710000 | loss 16.2575
+[2026-01-05 22:51:29.691351] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260105_225119.pth (iter=710000, loss=16.2575)
+step 710200 | loss 16.3314
+step 710400 | loss 16.3964
+[2026-01-05 23:00:53.883610] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260105_230043.pth (iter=710500, loss=16.3964)
+step 710600 | loss 16.3558
+step 710800 | loss 16.4260
+step 711000 | loss 16.4068
+[2026-01-05 23:10:18.213077] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260105_231007.pth (iter=711000, loss=16.4068)
+step 711200 | loss 16.2444
+step 711400 | loss 16.3422
+[2026-01-05 23:19:42.298677] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260105_231931.pth (iter=711500, loss=16.3422)
+step 711600 | loss 16.1852
+step 711800 | loss 16.2586
+step 712000 | loss 16.2072
+[2026-01-05 23:29:07.177395] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260105_232856.pth (iter=712000, loss=16.2072)
+step 712200 | loss 16.3049
+step 712400 | loss 16.2998
