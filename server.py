@@ -505,11 +505,13 @@ def refresh_data(full_refresh=False):
 
 def monitor_cycle():
     """
-    Main monitoring loop - runs every 60 seconds:
+    Main monitoring loop - runs every 120 seconds:
     1. Quick refresh USGS data (last day only)
     2. Check prediction status (match/expire/waiting)
     """
     global dataC
+    import time
+    start_time = time.time()
 
     # Run within Flask app context
     with app.app_context():
@@ -532,8 +534,14 @@ def monitor_cycle():
             # Verify old predictions (>24 hours)
             auto_verify_predictions()
 
+            elapsed = time.time() - start_time
+            if elapsed > 60:
+                print(f"[{datetime.now()}] Warning: monitor_cycle took {elapsed:.1f}s")
+
         except Exception as e:
             print(f"Error in monitor cycle: {e}")
+            import traceback
+            traceback.print_exc()
             try:
                 dataC = DataC()
                 dataC.getDataHybrid(input_mag=INPUT_MAG, target_mag=TARGET_MAG)
@@ -547,8 +555,17 @@ def start_scheduler():
 
     scheduler = BackgroundScheduler()
 
-    # Single monitoring job every 120 seconds (safer interval)
-    scheduler.add_job(func=monitor_cycle, trigger="interval", seconds=120, id='monitor_cycle')
+    # Single monitoring job every 120 seconds
+    # Allow coalesce=True to merge missed runs, misfire_grace_time to handle delays
+    scheduler.add_job(
+        func=monitor_cycle,
+        trigger="interval",
+        seconds=120,
+        id='monitor_cycle',
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=60
+    )
 
     scheduler.start()
     print("Scheduler started: monitoring every 120 seconds")

@@ -5021,3 +5021,27 @@ step 712000 | loss 16.2072
 [2026-01-05 23:29:07.177395] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260105_232856.pth (iter=712000, loss=16.2072)
 step 712200 | loss 16.3049
 step 712400 | loss 16.2998
+[2026-01-05 23:38:31.192095] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260105_233820.pth (iter=712500, loss=16.2998)
+step 712600 | loss 16.2892
+step 712800 | loss 16.4090
+step 713000 | loss 16.2886
+[2026-01-05 23:47:55.555538] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260105_234744.pth (iter=713000, loss=16.2886)
+step 713200 | loss 16.2989
+step 713400 | loss 16.2452
+[2026-01-05 23:57:19.983985] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260105_235709.pth (iter=713500, loss=16.2452)
+step 713600 | loss 16.1447
+step 713800 | loss 16.1745
+step 714000 | loss 16.4137
+[2026-01-06 00:06:44.319489] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260106_000633.pth (iter=714000, loss=16.4137)
+step 714200 | loss 16.3496
+step 714400 | loss 16.2675
+[2026-01-06 00:16:08.793017] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260106_001557.pth (iter=714500, loss=16.2675)
+step 714600 | loss 16.2951
+step 714800 | loss 16.2540
+step 715000 | loss 16.1876
+[2026-01-06 00:25:33.077272] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260106_002522.pth (iter=715000, loss=16.1876)
+step 715200 | loss 16.4315
+step 715400 | loss 16.3980
+[2026-01-06 00:34:57.081027] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260106_003446.pth (iter=715500, loss=16.3980)
+step 715600 | loss 16.3759
+step 715800 | loss 16.3938
