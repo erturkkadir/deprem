@@ -11,7 +11,7 @@ import glob
 import torch
 from datetime import datetime
 from DataClass import DataC
-from EqModel import ComplexEqModel
+from EqModelComplex import EqModelComplex
 
 # Force unbuffered output for real-time monitoring
 sys.stdout.reconfigure(line_buffering=True)
@@ -24,11 +24,11 @@ CHECKPOINT_INTERVAL = 500  # Save every N iterations
 KEEP_CHECKPOINTS = 5       # Keep last N checkpoints
 
 # Model hyperparameters
-B = 4              # Batch size
-T = 512            # Sequence length
+B = 2              # Batch size (reduced for memory)
+T = 256            # Sequence length (reduced for memory)
 n_embed = 1176     # Embedding size (divisible by 7 features and 8 heads)
 n_heads = 8
-n_layer = 8
+n_layer = 6        # Reduced layers for memory
 dropout = 0.01
 
 # Training hyperparameters
@@ -110,18 +110,25 @@ def train():
 
     # Create model
     print(f"\n[{datetime.now()}] Creating model...")
-    model = ComplexEqModel(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max=181)
+    model = EqModelComplex(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max=181, use_rope=True)
     model.to(device)
 
     total_params = sum(p.numel() for p in model.parameters())
     print(f"Model parameters: {total_params:,}")
 
-    # Load checkpoint if exists
+    # Load checkpoint if exists and compatible
     checkpoint_path = get_latest_checkpoint()
     if checkpoint_path:
-        print(f"Resuming from: {checkpoint_path}")
-        state_dict = torch.load(checkpoint_path, map_location=device, weights_only=True)
-        model.load_state_dict(state_dict, strict=False)
+        print(f"Found checkpoint: {checkpoint_path}")
+        try:
+            state_dict = torch.load(checkpoint_path, map_location=device, weights_only=True)
+            model.load_state_dict(state_dict, strict=False)
+            print("Checkpoint loaded successfully")
+        except RuntimeError as e:
+            if "size mismatch" in str(e):
+                print(f"Checkpoint incompatible with new model architecture, starting fresh")
+            else:
+                raise e
     else:
         print("Starting from scratch")
 

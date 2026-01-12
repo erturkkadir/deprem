@@ -1,11 +1,11 @@
 """
 Earthquake Prediction Model Training Script
-Uses ComplexEqModel with complex-valued embeddings and attention
+Uses EqModelComplex with complex-valued embeddings and attention
 Hybrid approach: M2+ input context, M4+ targets
 """
 import torch
 from DataClass import DataC
-from EqModel import ComplexEqModel
+from EqModelComplex import EqModelComplex
 import numpy as np
 from datetime import datetime
 import argparse
@@ -64,7 +64,7 @@ print(f"  Input shape : {x.shape}")
 print("=" * 60)
 
 # Create model
-model = ComplexEqModel(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max=181)
+model = EqModelComplex(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max=181, use_rope=True)
 model.to(device)
 
 # Count parameters

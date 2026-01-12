@@ -20,7 +20,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from torch.nn import functional as F
 
 from DataClass import DataC
-from EqModel import ComplexEqModel
+from EqModelComplex import EqModelComplex
 
 # Force unbuffered output for real-time monitoring
 sys.stdout.reconfigure(line_buffering=True)
@@ -83,10 +83,10 @@ device = "cpu"
 col = 2  # Latitude prediction
 p_max = 181
 B = 1
-T = 512           # Sequence length (must match training)
+T = 256           # Sequence length (must match training)
 n_embed = 1176    # Embedding size (must match training, divisible by 8 heads)
 n_heads = 8
-n_layer = 8
+n_layer = 6       # Must match training
 dropout = 0.01
 INPUT_MAG = 2.0   # Min magnitude for input context
 TARGET_MAG = 4.0  # Min magnitude for targets
@@ -139,13 +139,9 @@ def load_model(force_reload=False):
     dataC = DataC()
     dataC.getDataHybrid(input_mag=INPUT_MAG, target_mag=TARGET_MAG)
 
-    # Override yr_max to match checkpoint (trained with data up to 2025)
-    # This prevents size mismatch when new year data is added
-    dataC.yr_max = 56  # Years 0-55 (1970-2025), model adds +1 for padding
-
     sizes = dataC.getSizes()
 
-    model = ComplexEqModel(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max)
+    model = EqModelComplex(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max, use_rope=True)
     model.to(device)
 
     if checkpoint_path:
@@ -156,17 +152,53 @@ def load_model(force_reload=False):
             new_key = key.replace('_orig_mod.', '')
             new_state_dict[new_key] = value
 
-        missing_keys, unexpected_keys = model.load_state_dict(new_state_dict, strict=False)
-        if missing_keys:
-            print(f"Missing keys: {missing_keys}")
-
-        current_checkpoint = checkpoint_path
-        print(f"[{datetime.now()}] Loaded checkpoint: {os.path.basename(checkpoint_path)}")
+        try:
+            missing_keys, unexpected_keys = model.load_state_dict(new_state_dict, strict=False)
+            if missing_keys:
+                print(f"Missing keys: {missing_keys}")
+            current_checkpoint = checkpoint_path
+            print(f"[{datetime.now()}] Loaded checkpoint: {os.path.basename(checkpoint_path)}")
+        except RuntimeError as e:
+            if "size mismatch" in str(e):
+                print(f"[{datetime.now()}] Checkpoint incompatible, using random weights")
+                print(f"  Error: {e}")
+            else:
+                raise e
     else:
         print("No checkpoint found, using random weights")
 
     model.eval()
     return True
+
+
+def reload_checkpoint_weights():
+    """Reload just the checkpoint weights without reloading data"""
+    global model, current_checkpoint
+
+    if model is None:
+        return False
+
+    checkpoint_path = get_latest_checkpoint()
+    if not checkpoint_path:
+        return False
+
+    try:
+        state_dict = torch.load(checkpoint_path, map_location=device, weights_only=True)
+        new_state_dict = {}
+        for key, value in state_dict.items():
+            new_key = key.replace('_orig_mod.', '')
+            new_state_dict[new_key] = value
+
+        model.load_state_dict(new_state_dict, strict=False)
+        current_checkpoint = checkpoint_path
+        print(f"[{datetime.now()}] Reloaded weights: {os.path.basename(checkpoint_path)}")
+        return True
+    except RuntimeError as e:
+        if "size mismatch" in str(e):
+            print(f"[{datetime.now()}] Checkpoint incompatible with current model, skipping")
+        else:
+            print(f"[{datetime.now()}] Error loading checkpoint: {e}")
+        return False
 
 
 def reload_if_new_checkpoint():
@@ -176,8 +208,8 @@ def reload_if_new_checkpoint():
     latest = get_latest_checkpoint()
     if latest and latest != current_checkpoint:
         print(f"[{datetime.now()}] New checkpoint detected: {os.path.basename(latest)}")
-        load_model(force_reload=True)
-        return True
+        # Just reload weights, not the entire data
+        return reload_checkpoint_weights()
     return False
 
 
@@ -1110,7 +1142,7 @@ def model_status():
     return jsonify({
         'loaded': model is not None,
         'device': device,
-        'model_type': 'ComplexEqModel',
+        'model_type': 'EqModelComplex',
         'current_checkpoint': os.path.basename(current_checkpoint) if checkpoint_exists else None,
         'checkpoint_time': checkpoint_time,
         'training': training_info,
