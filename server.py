@@ -224,7 +224,7 @@ def make_prediction():
     try:
         # RACE CONDITION PREVENTION: Check if there's already a pending prediction
         # This prevents multiple predictions from being created simultaneously
-        dataC._ensure_connection()
+        dataC._force_reconnect()
         existing = dataC.get_latest_prediction(min_mag=4.0)
         if existing and not existing.get('verified'):
             pr_timestamp = datetime.fromisoformat(existing['timestamp'])
@@ -376,7 +376,7 @@ def check_and_handle_prediction():
         return None
 
     try:
-        dataC._ensure_connection()
+        dataC._force_reconnect()
 
         # Get the latest prediction
         latest = dataC.get_latest_prediction(min_mag=4.0)
@@ -527,9 +527,10 @@ def refresh_data(full_refresh=False):
 
     except Exception as e:
         print(f"Error refreshing data: {e}")
+        # Just reconnect to database, don't reload all data
         try:
-            dataC = DataC()
-            dataC.getDataHybrid(input_mag=INPUT_MAG, target_mag=TARGET_MAG)
+            if dataC is not None:
+                dataC._connect_db()
         except:
             pass
         return False
@@ -554,7 +555,7 @@ def monitor_cycle():
             # Quick USGS data refresh (just update DB)
             if dataC is None:
                 dataC = DataC()
-            dataC._ensure_connection()
+            dataC._force_reconnect()
             dataC.usgs2DB(days=1)
 
             # Check and handle current prediction
@@ -574,9 +575,10 @@ def monitor_cycle():
             print(f"Error in monitor cycle: {e}")
             import traceback
             traceback.print_exc()
+            # Just reconnect to database, don't reload all data
             try:
-                dataC = DataC()
-                dataC.getDataHybrid(input_mag=INPUT_MAG, target_mag=TARGET_MAG)
+                if dataC is not None:
+                    dataC._connect_db()
             except:
                 pass
 
@@ -883,7 +885,7 @@ def api_refresh_data():
     global dataC
 
     try:
-        dataC._ensure_connection()
+        dataC._force_reconnect()
         dataC.usgs2DB()
         return jsonify({
             'success': True,
@@ -903,7 +905,8 @@ def get_stats():
 
     try:
         stats = dataC.get_prediction_stats()
-        predictions = dataC.get_predictions_with_actuals(limit=10)
+        result = dataC.get_predictions_with_actuals(limit=10)
+        predictions = result.get('predictions', [])
 
         for p in predictions:
             if p.get('prediction_time') and hasattr(p['prediction_time'], 'isoformat'):
@@ -945,6 +948,88 @@ def recent_earthquakes():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/earthquakes-24h', methods=['GET'])
+def earthquakes_24h():
+    """Get all earthquakes from the last 24 hours for the realtime map"""
+    global dataC
+
+    if dataC is None:
+        return jsonify({'error': 'Data not loaded'}), 500
+
+    try:
+        min_mag = request.args.get('min_mag', 2.0, type=float)
+
+        # Get earthquakes from last 24 hours
+        sql = """
+        SELECT
+            us_id,
+            us_datetime,
+            us_x - 90 as lat,
+            us_y - 180 as lon,
+            us_mag,
+            us_dep,
+            us_place
+        FROM usgs
+        WHERE us_datetime >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        AND us_mag >= %s
+        AND us_type = 'earthquake'
+        ORDER BY us_datetime DESC
+        """
+
+        dataC._safe_execute(sql, (min_mag,))
+        rows = dataC.mycursor.fetchall()
+
+        earthquakes = []
+        stats = {'total': 0, 'byMag': {'7+': 0, '6+': 0, '5+': 0, '4+': 0, '3+': 0, '<3': 0}}
+
+        for row in rows:
+            # Add 'Z' suffix to indicate UTC time for proper JS parsing
+            time_str = row[1].isoformat() + 'Z' if row[1] else None
+            eq = {
+                'id': row[0],
+                'time': time_str,
+                'lat': float(row[2]) if row[2] is not None else None,
+                'lon': float(row[3]) if row[3] is not None else None,
+                'mag': float(row[4]) if row[4] is not None else None,
+                'depth': float(row[5]) if row[5] is not None else None,
+                'place': row[6]
+            }
+            earthquakes.append(eq)
+
+            # Count by magnitude
+            mag = eq['mag'] or 0
+            if mag >= 7:
+                stats['byMag']['7+'] += 1
+            elif mag >= 6:
+                stats['byMag']['6+'] += 1
+            elif mag >= 5:
+                stats['byMag']['5+'] += 1
+            elif mag >= 4:
+                stats['byMag']['4+'] += 1
+            elif mag >= 3:
+                stats['byMag']['3+'] += 1
+            else:
+                stats['byMag']['<3'] += 1
+
+        stats['total'] = len(earthquakes)
+
+        return jsonify({
+            'success': True,
+            'earthquakes': earthquakes,
+            'stats': stats,
+            'count': len(earthquakes),
+            'period': '24h',
+            'min_mag': min_mag,
+            'timestamp': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        print(f"Error in /api/earthquakes-24h: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/prediction/<int:prediction_id>', methods=['GET'])
 def get_prediction_detail(prediction_id):
     """Get detailed prediction info including earthquakes in its time window"""
@@ -954,7 +1039,7 @@ def get_prediction_detail(prediction_id):
         return jsonify({'error': 'Data not loaded'}), 500
 
     try:
-        dataC._ensure_connection()
+        dataC._force_reconnect()
 
         # Get the prediction
         sql = """

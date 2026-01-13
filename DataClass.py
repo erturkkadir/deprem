@@ -30,33 +30,116 @@ class DataC():
 
     def _connect_db(self):
         """Connect or reconnect to database"""
-        try:
-            self.mydb = mysql.connector.connect(
-                host=config.DB_HOST,
-                user=config.DB_USER,
-                password=config.DB_PASS,
-                database=config.DB_NAME,
-                autocommit=True,
-                connection_timeout=30,
-                ssl_disabled=True
-            )
-            self.mycursor = self.mydb.cursor()
-        except Exception as e:
-            print(f"Database connection error: {e}")
-            raise
+        import time
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                # Always start fresh
+                self.mydb = None
+                self.mycursor = None
 
-    def _ensure_connection(self):
-        """Ensure database connection is active, reconnect if needed"""
-        try:
-            if self.mydb is None or not self.mydb.is_connected():
-                self._connect_db()
-            else:
-                self.mydb.ping(reconnect=True, attempts=3, delay=1)
-                # Refresh cursor after ping
+                self.mydb = mysql.connector.connect(
+                    host=config.DB_HOST,
+                    user=config.DB_USER,
+                    password=config.DB_PASS,
+                    database=config.DB_NAME,
+                    autocommit=False,  # Manual commit for better control
+                    connection_timeout=30,
+                    ssl_disabled=True,
+                    pool_reset_session=True
+                )
                 self.mycursor = self.mydb.cursor()
-        except Exception as e:
-            print(f"Reconnecting to database: {e}")
-            self._connect_db()
+                print(f"Database connected successfully (attempt {attempt + 1})")
+                return
+            except Exception as e:
+                print(f"Database connection error (attempt {attempt + 1}): {e}")
+                if attempt < max_attempts - 1:
+                    time.sleep(1)
+                else:
+                    raise
+
+    def _force_reconnect(self):
+        """Force close and create completely fresh connection"""
+        # Aggressively clean up old connection
+        try:
+            if hasattr(self, 'mycursor') and self.mycursor is not None:
+                try:
+                    self.mycursor.close()
+                except:
+                    pass
+        except:
+            pass
+
+        try:
+            if hasattr(self, 'mydb') and self.mydb is not None:
+                try:
+                    self.mydb.close()
+                except:
+                    pass
+        except:
+            pass
+
+        # Clear references
+        self.mydb = None
+        self.mycursor = None
+
+        # Create fresh connection
+        self._connect_db()
+
+    def _safe_execute(self, sql, params=None, many=False):
+        """Safely execute a SQL query with automatic reconnection on failure.
+
+        This is the ONLY way queries should be executed - handles all connection issues.
+        """
+        import time
+        max_retries = 3
+        last_error = None
+
+        for attempt in range(max_retries):
+            try:
+                # Always force fresh connection/cursor on each attempt
+                if attempt > 0 or self.mydb is None or self.mycursor is None:
+                    self._force_reconnect()
+                else:
+                    # First attempt: just verify we have valid objects
+                    try:
+                        if not self.mydb.is_connected():
+                            self._force_reconnect()
+                    except:
+                        self._force_reconnect()
+
+                # Execute the query
+                if many:
+                    self.mycursor.executemany(sql, params)
+                elif params:
+                    self.mycursor.execute(sql, params)
+                else:
+                    self.mycursor.execute(sql)
+                return True
+
+            except Exception as e:
+                last_error = e
+                error_str = str(e).lower()
+
+                # These errors indicate connection corruption - always retry
+                is_connection_error = any(x in error_str for x in [
+                    'nonetype', 'not connected', 'unread_result', 'bytearray',
+                    'weakly-referenced', 'connection not available', 'lost connection',
+                    'mysql connection', 'cursor is not', 'format-parameters',
+                    'server has gone away', '2006', '2013', '2055'
+                ])
+
+                if attempt < max_retries - 1 and is_connection_error:
+                    print(f"Query failed (attempt {attempt + 1}/{max_retries}): {e}")
+                    time.sleep(0.5 * (attempt + 1))  # Increasing delay
+                    continue
+                else:
+                    # Either not a connection error, or we've exhausted retries
+                    raise
+
+        # Should not reach here, but just in case
+        if last_error:
+            raise last_error
 
     def _create_predictions_table(self):
         """Create predictions table if it doesn't exist"""
@@ -86,7 +169,7 @@ class DataC():
         ) ENGINE=InnoDB
         """
         try:
-            self.mycursor.execute(sql)
+            self._safe_execute(sql)
             self.mydb.commit()
             # Add columns if they don't exist (for migration)
             self._migrate_predictions_table()
@@ -107,7 +190,7 @@ class DataC():
         ]
         for sql in migrations:
             try:
-                self.mycursor.execute(sql)
+                self._safe_execute(sql)
                 self.mydb.commit()
             except Exception as e:
                 # Column likely already exists
@@ -123,13 +206,12 @@ class DataC():
             mag_predicted: Encoded magnitude (0-91, actual = value/10)
             place: Predicted location name (from reverse geocoding)
         """
-        self._ensure_connection()
         sql = """
         INSERT INTO predictions (pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted, pr_place)
         VALUES (NOW(), %s, %s, %s, %s, %s)
         """
         try:
-            self.mycursor.execute(sql, (lat_predicted, lon_predicted, dt_predicted, mag_predicted, place))
+            self._safe_execute(sql, (lat_predicted, lon_predicted, dt_predicted, mag_predicted, place))
             self.mydb.commit()
             return self.mycursor.lastrowid
         except Exception as e:
@@ -138,7 +220,6 @@ class DataC():
 
     def get_unverified_predictions(self, older_than_hours=24):
         """Get predictions that haven't been verified yet"""
-        self._ensure_connection()
         sql = """
         SELECT pr_id, pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted
         FROM predictions
@@ -147,7 +228,7 @@ class DataC():
         ORDER BY pr_timestamp ASC
         """
         try:
-            self.mycursor.execute(sql, (older_than_hours,))
+            self._safe_execute(sql, (older_than_hours,))
             return self.mycursor.fetchall()
         except Exception as e:
             print(f"Error getting unverified predictions: {e}")
@@ -155,7 +236,6 @@ class DataC():
 
     def get_earthquakes_in_window(self, start_time, end_time, min_mag=4.0):
         """Get actual earthquakes within a time window"""
-        self._ensure_connection()
         sql = """
         SELECT us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place
         FROM usgs
@@ -165,7 +245,7 @@ class DataC():
         ORDER BY us_datetime ASC
         """
         try:
-            self.mycursor.execute(sql, (start_time, end_time, min_mag))
+            self._safe_execute(sql, (start_time, end_time, min_mag))
             return self.mycursor.fetchall()
         except Exception as e:
             print(f"Error getting earthquakes in window: {e}")
@@ -188,7 +268,6 @@ class DataC():
             diff_mag: Difference in magnitude
             correct: Whether prediction was correct
         """
-        self._ensure_connection()
         sql = """
         UPDATE predictions SET
             pr_actual_id = %s,
@@ -206,7 +285,7 @@ class DataC():
         WHERE pr_id = %s
         """
         try:
-            self.mycursor.execute(sql, (actual_id, actual_lat, actual_lon, actual_dt, actual_mag, actual_time, diff_lat, diff_lon, diff_dt, diff_mag, correct, pr_id))
+            self._safe_execute(sql, (actual_id, actual_lat, actual_lon, actual_dt, actual_mag, actual_time, diff_lat, diff_lon, diff_dt, diff_mag, correct, pr_id))
             self.mydb.commit()
             return True
         except Exception as e:
@@ -225,7 +304,6 @@ class DataC():
         Returns:
             dict with 'predictions' list and 'total' count
         """
-        self._ensure_connection()
         encoded_mag = min_mag * 10
 
         # Build WHERE clause based on filter
@@ -242,7 +320,7 @@ class DataC():
         # Get total count
         count_sql = f"SELECT COUNT(*) FROM predictions p WHERE {filter_clause}"
         try:
-            self.mycursor.execute(count_sql, params)
+            self._safe_execute(count_sql, tuple(params))
             total = self.mycursor.fetchone()[0]
         except Exception as e:
             print(f"Error counting predictions: {e}")
@@ -277,7 +355,7 @@ class DataC():
         LIMIT %s OFFSET %s
         """
         try:
-            self.mycursor.execute(sql, params + [limit, offset])
+            self._safe_execute(sql, tuple(params + [limit, offset]))
             columns = ['id', 'prediction_time', 'predicted_lat', 'predicted_lon', 'predicted_dt', 'predicted_mag', 'predicted_place',
                       'actual_lat', 'actual_lon', 'actual_dt', 'actual_mag', 'diff_lat', 'diff_lon', 'diff_dt', 'diff_mag',
                       'verified', 'correct', 'actual_time', 'actual_place']
@@ -290,7 +368,6 @@ class DataC():
 
     def get_latest_prediction(self, min_mag=4.0):
         """Get the most recent prediction with magnitude >= min_mag"""
-        self._ensure_connection()
         sql = """
         SELECT
             pr_id,
@@ -317,7 +394,7 @@ class DataC():
         """
         try:
             # min_mag stored as encoded (mag * 10), so multiply threshold
-            self.mycursor.execute(sql, (min_mag * 10,))
+            self._safe_execute(sql, (min_mag * 10,))
             row = self.mycursor.fetchone()
             if row:
                 return {
@@ -346,7 +423,6 @@ class DataC():
 
     def get_recent_earthquakes(self, limit=20, min_mag=4.0):
         """Get recent actual earthquakes from database"""
-        self._ensure_connection()
         sql = """
         SELECT
             us_id,
@@ -362,7 +438,7 @@ class DataC():
         LIMIT %s
         """
         try:
-            self.mycursor.execute(sql, (min_mag, limit))
+            self._safe_execute(sql, (min_mag, limit))
             columns = ['id', 'time', 'lat', 'lon', 'mag', 'depth', 'place']
             rows = self.mycursor.fetchall()
             result = []
@@ -388,13 +464,11 @@ class DataC():
             earthquake_time: Actual earthquake time (ISO string)
             distance: Circular distance in degrees
         """
-        self._ensure_connection()
-
         try:
             # First get the prediction data to calculate differences
             sql = """SELECT pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted
                      FROM predictions WHERE pr_id = %s"""
-            self.mycursor.execute(sql, (pr_id,))
+            self._safe_execute(sql, (pr_id,))
             row = self.mycursor.fetchone()
 
             if not row:
@@ -445,7 +519,7 @@ class DataC():
                 pr_correct = %s
             WHERE pr_id = %s
             """
-            self.mycursor.execute(sql, (
+            self._safe_execute(sql, (
                 earthquake_id, eq_lat_encoded, eq_lon_encoded, actual_dt, eq_mag_encoded, eq_time,
                 diff_lat, diff_lon, diff_dt, diff_mag, correct, pr_id
             ))
@@ -461,7 +535,6 @@ class DataC():
 
     def get_prediction_stats(self, min_mag=4.0):
         """Get prediction success statistics for predictions with magnitude >= min_mag"""
-        self._ensure_connection()
         sql = """
         SELECT
             COUNT(*) as total,
@@ -472,7 +545,7 @@ class DataC():
         """
         try:
             # min_mag stored as encoded (mag * 10), so multiply threshold
-            self.mycursor.execute(sql, (min_mag * 10,))
+            self._safe_execute(sql, (min_mag * 10,))
             row = self.mycursor.fetchone()
             total = row[0] or 0
             verified = row[1] or 0
@@ -528,8 +601,7 @@ class DataC():
         
     def usgs2DB(self, days=1):
         """Fetch USGS data. days=1 for quick updates, days=3 for full refresh"""
-        self._ensure_connection()
-        self.mycursor.execute("delete from usgs_tmp")
+        self._safe_execute("delete from usgs_tmp")
 
         min_magnitude = 2
         all_values = []
@@ -579,37 +651,33 @@ class DataC():
 
         # Batch insert all records at once
         if all_values:
-            self._ensure_connection()
             sql = """INSERT INTO usgs_tmp(us_code, us_date, us_time, us_datetime, us_lat, us_lon,
                      us_dep, us_mag, us_place, us_type, us_magType, us_x, us_y, us_d, us_m)
                      VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
             try:
-                self.mycursor.executemany(sql, all_values)
+                self._safe_execute(sql, all_values, many=True)
                 self.mydb.commit()
                 print(f"Batch inserted {len(all_values)} earthquakes")
             except Exception as e:
                 print(f"Batch insert error: {e}")
 
         # Run stored procedure to merge into main table
-        self._ensure_connection()
         try:
-            self.mycursor.execute("call ins_quakes()")
+            self._safe_execute("call ins_quakes()")
             print("Executed ins_quakes()")
         except Exception as e:
             print(f"Error ins_quakes: {e}")
 
         # Calculate time differences for new records
-        self._ensure_connection()
-        self.mycursor.execute("SELECT us_id FROM usgs WHERE us_t is null")
+        self._safe_execute("SELECT us_id FROM usgs WHERE us_t is null")
         rows = self.mycursor.fetchall()
         if rows:
             print(f"Calculating dt for {len(rows)} new records...")
             for row in rows:
                 try:
-                    self.mycursor.execute(f"call calc_dt({row[0]})")
+                    self._safe_execute(f"call calc_dt({row[0]})")
                 except Exception as e:
                     print(f"Error calc_dt for {row[0]}: {e}")
-                    self._ensure_connection()
             self.mydb.commit()
             print("Done calculating dt")
         
