@@ -224,7 +224,6 @@ def make_prediction():
     try:
         # RACE CONDITION PREVENTION: Check if there's already a pending prediction
         # This prevents multiple predictions from being created simultaneously
-        dataC._force_reconnect()
         existing = dataC.get_latest_prediction(min_mag=4.0)
         if existing and not existing.get('verified'):
             pr_timestamp = datetime.fromisoformat(existing['timestamp'])
@@ -376,8 +375,6 @@ def check_and_handle_prediction():
         return None
 
     try:
-        dataC._force_reconnect()
-
         # Get the latest prediction
         latest = dataC.get_latest_prediction(min_mag=4.0)
 
@@ -555,7 +552,6 @@ def monitor_cycle():
             # Quick USGS data refresh (just update DB)
             if dataC is None:
                 dataC = DataC()
-            dataC._force_reconnect()
             dataC.usgs2DB(days=1)
 
             # Check and handle current prediction
@@ -885,7 +881,6 @@ def api_refresh_data():
     global dataC
 
     try:
-        dataC._force_reconnect()
         dataC.usgs2DB()
         return jsonify({
             'success': True,
@@ -1039,8 +1034,6 @@ def get_prediction_detail(prediction_id):
         return jsonify({'error': 'Data not loaded'}), 500
 
     try:
-        dataC._force_reconnect()
-
         # Get the prediction
         sql = """
         SELECT

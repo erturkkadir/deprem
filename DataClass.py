@@ -5,10 +5,16 @@ import datetime
 import csv
 import numpy as np
 import torch
+import threading
 import config
 
 
 class DataC():
+    """Database connection-centric class: single persistent connection with thread safety."""
+
+    # Class-level lock for thread safety
+    _lock = threading.RLock()
+
     def __init__(self):
         self.yr_max = 55
         self.mt_max = 12
@@ -22,6 +28,10 @@ class DataC():
         self.valid = []
         self.n = 0.8
 
+        # Single persistent connection
+        self.mydb = None
+        self.mycursor = None
+
         self._connect_db()
         self.fname =  "./data/latest.csv"
 
@@ -29,117 +39,116 @@ class DataC():
         self._create_predictions_table()
 
     def _connect_db(self):
-        """Connect or reconnect to database"""
-        import time
-        max_attempts = 3
-        for attempt in range(max_attempts):
+        """Establish database connection. Only called once or after connection dies."""
+        with self._lock:
             try:
-                # Always start fresh
-                self.mydb = None
-                self.mycursor = None
+                # Clean up any existing connection first
+                self._close_connection()
 
                 self.mydb = mysql.connector.connect(
                     host=config.DB_HOST,
                     user=config.DB_USER,
                     password=config.DB_PASS,
                     database=config.DB_NAME,
-                    autocommit=False,  # Manual commit for better control
+                    autocommit=False,
                     connection_timeout=30,
                     ssl_disabled=True,
-                    pool_reset_session=True
+                    use_pure=True
                 )
                 self.mycursor = self.mydb.cursor()
-                print(f"Database connected successfully (attempt {attempt + 1})")
-                return
+                print("Database connection established")
             except Exception as e:
-                print(f"Database connection error (attempt {attempt + 1}): {e}")
-                if attempt < max_attempts - 1:
-                    time.sleep(1)
-                else:
-                    raise
+                print(f"Database connection error: {e}")
+                self.mydb = None
+                self.mycursor = None
+                raise
 
-    def _force_reconnect(self):
-        """Force close and create completely fresh connection"""
-        # Aggressively clean up old connection
+    def _close_connection(self):
+        """Safely close existing connection."""
         try:
-            if hasattr(self, 'mycursor') and self.mycursor is not None:
-                try:
-                    self.mycursor.close()
-                except:
-                    pass
+            if self.mycursor:
+                self.mycursor.close()
         except:
             pass
-
         try:
-            if hasattr(self, 'mydb') and self.mydb is not None:
-                try:
-                    self.mydb.close()
-                except:
-                    pass
+            if self.mydb:
+                self.mydb.close()
         except:
             pass
-
-        # Clear references
         self.mydb = None
         self.mycursor = None
 
-        # Create fresh connection
-        self._connect_db()
+    def _ensure_connection(self):
+        """Ensure connection is alive, reconnect if dead. Returns True if connected."""
+        with self._lock:
+            if self.mydb is None:
+                self._connect_db()
+                return self.mydb is not None
+
+            try:
+                # ping() will reconnect if connection is lost
+                self.mydb.ping(reconnect=True, attempts=2, delay=1)
+                # Recreate cursor after ping (old cursor may be invalid)
+                if self.mycursor is None or not self.mydb.is_connected():
+                    self.mycursor = self.mydb.cursor()
+                return True
+            except Exception as e:
+                print(f"Connection ping failed: {e}, reconnecting...")
+                try:
+                    self._connect_db()
+                    return self.mydb is not None
+                except:
+                    return False
 
     def _safe_execute(self, sql, params=None, many=False):
-        """Safely execute a SQL query with automatic reconnection on failure.
+        """Execute SQL with automatic reconnection on failure.
 
-        This is the ONLY way queries should be executed - handles all connection issues.
+        Thread-safe: uses lock to ensure single access to connection.
+        Connection-centric: reuses single connection, only reconnects on failure.
         """
-        import time
-        max_retries = 3
-        last_error = None
+        with self._lock:
+            max_retries = 2
+            last_error = None
 
-        for attempt in range(max_retries):
-            try:
-                # Always force fresh connection/cursor on each attempt
-                if attempt > 0 or self.mydb is None or self.mycursor is None:
-                    self._force_reconnect()
-                else:
-                    # First attempt: just verify we have valid objects
-                    try:
-                        if not self.mydb.is_connected():
-                            self._force_reconnect()
-                    except:
-                        self._force_reconnect()
+            for attempt in range(max_retries):
+                try:
+                    # Ensure we have a valid connection
+                    if not self._ensure_connection():
+                        raise Exception("Could not establish database connection")
 
-                # Execute the query
-                if many:
-                    self.mycursor.executemany(sql, params)
-                elif params:
-                    self.mycursor.execute(sql, params)
-                else:
-                    self.mycursor.execute(sql)
-                return True
+                    # Execute the query
+                    if many:
+                        self.mycursor.executemany(sql, params)
+                    elif params:
+                        self.mycursor.execute(sql, params)
+                    else:
+                        self.mycursor.execute(sql)
+                    return True
 
-            except Exception as e:
-                last_error = e
-                error_str = str(e).lower()
+                except Exception as e:
+                    last_error = e
+                    error_str = str(e).lower()
 
-                # These errors indicate connection corruption - always retry
-                is_connection_error = any(x in error_str for x in [
-                    'nonetype', 'not connected', 'unread_result', 'bytearray',
-                    'weakly-referenced', 'connection not available', 'lost connection',
-                    'mysql connection', 'cursor is not', 'format-parameters',
-                    'server has gone away', '2006', '2013', '2055'
-                ])
+                    # Connection-related errors that warrant reconnection
+                    is_connection_error = any(x in error_str for x in [
+                        'nonetype', 'not connected', 'unread_result', 'bytearray',
+                        'weakly-referenced', 'connection not available', 'lost connection',
+                        'mysql connection', 'cursor is not', 'server has gone away',
+                        '2006', '2013', '2055'
+                    ])
 
-                if attempt < max_retries - 1 and is_connection_error:
-                    print(f"Query failed (attempt {attempt + 1}/{max_retries}): {e}")
-                    time.sleep(0.5 * (attempt + 1))  # Increasing delay
-                    continue
-                else:
-                    # Either not a connection error, or we've exhausted retries
-                    raise
+                    if attempt < max_retries - 1 and is_connection_error:
+                        print(f"Query failed (attempt {attempt + 1}): {e}, reconnecting...")
+                        try:
+                            self._connect_db()
+                        except:
+                            pass
+                        continue
+                    else:
+                        raise
 
-        # Should not reach here, but just in case
-        if last_error:
-            raise last_error
+            if last_error:
+                raise last_error
 
     def _create_predictions_table(self):
         """Create predictions table if it doesn't exist"""
@@ -1016,5 +1025,6 @@ class DataC():
     
 
     def closeAll(self):
-        self.mydb.close()
+        """Close the database connection."""
+        self._close_connection()
         
