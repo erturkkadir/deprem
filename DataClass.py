@@ -88,9 +88,15 @@ class DataC():
             try:
                 # ping() will reconnect if connection is lost
                 self.mydb.ping(reconnect=True, attempts=2, delay=1)
-                # Recreate cursor after ping (old cursor may be invalid)
-                if self.mycursor is None or not self.mydb.is_connected():
-                    self.mycursor = self.mydb.cursor()
+                # ALWAYS recreate cursor after ping - ping(reconnect=True) may have
+                # internally replaced the connection, making old cursor invalid
+                # (causes "Bad file descriptor" errors if we reuse stale cursor)
+                try:
+                    if self.mycursor:
+                        self.mycursor.close()
+                except:
+                    pass
+                self.mycursor = self.mydb.cursor()
                 return True
             except Exception as e:
                 print(f"Connection ping failed: {e}, reconnecting...")
@@ -139,6 +145,67 @@ class DataC():
 
                     if attempt < max_retries - 1 and is_connection_error:
                         print(f"Query failed (attempt {attempt + 1}): {e}, reconnecting...")
+                        try:
+                            self._connect_db()
+                        except:
+                            pass
+                        continue
+                    else:
+                        raise
+
+            if last_error:
+                raise last_error
+
+    def _safe_fetch(self, sql, params=None, fetch_one=False):
+        """Execute SQL and fetch results in one atomic operation.
+
+        Thread-safe: keeps lock held during execute AND fetch to prevent
+        cursor invalidation between the two operations.
+
+        Args:
+            sql: SQL query string
+            params: Query parameters (tuple)
+            fetch_one: If True, return single row; if False, return all rows
+
+        Returns:
+            Single row (if fetch_one) or list of rows (if not fetch_one)
+        """
+        with self._lock:
+            max_retries = 2
+            last_error = None
+
+            for attempt in range(max_retries):
+                try:
+                    # Ensure we have a valid connection
+                    if not self._ensure_connection():
+                        raise Exception("Could not establish database connection")
+
+                    # Execute the query
+                    if params:
+                        self.mycursor.execute(sql, params)
+                    else:
+                        self.mycursor.execute(sql)
+
+                    # Fetch results immediately while still holding lock
+                    if fetch_one:
+                        return self.mycursor.fetchone()
+                    else:
+                        return self.mycursor.fetchall()
+
+                except Exception as e:
+                    last_error = e
+                    error_str = str(e).lower()
+
+                    # Connection-related errors that warrant reconnection
+                    is_connection_error = any(x in error_str for x in [
+                        'nonetype', 'not connected', 'unread_result', 'bytearray',
+                        'weakly-referenced', 'connection not available', 'lost connection',
+                        'mysql connection', 'cursor is not', 'server has gone away',
+                        '2006', '2013', '2055', 'bad file descriptor'
+                    ])
+
+                    if attempt < max_retries - 1 and is_connection_error:
+                        print(f"Fetch failed (attempt {attempt + 1}): {e}, reconnecting...")
                         try:
                             self._connect_db()
                         except:
@@ -237,8 +304,7 @@ class DataC():
         ORDER BY pr_timestamp ASC
         """
         try:
-            self._safe_execute(sql, (older_than_hours,))
-            return self.mycursor.fetchall()
+            return self._safe_fetch(sql, (older_than_hours,))
         except Exception as e:
             print(f"Error getting unverified predictions: {e}")
             return []
@@ -254,8 +320,7 @@ class DataC():
         ORDER BY us_datetime ASC
         """
         try:
-            self._safe_execute(sql, (start_time, end_time, min_mag))
-            return self.mycursor.fetchall()
+            return self._safe_fetch(sql, (start_time, end_time, min_mag))
         except Exception as e:
             print(f"Error getting earthquakes in window: {e}")
             return []
@@ -329,8 +394,8 @@ class DataC():
         # Get total count
         count_sql = f"SELECT COUNT(*) FROM predictions p WHERE {filter_clause}"
         try:
-            self._safe_execute(count_sql, tuple(params))
-            total = self.mycursor.fetchone()[0]
+            row = self._safe_fetch(count_sql, tuple(params), fetch_one=True)
+            total = row[0] if row else 0
         except Exception as e:
             print(f"Error counting predictions: {e}")
             total = 0
@@ -364,11 +429,10 @@ class DataC():
         LIMIT %s OFFSET %s
         """
         try:
-            self._safe_execute(sql, tuple(params + [limit, offset]))
+            rows = self._safe_fetch(sql, tuple(params + [limit, offset]))
             columns = ['id', 'prediction_time', 'predicted_lat', 'predicted_lon', 'predicted_dt', 'predicted_mag', 'predicted_place',
                       'actual_lat', 'actual_lon', 'actual_dt', 'actual_mag', 'diff_lat', 'diff_lon', 'diff_dt', 'diff_mag',
                       'verified', 'correct', 'actual_time', 'actual_place']
-            rows = self.mycursor.fetchall()
             predictions = [dict(zip(columns, row)) for row in rows]
             return {'predictions': predictions, 'total': total}
         except Exception as e:
@@ -403,8 +467,7 @@ class DataC():
         """
         try:
             # min_mag stored as encoded (mag * 10), so multiply threshold
-            self._safe_execute(sql, (min_mag * 10,))
-            row = self.mycursor.fetchone()
+            row = self._safe_fetch(sql, (min_mag * 10,), fetch_one=True)
             if row:
                 return {
                     'id': row[0],
@@ -447,9 +510,8 @@ class DataC():
         LIMIT %s
         """
         try:
-            self._safe_execute(sql, (min_mag, limit))
+            rows = self._safe_fetch(sql, (min_mag, limit))
             columns = ['id', 'time', 'lat', 'lon', 'mag', 'depth', 'place']
-            rows = self.mycursor.fetchall()
             result = []
             for row in rows:
                 d = dict(zip(columns, row))
@@ -477,8 +539,7 @@ class DataC():
             # First get the prediction data to calculate differences
             sql = """SELECT pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted
                      FROM predictions WHERE pr_id = %s"""
-            self._safe_execute(sql, (pr_id,))
-            row = self.mycursor.fetchone()
+            row = self._safe_fetch(sql, (pr_id,), fetch_one=True)
 
             if not row:
                 print(f"Prediction {pr_id} not found")
@@ -554,8 +615,7 @@ class DataC():
         """
         try:
             # min_mag stored as encoded (mag * 10), so multiply threshold
-            self._safe_execute(sql, (min_mag * 10,))
-            row = self.mycursor.fetchone()
+            row = self._safe_fetch(sql, (min_mag * 10,), fetch_one=True)
             total = row[0] or 0
             verified = row[1] or 0
             correct = row[2] or 0
@@ -678,8 +738,7 @@ class DataC():
             print(f"Error ins_quakes: {e}")
 
         # Calculate time differences for new records
-        self._safe_execute("SELECT us_id FROM usgs WHERE us_t is null")
-        rows = self.mycursor.fetchall()
+        rows = self._safe_fetch("SELECT us_id FROM usgs WHERE us_t is null")
         if rows:
             print(f"Calculating dt for {len(rows)} new records...")
             for row in rows:

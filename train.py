@@ -8,6 +8,7 @@ Earthquake Prediction Model - Hybrid Training Script
 import os
 import sys
 import glob
+import json
 import torch
 from datetime import datetime
 from DataClass import DataC
@@ -19,6 +20,7 @@ sys.stdout.reconfigure(line_buffering=True)
 # ============= CONFIGURATION =============
 MODEL_DIR = '/var/www/syshuman/quake'
 MODEL_PREFIX = 'eqModel_complex'
+TRAINING_STATUS_FILE = f'{MODEL_DIR}/training_status.json'
 PRINT_INTERVAL = 200       # Print loss every N iterations
 CHECKPOINT_INTERVAL = 500  # Save every N iterations
 KEEP_CHECKPOINTS = 5       # Keep last N checkpoints
@@ -51,6 +53,35 @@ def get_latest_checkpoint():
     return None
 
 
+def update_training_status(iteration, loss, is_checkpoint=False):
+    """Write training status to JSON file for server to read"""
+    try:
+        status = {
+            'latest_step': iteration,
+            'latest_loss': loss,
+            'updated_at': datetime.now().isoformat()
+        }
+        if is_checkpoint:
+            status['checkpoint_step'] = iteration
+            status['checkpoint_loss'] = loss
+
+        # Try to preserve checkpoint info from previous status
+        if os.path.exists(TRAINING_STATUS_FILE) and not is_checkpoint:
+            try:
+                with open(TRAINING_STATUS_FILE, 'r') as f:
+                    old_status = json.load(f)
+                    if 'checkpoint_step' in old_status:
+                        status['checkpoint_step'] = old_status['checkpoint_step']
+                        status['checkpoint_loss'] = old_status['checkpoint_loss']
+            except:
+                pass
+
+        with open(TRAINING_STATUS_FILE, 'w') as f:
+            json.dump(status, f)
+    except Exception as e:
+        print(f"Warning: Could not update training status: {e}")
+
+
 def save_checkpoint(model, iteration, loss):
     """Save model checkpoint with timestamp"""
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -63,6 +94,9 @@ def save_checkpoint(model, iteration, loss):
     torch.save(model.state_dict(), standard_path)
 
     print(f"[{datetime.now()}] Checkpoint saved: {checkpoint_path} (iter={iteration}, loss={loss:.4f})")
+
+    # Update training status file with checkpoint info
+    update_training_status(iteration, loss, is_checkpoint=True)
 
     # Cleanup old checkpoints
     cleanup_old_checkpoints()
@@ -171,6 +205,9 @@ def train():
             if iteration % PRINT_INTERVAL == 0:
                 avg_loss = running_loss / PRINT_INTERVAL
                 print(f"step {iteration:6d} | loss {avg_loss:.4f}")
+
+                # Update status file for server
+                update_training_status(iteration, avg_loss)
 
                 if avg_loss < best_loss:
                     best_loss = avg_loss

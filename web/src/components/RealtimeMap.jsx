@@ -4,6 +4,448 @@ import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaf
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
+// ============================================
+// EARTHQUAKE SOUND ENGINE (Web Audio API)
+// Spooky, dramatic sounds with reverb/echo
+// ============================================
+class EarthquakeSoundEngine {
+  constructor() {
+    this.audioContext = null;
+    this.masterGain = null;
+    this.convolver = null; // Reverb
+    this.reverbGain = null;
+    this.dryGain = null;
+    this.isEnabled = false;
+    this.volume = 0.5;
+  }
+
+  init() {
+    if (this.audioContext) return;
+    try {
+      this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+      // Master output
+      this.masterGain = this.audioContext.createGain();
+      this.masterGain.gain.value = this.volume;
+      this.masterGain.connect(this.audioContext.destination);
+
+      // Create reverb (convolver) for spooky echo
+      this.convolver = this.audioContext.createConvolver();
+      this.convolver.buffer = this.createReverbImpulse(3.5, 4.0); // Long, dark reverb
+
+      // Dry/wet mix for reverb
+      this.dryGain = this.audioContext.createGain();
+      this.reverbGain = this.audioContext.createGain();
+      this.dryGain.gain.value = 0.4; // Less dry
+      this.reverbGain.gain.value = 0.8; // More reverb for spooky effect
+
+      this.dryGain.connect(this.masterGain);
+      this.convolver.connect(this.reverbGain);
+      this.reverbGain.connect(this.masterGain);
+
+      this.isEnabled = true;
+    } catch (e) {
+      console.warn('Web Audio API not supported:', e);
+      this.isEnabled = false;
+    }
+  }
+
+  // Create impulse response for reverb (simulates large cave/hall)
+  createReverbImpulse(duration, decay) {
+    const sampleRate = this.audioContext.sampleRate;
+    const length = sampleRate * duration;
+    const impulse = this.audioContext.createBuffer(2, length, sampleRate);
+
+    for (let channel = 0; channel < 2; channel++) {
+      const channelData = impulse.getChannelData(channel);
+      for (let i = 0; i < length; i++) {
+        // Exponential decay with random noise
+        const envelope = Math.pow(1 - i / length, decay);
+        // Add some randomness for natural reverb
+        channelData[i] = (Math.random() * 2 - 1) * envelope;
+      }
+    }
+    return impulse;
+  }
+
+  setVolume(vol) {
+    this.volume = Math.max(0, Math.min(1, vol));
+    if (this.masterGain) {
+      this.masterGain.gain.value = this.volume;
+    }
+  }
+
+  setEnabled(enabled) {
+    this.isEnabled = enabled;
+    if (enabled && !this.audioContext) {
+      this.init();
+    }
+  }
+
+  // Play earthquake rumble - HORROR version with dark, terrifying tones
+  playEarthquakeSound(magnitude) {
+    if (!this.isEnabled || !this.audioContext) return;
+
+    // Resume audio context if suspended (browser autoplay policy)
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
+    }
+
+    const now = this.audioContext.currentTime;
+
+    // Scale parameters by magnitude (2-8 range)
+    const magNormalized = Math.max(0, Math.min(1, (magnitude - 2) / 6));
+
+    // Base frequency: VERY low for horror (80Hz for M2, 18Hz for M8 - infrasound territory)
+    const baseFreq = 80 - (magNormalized * 62);
+
+    // Duration: longer for bigger quakes (2s for M2, 6s for M8)
+    const duration = 2.0 + (magNormalized * 4.0);
+
+    // Volume: loud and menacing
+    const volume = 0.7 + (magNormalized * 0.3);
+
+    // === DEMONIC SUB-BASS GROWL ===
+    const osc1 = this.audioContext.createOscillator();
+    const gain1 = this.audioContext.createGain();
+    osc1.type = 'sawtooth'; // Harsh, menacing
+    osc1.frequency.setValueAtTime(baseFreq, now);
+    // Pitch drops like something falling into abyss
+    osc1.frequency.exponentialRampToValueAtTime(baseFreq * 0.2, now + duration);
+
+    // Waveshaper for distortion/growl
+    const distortion1 = this.audioContext.createWaveShaper();
+    distortion1.curve = this.makeDistortionCurve(50 + magNormalized * 150);
+    distortion1.oversample = '4x';
+
+    gain1.gain.setValueAtTime(0, now);
+    gain1.gain.linearRampToValueAtTime(volume * 0.6, now + 0.02); // Sharp attack
+    gain1.gain.setValueAtTime(volume * 0.7, now + 0.1);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    osc1.connect(distortion1);
+    distortion1.connect(gain1);
+    gain1.connect(this.dryGain);
+    gain1.connect(this.convolver);
+
+    // === INFRASOUND PULSE (causes unease) ===
+    const osc2 = this.audioContext.createOscillator();
+    const gain2 = this.audioContext.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(18, now); // Below human hearing threshold - felt, not heard
+    osc2.frequency.setValueAtTime(12, now + duration * 0.5);
+    gain2.gain.setValueAtTime(volume * 0.9, now);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + duration * 1.5);
+    osc2.connect(gain2);
+    gain2.connect(this.dryGain);
+
+    // === SCREAMING WIND / TORTURED SOULS ===
+    const windLength = duration * 1.2;
+    const windBuffer = this.audioContext.createBuffer(2, this.audioContext.sampleRate * windLength, this.audioContext.sampleRate);
+    for (let channel = 0; channel < 2; channel++) {
+      const windData = windBuffer.getChannelData(channel);
+      for (let i = 0; i < windData.length; i++) {
+        const t = i / this.audioContext.sampleRate;
+        // Modulated noise that sounds like screaming wind
+        const envelope = Math.sin(t * Math.PI / windLength) * Math.pow(1 - t / windLength, 0.5);
+        const modulation = Math.sin(t * 3) * 0.5 + Math.sin(t * 7) * 0.3 + Math.sin(t * 13) * 0.2;
+        windData[i] = (Math.random() * 2 - 1) * envelope * (0.5 + modulation * 0.5);
+      }
+    }
+
+    const windSource = this.audioContext.createBufferSource();
+    windSource.buffer = windBuffer;
+
+    // Bandpass filter for eerie whistling quality
+    const windFilter = this.audioContext.createBiquadFilter();
+    windFilter.type = 'bandpass';
+    windFilter.frequency.setValueAtTime(800, now);
+    windFilter.frequency.exponentialRampToValueAtTime(200, now + windLength);
+    windFilter.Q.setValueAtTime(5, now); // Resonant, whistling
+
+    const windGain = this.audioContext.createGain();
+    windGain.gain.setValueAtTime(volume * 0.4, now);
+    windGain.gain.exponentialRampToValueAtTime(0.001, now + windLength);
+
+    windSource.connect(windFilter);
+    windFilter.connect(windGain);
+    windGain.connect(this.convolver); // Only reverb for ghostly effect
+
+    // === METALLIC SCRAPING / GRINDING EARTH ===
+    const scrapeOsc = this.audioContext.createOscillator();
+    const scrapeGain = this.audioContext.createGain();
+    const scrapeFilter = this.audioContext.createBiquadFilter();
+
+    scrapeOsc.type = 'square';
+    scrapeOsc.frequency.setValueAtTime(baseFreq * 8, now);
+    // Irregular pitch changes like metal twisting
+    scrapeOsc.frequency.setValueAtTime(baseFreq * 12, now + 0.1);
+    scrapeOsc.frequency.exponentialRampToValueAtTime(baseFreq * 3, now + duration * 0.6);
+
+    scrapeFilter.type = 'bandpass';
+    scrapeFilter.frequency.setValueAtTime(2000, now);
+    scrapeFilter.frequency.exponentialRampToValueAtTime(400, now + duration * 0.6);
+    scrapeFilter.Q.setValueAtTime(10, now);
+
+    const scrapeDistort = this.audioContext.createWaveShaper();
+    scrapeDistort.curve = this.makeDistortionCurve(200);
+
+    scrapeGain.gain.setValueAtTime(0, now);
+    scrapeGain.gain.linearRampToValueAtTime(volume * 0.15, now + 0.05);
+    scrapeGain.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.6);
+
+    scrapeOsc.connect(scrapeFilter);
+    scrapeFilter.connect(scrapeDistort);
+    scrapeDistort.connect(scrapeGain);
+    scrapeGain.connect(this.convolver);
+
+    // === TRITONE DOOM CHORD (the "devil's interval") ===
+    if (magnitude >= 3.5) {
+      const doomFreq = baseFreq * 2;
+
+      // Root note
+      const doom1 = this.audioContext.createOscillator();
+      const doomGain1 = this.audioContext.createGain();
+      doom1.type = 'triangle';
+      doom1.frequency.setValueAtTime(doomFreq, now + 0.2);
+      doom1.frequency.exponentialRampToValueAtTime(doomFreq * 0.7, now + duration);
+      doomGain1.gain.setValueAtTime(0, now);
+      doomGain1.gain.linearRampToValueAtTime(volume * 0.25, now + 0.5);
+      doomGain1.gain.exponentialRampToValueAtTime(0.001, now + duration);
+      doom1.connect(doomGain1);
+      doomGain1.connect(this.convolver);
+
+      // Tritone (augmented 4th / diminished 5th - most dissonant interval)
+      const doom2 = this.audioContext.createOscillator();
+      const doomGain2 = this.audioContext.createGain();
+      doom2.type = 'triangle';
+      doom2.frequency.setValueAtTime(doomFreq * 1.414, now + 0.3); // Square root of 2 = tritone
+      doom2.frequency.exponentialRampToValueAtTime(doomFreq * 0.99, now + duration); // Slides into unison = dread
+      doomGain2.gain.setValueAtTime(0, now);
+      doomGain2.gain.linearRampToValueAtTime(volume * 0.2, now + 0.6);
+      doomGain2.gain.exponentialRampToValueAtTime(0.001, now + duration);
+      doom2.connect(doomGain2);
+      doomGain2.connect(this.convolver);
+
+      doom1.start(now + 0.2);
+      doom1.stop(now + duration + 1);
+      doom2.start(now + 0.3);
+      doom2.stop(now + duration + 1);
+    }
+
+    // === IMPACT BOOM with distortion ===
+    const boomLength = 0.8 + magNormalized * 0.7;
+    const boomBuffer = this.audioContext.createBuffer(2, this.audioContext.sampleRate * boomLength, this.audioContext.sampleRate);
+    for (let channel = 0; channel < 2; channel++) {
+      const boomData = boomBuffer.getChannelData(channel);
+      for (let i = 0; i < boomData.length; i++) {
+        const t = i / this.audioContext.sampleRate;
+        // Explosive attack with rumbling decay
+        const attack = t < 0.02 ? t / 0.02 : 1;
+        const decay = Math.pow(1 - t / boomLength, 1.5);
+        // Low frequency component
+        const lowBoom = Math.sin(t * baseFreq * 2 * Math.PI) * decay;
+        // Noise component
+        const noise = (Math.random() * 2 - 1) * decay * 0.5;
+        boomData[i] = (lowBoom + noise) * attack;
+      }
+    }
+
+    const boomSource = this.audioContext.createBufferSource();
+    boomSource.buffer = boomBuffer;
+
+    const boomDistort = this.audioContext.createWaveShaper();
+    boomDistort.curve = this.makeDistortionCurve(100);
+
+    const boomFilter = this.audioContext.createBiquadFilter();
+    boomFilter.type = 'lowpass';
+    boomFilter.frequency.setValueAtTime(300, now);
+    boomFilter.Q.setValueAtTime(2, now);
+
+    const boomGain = this.audioContext.createGain();
+    boomGain.gain.setValueAtTime(volume * 0.8, now);
+    boomGain.gain.exponentialRampToValueAtTime(0.001, now + boomLength);
+
+    boomSource.connect(boomDistort);
+    boomDistort.connect(boomFilter);
+    boomFilter.connect(boomGain);
+    boomGain.connect(this.dryGain);
+    boomGain.connect(this.convolver);
+
+    // === DELAYED HORROR ECHOES (like voices from the deep) ===
+    const echoDelays = [0.4, 0.9, 1.5, 2.2];
+    echoDelays.forEach((delay, i) => {
+      if (delay < duration) {
+        const echoOsc = this.audioContext.createOscillator();
+        const echoGain = this.audioContext.createGain();
+        echoOsc.type = i % 2 === 0 ? 'sine' : 'triangle';
+        // Descending pitches like something sinking
+        const echoPitch = baseFreq * (1.5 - i * 0.25);
+        echoOsc.frequency.setValueAtTime(echoPitch, now + delay);
+        echoOsc.frequency.exponentialRampToValueAtTime(echoPitch * 0.3, now + delay + 1.2);
+        echoGain.gain.setValueAtTime(0, now);
+        echoGain.gain.setValueAtTime(volume * (0.35 - i * 0.07), now + delay);
+        echoGain.gain.exponentialRampToValueAtTime(0.001, now + delay + 1.5);
+        echoOsc.connect(echoGain);
+        echoGain.connect(this.convolver);
+        echoOsc.start(now + delay);
+        echoOsc.stop(now + delay + 2);
+      }
+    });
+
+    // === REVERSE REVERB SWELL (unnatural, unsettling) ===
+    if (magnitude >= 5) {
+      const swellOsc = this.audioContext.createOscillator();
+      const swellGain = this.audioContext.createGain();
+      swellOsc.type = 'sine';
+      swellOsc.frequency.setValueAtTime(baseFreq * 4, now + duration * 0.3);
+      // Builds up (reverse reverb effect)
+      swellGain.gain.setValueAtTime(0.001, now + duration * 0.3);
+      swellGain.gain.exponentialRampToValueAtTime(volume * 0.4, now + duration * 0.7);
+      swellGain.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.75);
+      swellOsc.connect(swellGain);
+      swellGain.connect(this.convolver);
+      swellOsc.start(now + duration * 0.3);
+      swellOsc.stop(now + duration + 1);
+    }
+
+    // Start main sounds
+    osc1.start(now);
+    osc1.stop(now + duration + 1);
+    osc2.start(now);
+    osc2.stop(now + duration * 1.5 + 1);
+    windSource.start(now + 0.1);
+    windSource.stop(now + windLength + 0.5);
+    scrapeOsc.start(now);
+    scrapeOsc.stop(now + duration * 0.6 + 0.5);
+    boomSource.start(now);
+    boomSource.stop(now + boomLength + 0.1);
+
+    // Cleanup (extended for reverb tail)
+    setTimeout(() => {
+      [osc1, osc2, scrapeOsc].forEach(o => { try { o.disconnect(); } catch(e) {} });
+      [gain1, gain2, scrapeGain, windGain, boomGain].forEach(g => { try { g.disconnect(); } catch(e) {} });
+      try { windSource.disconnect(); boomSource.disconnect(); } catch(e) {}
+      try { distortion1.disconnect(); scrapeDistort.disconnect(); boomDistort.disconnect(); } catch(e) {}
+    }, (duration + 6) * 1000);
+  }
+
+  // Create distortion curve for waveshaper
+  makeDistortionCurve(amount) {
+    const samples = 44100;
+    const curve = new Float32Array(samples);
+    const deg = Math.PI / 180;
+    for (let i = 0; i < samples; i++) {
+      const x = (i * 2) / samples - 1;
+      curve[i] = ((3 + amount) * x * 20 * deg) / (Math.PI + amount * Math.abs(x));
+    }
+    return curve;
+  }
+
+  // Ambient tension drone - SPOOKIER version
+  startAmbientDrone() {
+    if (!this.isEnabled || !this.audioContext || this.ambientOsc) return;
+
+    const now = this.audioContext.currentTime;
+
+    // Deep, ominous drone
+    this.ambientOsc = this.audioContext.createOscillator();
+    this.ambientGain = this.audioContext.createGain();
+    this.ambientOsc.type = 'sine';
+    this.ambientOsc.frequency.setValueAtTime(30, now); // Very low
+
+    // Second oscillator for thickness
+    this.ambientOsc2 = this.audioContext.createOscillator();
+    this.ambientGain2 = this.audioContext.createGain();
+    this.ambientOsc2.type = 'triangle';
+    this.ambientOsc2.frequency.setValueAtTime(60, now); // Octave up
+
+    // LFO for unsettling movement
+    this.ambientLfo = this.audioContext.createOscillator();
+    this.ambientLfoGain = this.audioContext.createGain();
+    this.ambientLfo.frequency.setValueAtTime(0.05, now); // Very slow
+    this.ambientLfoGain.gain.setValueAtTime(8, now);
+    this.ambientLfo.connect(this.ambientLfoGain);
+    this.ambientLfoGain.connect(this.ambientOsc.frequency);
+
+    // Second LFO for the higher oscillator (different rate for complexity)
+    this.ambientLfo2 = this.audioContext.createOscillator();
+    this.ambientLfoGain2 = this.audioContext.createGain();
+    this.ambientLfo2.frequency.setValueAtTime(0.08, now);
+    this.ambientLfoGain2.gain.setValueAtTime(4, now);
+    this.ambientLfo2.connect(this.ambientLfoGain2);
+    this.ambientLfoGain2.connect(this.ambientOsc2.frequency);
+
+    this.ambientGain.gain.setValueAtTime(0, now);
+    this.ambientGain.gain.linearRampToValueAtTime(0.15, now + 3);
+    this.ambientGain2.gain.setValueAtTime(0, now);
+    this.ambientGain2.gain.linearRampToValueAtTime(0.08, now + 3);
+
+    this.ambientOsc.connect(this.ambientGain);
+    this.ambientOsc2.connect(this.ambientGain2);
+    this.ambientGain.connect(this.masterGain);
+    this.ambientGain2.connect(this.convolver); // Through reverb for depth
+
+    this.ambientOsc.start(now);
+    this.ambientOsc2.start(now);
+    this.ambientLfo.start(now);
+    this.ambientLfo2.start(now);
+  }
+
+  stopAmbientDrone() {
+    if (!this.ambientOsc) return;
+
+    const now = this.audioContext.currentTime;
+    this.ambientGain.gain.linearRampToValueAtTime(0, now + 2);
+    this.ambientGain2.gain.linearRampToValueAtTime(0, now + 2);
+
+    setTimeout(() => {
+      if (this.ambientOsc) {
+        try {
+          this.ambientOsc.stop();
+          this.ambientOsc.disconnect();
+          this.ambientOsc2.stop();
+          this.ambientOsc2.disconnect();
+          this.ambientLfo.stop();
+          this.ambientLfo.disconnect();
+          this.ambientLfo2.stop();
+          this.ambientLfo2.disconnect();
+          this.ambientLfoGain.disconnect();
+          this.ambientLfoGain2.disconnect();
+          this.ambientGain.disconnect();
+          this.ambientGain2.disconnect();
+        } catch(e) {}
+        this.ambientOsc = null;
+      }
+    }, 2500);
+  }
+
+  // Tick sound - subtle ghostly click
+  playTick() {
+    if (!this.isEnabled || !this.audioContext) return;
+
+    const now = this.audioContext.currentTime;
+    const osc = this.audioContext.createOscillator();
+    const gain = this.audioContext.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.exponentialRampToValueAtTime(200, now + 0.08);
+
+    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+    osc.connect(gain);
+    gain.connect(this.convolver); // Through reverb
+
+    osc.start(now);
+    osc.stop(now + 0.1);
+  }
+}
+
+// Global sound engine instance
+const soundEngine = new EarthquakeSoundEngine();
+
 // Fix default marker icons for Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -579,6 +1021,11 @@ export default function RealtimeMap() {
   const [timeRange, setTimeRange] = useState({ start: Date.now() - 24*60*60*1000, end: Date.now() });
   const [newEqIds, setNewEqIds] = useState(new Set());
 
+  // Sound state
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [soundVolume, setSoundVolume] = useState(0.5);
+  const lastPlayedEqRef = useRef(new Set()); // Track which earthquakes we've played sounds for
+
   const playIntervalRef = useRef(null);
 
   // Fetch earthquakes
@@ -636,6 +1083,53 @@ export default function RealtimeMap() {
     const interval = setInterval(fetchEarthquakes, 60000); // Update every minute
     return () => clearInterval(interval);
   }, [minMag]);
+
+  // Initialize sound engine on mount (will activate on first user interaction due to browser policy)
+  useEffect(() => {
+    // Pre-initialize but audio won't actually play until user interacts with page
+    soundEngine.init();
+  }, []);
+
+  // Sound toggle effect
+  useEffect(() => {
+    soundEngine.setEnabled(soundEnabled);
+    soundEngine.setVolume(soundVolume);
+
+    if (soundEnabled && isPlaying) {
+      soundEngine.startAmbientDrone();
+    } else {
+      soundEngine.stopAmbientDrone();
+    }
+
+    return () => {
+      soundEngine.stopAmbientDrone();
+    };
+  }, [soundEnabled, isPlaying, soundVolume]);
+
+  // Play sounds when new earthquakes appear during playback
+  useEffect(() => {
+    if (!soundEnabled || !isPlaying) return;
+
+    // Find earthquakes that just became visible (within tolerance)
+    const tolerance = 60000; // 1 minute tolerance for sound triggering
+    earthquakes.forEach(eq => {
+      const eqTime = new Date(eq.time).getTime();
+      // Check if earthquake just crossed the current time threshold
+      if (eqTime <= currentTime && eqTime > currentTime - tolerance) {
+        if (!lastPlayedEqRef.current.has(eq.id)) {
+          lastPlayedEqRef.current.add(eq.id);
+          soundEngine.playEarthquakeSound(eq.mag || 3);
+        }
+      }
+    });
+  }, [currentTime, earthquakes, soundEnabled, isPlaying]);
+
+  // Reset played sounds when playback restarts
+  useEffect(() => {
+    if (currentTime <= timeRange.start + 1000) {
+      lastPlayedEqRef.current.clear();
+    }
+  }, [currentTime, timeRange.start]);
 
   // Playback logic
   useEffect(() => {
@@ -753,18 +1247,64 @@ export default function RealtimeMap() {
               </div>
             </div>
 
-            {/* Live/Playback indicator */}
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${
-              isPlaying ? 'bg-orange-500/20' : 'bg-green-500/20'
-            }`}>
-              <div className={`w-2.5 h-2.5 rounded-full ${
-                isPlaying ? 'bg-orange-500 animate-pulse' : 'bg-green-500 animate-pulse'
-              }`} />
-              <span className={`text-xs font-medium ${
-                isPlaying ? 'text-orange-400' : 'text-green-400'
+            <div className="flex items-center gap-3">
+              {/* Sound Controls */}
+              <div className="flex items-center gap-2 bg-zinc-800 rounded-full px-3 py-1.5 border border-zinc-700">
+                <button
+                  onClick={() => {
+                    if (!soundEnabled) {
+                      soundEngine.init(); // Initialize on first click (user gesture)
+                    }
+                    setSoundEnabled(!soundEnabled);
+                  }}
+                  className={`p-1 rounded-full transition-all ${
+                    soundEnabled
+                      ? 'text-orange-400 hover:text-orange-300'
+                      : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                  title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
+                >
+                  {soundEnabled ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                    </svg>
+                  )}
+                </button>
+                {soundEnabled && (
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={soundVolume * 100}
+                    onChange={(e) => {
+                      const vol = Number(e.target.value) / 100;
+                      setSoundVolume(vol);
+                      soundEngine.setVolume(vol);
+                    }}
+                    className="w-16 h-1 bg-zinc-600 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                    title={`Volume: ${Math.round(soundVolume * 100)}%`}
+                  />
+                )}
+              </div>
+
+              {/* Live/Playback indicator */}
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${
+                isPlaying ? 'bg-orange-500/20' : 'bg-green-500/20'
               }`}>
-                {isPlaying ? 'PLAYBACK' : 'LIVE'}
-              </span>
+                <div className={`w-2.5 h-2.5 rounded-full ${
+                  isPlaying ? 'bg-orange-500 animate-pulse' : 'bg-green-500 animate-pulse'
+                }`} />
+                <span className={`text-xs font-medium ${
+                  isPlaying ? 'text-orange-400' : 'text-green-400'
+                }`}>
+                  {isPlaying ? 'PLAYBACK' : 'LIVE'}
+                </span>
+              </div>
             </div>
           </div>
         </div>

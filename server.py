@@ -971,8 +971,7 @@ def earthquakes_24h():
         ORDER BY us_datetime DESC
         """
 
-        dataC._safe_execute(sql, (min_mag,))
-        rows = dataC.mycursor.fetchall()
+        rows = dataC._safe_fetch(sql, (min_mag,))
 
         earthquakes = []
         stats = {'total': 0, 'byMag': {'7+': 0, '6+': 0, '5+': 0, '4+': 0, '3+': 0, '<3': 0}}
@@ -1047,8 +1046,7 @@ def get_prediction_detail(prediction_id):
         LEFT JOIN usgs u ON p.pr_actual_id = u.us_id
         WHERE p.pr_id = %s
         """
-        dataC.mycursor.execute(sql, (prediction_id,))
-        row = dataC.mycursor.fetchone()
+        row = dataC._safe_fetch(sql, (prediction_id,), fetch_one=True)
 
         if not row:
             return jsonify({'error': 'Prediction not found'}), 404
@@ -1096,8 +1094,7 @@ def get_prediction_detail(prediction_id):
         AND us_type = 'earthquake'
         ORDER BY us_datetime ASC
         """
-        dataC.mycursor.execute(earthquakes_sql, (pr_timestamp, extended_end))
-        eq_rows = dataC.mycursor.fetchall()
+        eq_rows = dataC._safe_fetch(earthquakes_sql, (pr_timestamp, extended_end))
 
         earthquakes = []
         for eq in eq_rows:
@@ -1153,8 +1150,7 @@ def get_prediction_detail(prediction_id):
 
 
 def get_training_info():
-    """Parse train.out to get latest training info"""
-    train_out_path = os.path.join(MODEL_DIR, 'train.out')
+    """Get training info from training_status.json or train.out"""
     training_info = {
         'latest_step': None,
         'latest_loss': None,
@@ -1162,8 +1158,27 @@ def get_training_info():
         'checkpoint_loss': None,
     }
 
+    # First try reading from training_status.json (preferred, written by train.py)
+    status_file = os.path.join(MODEL_DIR, 'training_status.json')
     try:
-        if os.path.exists(train_out_path):
+        if os.path.exists(status_file):
+            import json
+            with open(status_file, 'r') as f:
+                status = json.load(f)
+                training_info['latest_step'] = status.get('latest_step')
+                training_info['latest_loss'] = status.get('latest_loss')
+                training_info['checkpoint_step'] = status.get('checkpoint_step')
+                training_info['checkpoint_loss'] = status.get('checkpoint_loss')
+                # If we got data, return it
+                if training_info['latest_step'] is not None:
+                    return training_info
+    except Exception as e:
+        print(f"Error reading training_status.json: {e}")
+
+    # Fallback: parse train.out
+    train_out_path = os.path.join(MODEL_DIR, 'train.out')
+    try:
+        if os.path.exists(train_out_path) and os.path.getsize(train_out_path) > 0:
             import subprocess
             # Get last 100 lines efficiently
             result = subprocess.run(
@@ -1217,13 +1232,21 @@ def model_status():
     # Get training info from train.out
     training_info = get_training_info()
 
+    # Convert to camelCase for frontend
+    training_camel = {
+        'latestStep': training_info.get('latest_step'),
+        'latestLoss': training_info.get('latest_loss'),
+        'checkpointStep': training_info.get('checkpoint_step'),
+        'checkpointLoss': training_info.get('checkpoint_loss'),
+    }
+
     return jsonify({
         'loaded': model is not None,
         'device': device,
         'model_type': 'EqModelComplex',
         'current_checkpoint': os.path.basename(current_checkpoint) if checkpoint_exists else None,
         'checkpoint_time': checkpoint_time,
-        'training': training_info,
+        'training': training_camel,
         'config': {
             'sequence_length': T,
             'embedding_size': n_embed,
