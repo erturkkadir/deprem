@@ -82,7 +82,7 @@ class EarthquakeSoundEngine {
     }
   }
 
-  // Play earthquake rumble - HORROR version with dark, terrifying tones
+  // Play earthquake sound - BLAST AND CRACK style
   playEarthquakeSound(magnitude) {
     if (!this.isEnabled || !this.audioContext) return;
 
@@ -96,241 +96,236 @@ class EarthquakeSoundEngine {
     // Scale parameters by magnitude (2-8 range)
     const magNormalized = Math.max(0, Math.min(1, (magnitude - 2) / 6));
 
-    // Base frequency: VERY low for horror (80Hz for M2, 18Hz for M8 - infrasound territory)
-    const baseFreq = 80 - (magNormalized * 62);
+    // Duration: longer for bigger quakes (0.8s for M2, 2.5s for M8)
+    const duration = 0.8 + (magNormalized * 1.7);
 
-    // Duration: longer for bigger quakes (2s for M2, 6s for M8)
-    const duration = 2.0 + (magNormalized * 4.0);
+    // Volume: scale dramatically by magnitude
+    // M2: 0.15, M4: 0.4, M6: 0.7, M8: 1.0
+    const volume = 0.15 + (magNormalized * 0.85);
 
-    // Volume: loud and menacing
-    const volume = 0.7 + (magNormalized * 0.3);
+    // === EXPLOSIVE BLAST (main impact) ===
+    // Sharp attack with rapid frequency sweep down - like an explosion
+    const blastOsc = this.audioContext.createOscillator();
+    const blastGain = this.audioContext.createGain();
+    blastOsc.type = 'sawtooth';
+    // Start very high, sweep down rapidly
+    blastOsc.frequency.setValueAtTime(800 + magNormalized * 400, now);
+    blastOsc.frequency.exponentialRampToValueAtTime(60, now + 0.08);
+    blastOsc.frequency.exponentialRampToValueAtTime(30, now + 0.3);
 
-    // === DEMONIC SUB-BASS GROWL ===
-    const osc1 = this.audioContext.createOscillator();
-    const gain1 = this.audioContext.createGain();
-    osc1.type = 'sawtooth'; // Harsh, menacing
-    osc1.frequency.setValueAtTime(baseFreq, now);
-    // Pitch drops like something falling into abyss
-    osc1.frequency.exponentialRampToValueAtTime(baseFreq * 0.2, now + duration);
+    blastGain.gain.setValueAtTime(0, now);
+    blastGain.gain.linearRampToValueAtTime(volume * 0.9, now + 0.002); // Instant attack
+    blastGain.gain.exponentialRampToValueAtTime(volume * 0.4, now + 0.03);
+    blastGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
 
-    // Waveshaper for distortion/growl
-    const distortion1 = this.audioContext.createWaveShaper();
-    distortion1.curve = this.makeDistortionCurve(50 + magNormalized * 150);
-    distortion1.oversample = '4x';
+    const blastFilter = this.audioContext.createBiquadFilter();
+    blastFilter.type = 'lowpass';
+    blastFilter.frequency.setValueAtTime(3000, now);
+    blastFilter.frequency.exponentialRampToValueAtTime(200, now + 0.2);
 
-    gain1.gain.setValueAtTime(0, now);
-    gain1.gain.linearRampToValueAtTime(volume * 0.6, now + 0.02); // Sharp attack
-    gain1.gain.setValueAtTime(volume * 0.7, now + 0.1);
-    gain1.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    blastOsc.connect(blastFilter);
+    blastFilter.connect(blastGain);
+    blastGain.connect(this.dryGain);
+    blastGain.connect(this.convolver);
 
-    osc1.connect(distortion1);
-    distortion1.connect(gain1);
-    gain1.connect(this.dryGain);
-    gain1.connect(this.convolver);
-
-    // === INFRASOUND PULSE (causes unease) ===
-    const osc2 = this.audioContext.createOscillator();
-    const gain2 = this.audioContext.createGain();
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(18, now); // Below human hearing threshold - felt, not heard
-    osc2.frequency.setValueAtTime(12, now + duration * 0.5);
-    gain2.gain.setValueAtTime(volume * 0.9, now);
-    gain2.gain.exponentialRampToValueAtTime(0.001, now + duration * 1.5);
-    osc2.connect(gain2);
-    gain2.connect(this.dryGain);
-
-    // === SCREAMING WIND / TORTURED SOULS ===
-    const windLength = duration * 1.2;
-    const windBuffer = this.audioContext.createBuffer(2, this.audioContext.sampleRate * windLength, this.audioContext.sampleRate);
+    // === CRACK TRANSIENT (sharp high-frequency snap) ===
+    const crackLength = 0.08;
+    const crackBuffer = this.audioContext.createBuffer(2, this.audioContext.sampleRate * crackLength, this.audioContext.sampleRate);
     for (let channel = 0; channel < 2; channel++) {
-      const windData = windBuffer.getChannelData(channel);
-      for (let i = 0; i < windData.length; i++) {
-        const t = i / this.audioContext.sampleRate;
-        // Modulated noise that sounds like screaming wind
-        const envelope = Math.sin(t * Math.PI / windLength) * Math.pow(1 - t / windLength, 0.5);
-        const modulation = Math.sin(t * 3) * 0.5 + Math.sin(t * 7) * 0.3 + Math.sin(t * 13) * 0.2;
-        windData[i] = (Math.random() * 2 - 1) * envelope * (0.5 + modulation * 0.5);
+      const crackData = crackBuffer.getChannelData(channel);
+      for (let i = 0; i < crackData.length; i++) {
+        const t = i / crackData.length;
+        // Very sharp attack, instant decay - like a whip crack
+        const env = Math.pow(1 - t, 8);
+        crackData[i] = (Math.random() * 2 - 1) * env;
       }
     }
 
-    const windSource = this.audioContext.createBufferSource();
-    windSource.buffer = windBuffer;
+    const crackSource = this.audioContext.createBufferSource();
+    crackSource.buffer = crackBuffer;
 
-    // Bandpass filter for eerie whistling quality
-    const windFilter = this.audioContext.createBiquadFilter();
-    windFilter.type = 'bandpass';
-    windFilter.frequency.setValueAtTime(800, now);
-    windFilter.frequency.exponentialRampToValueAtTime(200, now + windLength);
-    windFilter.Q.setValueAtTime(5, now); // Resonant, whistling
+    const crackFilter = this.audioContext.createBiquadFilter();
+    crackFilter.type = 'highpass';
+    crackFilter.frequency.setValueAtTime(2000, now);
+    crackFilter.Q.setValueAtTime(1, now);
 
-    const windGain = this.audioContext.createGain();
-    windGain.gain.setValueAtTime(volume * 0.4, now);
-    windGain.gain.exponentialRampToValueAtTime(0.001, now + windLength);
+    const crackGain = this.audioContext.createGain();
+    crackGain.gain.setValueAtTime(volume * 0.7, now);
+    crackGain.gain.exponentialRampToValueAtTime(0.001, now + crackLength);
 
-    windSource.connect(windFilter);
-    windFilter.connect(windGain);
-    windGain.connect(this.convolver); // Only reverb for ghostly effect
+    crackSource.connect(crackFilter);
+    crackFilter.connect(crackGain);
+    crackGain.connect(this.dryGain);
 
-    // === METALLIC SCRAPING / GRINDING EARTH ===
-    const scrapeOsc = this.audioContext.createOscillator();
-    const scrapeGain = this.audioContext.createGain();
-    const scrapeFilter = this.audioContext.createBiquadFilter();
-
-    scrapeOsc.type = 'square';
-    scrapeOsc.frequency.setValueAtTime(baseFreq * 8, now);
-    // Irregular pitch changes like metal twisting
-    scrapeOsc.frequency.setValueAtTime(baseFreq * 12, now + 0.1);
-    scrapeOsc.frequency.exponentialRampToValueAtTime(baseFreq * 3, now + duration * 0.6);
-
-    scrapeFilter.type = 'bandpass';
-    scrapeFilter.frequency.setValueAtTime(2000, now);
-    scrapeFilter.frequency.exponentialRampToValueAtTime(400, now + duration * 0.6);
-    scrapeFilter.Q.setValueAtTime(10, now);
-
-    const scrapeDistort = this.audioContext.createWaveShaper();
-    scrapeDistort.curve = this.makeDistortionCurve(200);
-
-    scrapeGain.gain.setValueAtTime(0, now);
-    scrapeGain.gain.linearRampToValueAtTime(volume * 0.15, now + 0.05);
-    scrapeGain.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.6);
-
-    scrapeOsc.connect(scrapeFilter);
-    scrapeFilter.connect(scrapeDistort);
-    scrapeDistort.connect(scrapeGain);
-    scrapeGain.connect(this.convolver);
-
-    // === TRITONE DOOM CHORD (the "devil's interval") ===
-    if (magnitude >= 3.5) {
-      const doomFreq = baseFreq * 2;
-
-      // Root note
-      const doom1 = this.audioContext.createOscillator();
-      const doomGain1 = this.audioContext.createGain();
-      doom1.type = 'triangle';
-      doom1.frequency.setValueAtTime(doomFreq, now + 0.2);
-      doom1.frequency.exponentialRampToValueAtTime(doomFreq * 0.7, now + duration);
-      doomGain1.gain.setValueAtTime(0, now);
-      doomGain1.gain.linearRampToValueAtTime(volume * 0.25, now + 0.5);
-      doomGain1.gain.exponentialRampToValueAtTime(0.001, now + duration);
-      doom1.connect(doomGain1);
-      doomGain1.connect(this.convolver);
-
-      // Tritone (augmented 4th / diminished 5th - most dissonant interval)
-      const doom2 = this.audioContext.createOscillator();
-      const doomGain2 = this.audioContext.createGain();
-      doom2.type = 'triangle';
-      doom2.frequency.setValueAtTime(doomFreq * 1.414, now + 0.3); // Square root of 2 = tritone
-      doom2.frequency.exponentialRampToValueAtTime(doomFreq * 0.99, now + duration); // Slides into unison = dread
-      doomGain2.gain.setValueAtTime(0, now);
-      doomGain2.gain.linearRampToValueAtTime(volume * 0.2, now + 0.6);
-      doomGain2.gain.exponentialRampToValueAtTime(0.001, now + duration);
-      doom2.connect(doomGain2);
-      doomGain2.connect(this.convolver);
-
-      doom1.start(now + 0.2);
-      doom1.stop(now + duration + 1);
-      doom2.start(now + 0.3);
-      doom2.stop(now + duration + 1);
-    }
-
-    // === IMPACT BOOM with distortion ===
-    const boomLength = 0.8 + magNormalized * 0.7;
-    const boomBuffer = this.audioContext.createBuffer(2, this.audioContext.sampleRate * boomLength, this.audioContext.sampleRate);
+    // === SECONDARY CRACK (slightly delayed for layering) ===
+    const crack2Length = 0.06;
+    const crack2Buffer = this.audioContext.createBuffer(2, this.audioContext.sampleRate * crack2Length, this.audioContext.sampleRate);
     for (let channel = 0; channel < 2; channel++) {
-      const boomData = boomBuffer.getChannelData(channel);
-      for (let i = 0; i < boomData.length; i++) {
-        const t = i / this.audioContext.sampleRate;
-        // Explosive attack with rumbling decay
-        const attack = t < 0.02 ? t / 0.02 : 1;
-        const decay = Math.pow(1 - t / boomLength, 1.5);
-        // Low frequency component
-        const lowBoom = Math.sin(t * baseFreq * 2 * Math.PI) * decay;
-        // Noise component
-        const noise = (Math.random() * 2 - 1) * decay * 0.5;
-        boomData[i] = (lowBoom + noise) * attack;
+      const crack2Data = crack2Buffer.getChannelData(channel);
+      for (let i = 0; i < crack2Data.length; i++) {
+        const t = i / crack2Data.length;
+        const env = Math.pow(1 - t, 10);
+        crack2Data[i] = (Math.random() * 2 - 1) * env;
       }
     }
 
-    const boomSource = this.audioContext.createBufferSource();
-    boomSource.buffer = boomBuffer;
+    const crack2Source = this.audioContext.createBufferSource();
+    crack2Source.buffer = crack2Buffer;
 
-    const boomDistort = this.audioContext.createWaveShaper();
-    boomDistort.curve = this.makeDistortionCurve(100);
+    const crack2Filter = this.audioContext.createBiquadFilter();
+    crack2Filter.type = 'bandpass';
+    crack2Filter.frequency.setValueAtTime(4000, now);
+    crack2Filter.Q.setValueAtTime(2, now);
 
-    const boomFilter = this.audioContext.createBiquadFilter();
-    boomFilter.type = 'lowpass';
-    boomFilter.frequency.setValueAtTime(300, now);
-    boomFilter.Q.setValueAtTime(2, now);
+    const crack2Gain = this.audioContext.createGain();
+    crack2Gain.gain.setValueAtTime(volume * 0.5, now);
 
-    const boomGain = this.audioContext.createGain();
-    boomGain.gain.setValueAtTime(volume * 0.8, now);
-    boomGain.gain.exponentialRampToValueAtTime(0.001, now + boomLength);
+    crack2Source.connect(crack2Filter);
+    crack2Filter.connect(crack2Gain);
+    crack2Gain.connect(this.dryGain);
 
-    boomSource.connect(boomDistort);
-    boomDistort.connect(boomFilter);
-    boomFilter.connect(boomGain);
-    boomGain.connect(this.dryGain);
-    boomGain.connect(this.convolver);
+    // === EXPLOSION BODY (mid-frequency punch) ===
+    const bodyOsc = this.audioContext.createOscillator();
+    const bodyGain = this.audioContext.createGain();
+    bodyOsc.type = 'square';
+    bodyOsc.frequency.setValueAtTime(120, now);
+    bodyOsc.frequency.exponentialRampToValueAtTime(40, now + 0.15);
 
-    // === DELAYED HORROR ECHOES (like voices from the deep) ===
-    const echoDelays = [0.4, 0.9, 1.5, 2.2];
-    echoDelays.forEach((delay, i) => {
-      if (delay < duration) {
-        const echoOsc = this.audioContext.createOscillator();
-        const echoGain = this.audioContext.createGain();
-        echoOsc.type = i % 2 === 0 ? 'sine' : 'triangle';
-        // Descending pitches like something sinking
-        const echoPitch = baseFreq * (1.5 - i * 0.25);
-        echoOsc.frequency.setValueAtTime(echoPitch, now + delay);
-        echoOsc.frequency.exponentialRampToValueAtTime(echoPitch * 0.3, now + delay + 1.2);
-        echoGain.gain.setValueAtTime(0, now);
-        echoGain.gain.setValueAtTime(volume * (0.35 - i * 0.07), now + delay);
-        echoGain.gain.exponentialRampToValueAtTime(0.001, now + delay + 1.5);
-        echoOsc.connect(echoGain);
-        echoGain.connect(this.convolver);
-        echoOsc.start(now + delay);
-        echoOsc.stop(now + delay + 2);
+    bodyGain.gain.setValueAtTime(0, now);
+    bodyGain.gain.linearRampToValueAtTime(volume * 0.6, now + 0.005);
+    bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+    const bodyFilter = this.audioContext.createBiquadFilter();
+    bodyFilter.type = 'lowpass';
+    bodyFilter.frequency.setValueAtTime(500, now);
+
+    bodyOsc.connect(bodyFilter);
+    bodyFilter.connect(bodyGain);
+    bodyGain.connect(this.dryGain);
+    bodyGain.connect(this.convolver);
+
+    // === DEBRIS/RUBBLE NOISE (the aftermath) ===
+    const debrisLength = 0.3 + magNormalized * 0.4;
+    const debrisBuffer = this.audioContext.createBuffer(2, this.audioContext.sampleRate * debrisLength, this.audioContext.sampleRate);
+    for (let channel = 0; channel < 2; channel++) {
+      const debrisData = debrisBuffer.getChannelData(channel);
+      for (let i = 0; i < debrisData.length; i++) {
+        const t = i / debrisData.length;
+        // Irregular decay like falling debris
+        const env = Math.pow(1 - t, 1.5) * (0.7 + Math.random() * 0.3);
+        debrisData[i] = (Math.random() * 2 - 1) * env;
       }
-    });
+    }
 
-    // === REVERSE REVERB SWELL (unnatural, unsettling) ===
+    const debrisSource = this.audioContext.createBufferSource();
+    debrisSource.buffer = debrisBuffer;
+
+    const debrisFilter = this.audioContext.createBiquadFilter();
+    debrisFilter.type = 'bandpass';
+    debrisFilter.frequency.setValueAtTime(800, now);
+    debrisFilter.frequency.exponentialRampToValueAtTime(300, now + debrisLength);
+    debrisFilter.Q.setValueAtTime(0.5, now);
+
+    const debrisGain = this.audioContext.createGain();
+    debrisGain.gain.setValueAtTime(volume * 0.4, now + 0.05);
+    debrisGain.gain.exponentialRampToValueAtTime(0.001, now + debrisLength);
+
+    debrisSource.connect(debrisFilter);
+    debrisFilter.connect(debrisGain);
+    debrisGain.connect(this.dryGain);
+    debrisGain.connect(this.convolver);
+
+    // === LOW-END THUMP (subsonic punch) ===
+    const thumpOsc = this.audioContext.createOscillator();
+    const thumpGain = this.audioContext.createGain();
+    thumpOsc.type = 'sine';
+    thumpOsc.frequency.setValueAtTime(60, now);
+    thumpOsc.frequency.exponentialRampToValueAtTime(25, now + 0.2);
+
+    thumpGain.gain.setValueAtTime(0, now);
+    thumpGain.gain.linearRampToValueAtTime(volume * 0.8, now + 0.01);
+    thumpGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+    thumpOsc.connect(thumpGain);
+    thumpGain.connect(this.dryGain);
+
+    // === SECONDARY BLASTS for big quakes (M5+) ===
     if (magnitude >= 5) {
-      const swellOsc = this.audioContext.createOscillator();
-      const swellGain = this.audioContext.createGain();
-      swellOsc.type = 'sine';
-      swellOsc.frequency.setValueAtTime(baseFreq * 4, now + duration * 0.3);
-      // Builds up (reverse reverb effect)
-      swellGain.gain.setValueAtTime(0.001, now + duration * 0.3);
-      swellGain.gain.exponentialRampToValueAtTime(volume * 0.4, now + duration * 0.7);
-      swellGain.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.75);
-      swellOsc.connect(swellGain);
-      swellGain.connect(this.convolver);
-      swellOsc.start(now + duration * 0.3);
-      swellOsc.stop(now + duration + 1);
+      const delays = [0.15, 0.35];
+      delays.forEach((delay, i) => {
+        const echoBlast = this.audioContext.createOscillator();
+        const echoGain = this.audioContext.createGain();
+        echoBlast.type = 'sawtooth';
+        echoBlast.frequency.setValueAtTime(400 - i * 100, now + delay);
+        echoBlast.frequency.exponentialRampToValueAtTime(40, now + delay + 0.1);
+
+        echoGain.gain.setValueAtTime(0, now);
+        echoGain.gain.linearRampToValueAtTime(volume * (0.4 - i * 0.15), now + delay);
+        echoGain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.25);
+
+        echoBlast.connect(echoGain);
+        echoGain.connect(this.convolver);
+
+        echoBlast.start(now + delay);
+        echoBlast.stop(now + delay + 0.4);
+      });
+    }
+
+    // === CRUMBLING TAIL (extended decay for bigger quakes) ===
+    if (magnitude >= 4) {
+      const tailLength = 0.5 + magNormalized * 0.8;
+      const tailBuffer = this.audioContext.createBuffer(2, this.audioContext.sampleRate * tailLength, this.audioContext.sampleRate);
+      for (let channel = 0; channel < 2; channel++) {
+        const tailData = tailBuffer.getChannelData(channel);
+        for (let i = 0; i < tailData.length; i++) {
+          const t = i / tailData.length;
+          const env = Math.pow(1 - t, 2);
+          tailData[i] = (Math.random() * 2 - 1) * env * 0.5;
+        }
+      }
+
+      const tailSource = this.audioContext.createBufferSource();
+      tailSource.buffer = tailBuffer;
+
+      const tailFilter = this.audioContext.createBiquadFilter();
+      tailFilter.type = 'lowpass';
+      tailFilter.frequency.setValueAtTime(400, now);
+
+      const tailGain = this.audioContext.createGain();
+      tailGain.gain.setValueAtTime(volume * 0.3, now + 0.2);
+      tailGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2 + tailLength);
+
+      tailSource.connect(tailFilter);
+      tailFilter.connect(tailGain);
+      tailGain.connect(this.convolver);
+
+      tailSource.start(now + 0.15);
+      tailSource.stop(now + 0.2 + tailLength);
     }
 
     // Start main sounds
-    osc1.start(now);
-    osc1.stop(now + duration + 1);
-    osc2.start(now);
-    osc2.stop(now + duration * 1.5 + 1);
-    windSource.start(now + 0.1);
-    windSource.stop(now + windLength + 0.5);
-    scrapeOsc.start(now);
-    scrapeOsc.stop(now + duration * 0.6 + 0.5);
-    boomSource.start(now);
-    boomSource.stop(now + boomLength + 0.1);
+    blastOsc.start(now);
+    blastOsc.stop(now + 0.5);
+    crackSource.start(now);
+    crackSource.stop(now + crackLength + 0.05);
+    crack2Source.start(now + 0.02);
+    crack2Source.stop(now + 0.02 + crack2Length + 0.05);
+    bodyOsc.start(now);
+    bodyOsc.stop(now + 0.4);
+    debrisSource.start(now + 0.03);
+    debrisSource.stop(now + 0.03 + debrisLength + 0.1);
+    thumpOsc.start(now);
+    thumpOsc.stop(now + 0.6);
 
-    // Cleanup (extended for reverb tail)
+    // Cleanup
     setTimeout(() => {
-      [osc1, osc2, scrapeOsc].forEach(o => { try { o.disconnect(); } catch(e) {} });
-      [gain1, gain2, scrapeGain, windGain, boomGain].forEach(g => { try { g.disconnect(); } catch(e) {} });
-      try { windSource.disconnect(); boomSource.disconnect(); } catch(e) {}
-      try { distortion1.disconnect(); scrapeDistort.disconnect(); boomDistort.disconnect(); } catch(e) {}
-    }, (duration + 6) * 1000);
+      [blastOsc, bodyOsc, thumpOsc].forEach(o => { try { o.disconnect(); } catch(e) {} });
+      [blastGain, crackGain, crack2Gain, bodyGain, debrisGain, thumpGain].forEach(g => { try { g.disconnect(); } catch(e) {} });
+      try { crackSource.disconnect(); crack2Source.disconnect(); debrisSource.disconnect(); } catch(e) {}
+    }, (duration + 3) * 1000);
   }
 
-  // Create distortion curve for waveshaper
+  // Create distortion curve for waveshaper (kept for potential future use)
   makeDistortionCurve(amount) {
     const samples = 44100;
     const curve = new Float32Array(samples);
@@ -743,40 +738,37 @@ function Timeline({
   };
 
   return (
-    <div className="bg-zinc-900/95 backdrop-blur border-t border-zinc-700 p-3">
-      {/* Playback Controls - Compact */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-3">
-          {/* Play/Pause Button - Enhanced */}
+    <div className="bg-zinc-900 border-t border-zinc-700 px-2 sm:px-3 pt-2 sm:pt-3 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+      {/* Playback Controls */}
+      <div className="flex items-center justify-between mb-2 gap-2">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Play/Pause Button */}
           <button
             onClick={onPlayPause}
-            className={`relative p-3 rounded-full transition-all transform hover:scale-110 ${
+            className={`relative p-2 sm:p-2.5 rounded-full transition-all transform hover:scale-105 ${
               isPlaying
-                ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/50'
+                ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-md shadow-orange-500/50'
                 : 'bg-gradient-to-br from-zinc-700 to-zinc-800 hover:from-orange-600 hover:to-orange-700 text-white border border-zinc-600 hover:border-orange-500'
             }`}
           >
-            {isPlaying && (
-              <div className="absolute inset-0 rounded-full bg-orange-500 animate-ping opacity-30" />
-            )}
             {isPlaying ? (
-              <svg className="w-5 h-5 relative z-10" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
               </svg>
             ) : (
-              <svg className="w-5 h-5 relative z-10" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M8 5v14l11-7z"/>
               </svg>
             )}
           </button>
 
-          {/* Speed Control - Enhanced */}
+          {/* Speed Control */}
           <div className="flex bg-zinc-800 rounded-lg overflow-hidden border border-zinc-700">
             {[1, 2, 5, 10].map(speed => (
               <button
                 key={speed}
                 onClick={() => onSpeedChange(speed)}
-                className={`px-3 py-1.5 text-xs font-bold transition-all ${
+                className={`px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-bold transition-all ${
                   playbackSpeed === speed
                     ? 'bg-gradient-to-b from-orange-500 to-orange-600 text-white shadow-inner'
                     : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
@@ -787,9 +779,9 @@ function Timeline({
             ))}
           </div>
 
-          {/* Playback Status */}
+          {/* Playback Status - Hidden on mobile */}
           {isPlaying && (
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-orange-500/10 rounded-full border border-orange-500/30">
+            <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 bg-orange-500/10 rounded-full border border-orange-500/30">
               <div className="flex gap-0.5">
                 <div className="w-1 h-3 bg-orange-500 rounded animate-pulse" style={{ animationDelay: '0ms' }} />
                 <div className="w-1 h-4 bg-orange-400 rounded animate-pulse" style={{ animationDelay: '150ms' }} />
@@ -801,30 +793,27 @@ function Timeline({
         </div>
 
         {/* Current Time Display */}
-        <div className="text-center">
-          <div className="text-lg font-bold text-white font-mono">
+        <div className="text-center flex-1 min-w-0">
+          <div className="text-sm sm:text-lg font-bold text-white font-mono truncate">
             {formatDateTime(new Date(currentTime))}
-          </div>
-          <div className="text-zinc-500 text-[10px]">
-            {formatTimeAgo(new Date(currentTime).toISOString())}
           </div>
         </div>
 
-        {/* Time Range */}
-        <div className="text-right text-[10px]">
+        {/* Time Range - Hidden on mobile */}
+        <div className="hidden sm:block text-right text-xs">
           <div className="text-zinc-400">
             <span className="text-green-400">{formatTime(new Date(startTime))}</span>
             <span className="text-zinc-600 mx-1">-</span>
             <span className="text-red-400">{formatTime(new Date(endTime))}</span>
           </div>
-          <div className="text-zinc-600">24h</div>
+          <div className="text-zinc-600">24h window</div>
         </div>
       </div>
 
-      {/* Timeline Bar with Histogram - Compact */}
+      {/* Timeline Bar with Histogram */}
       <div
         ref={timelineRef}
-        className="relative h-12 bg-zinc-800 rounded-lg cursor-pointer overflow-hidden group"
+        className="relative h-10 sm:h-12 bg-zinc-800 rounded-lg cursor-pointer overflow-hidden group"
         onClick={handleTimelineClick}
       >
         {/* Histogram bars */}
@@ -858,10 +847,15 @@ function Timeline({
           <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-orange-500 rounded-full border-2 border-white" />
         </div>
 
-        {/* Hour markers */}
-        <div className="absolute bottom-0 left-0 right-0 flex justify-between px-2 pb-1">
+        {/* Hour markers - Fewer on mobile */}
+        <div className="absolute bottom-0 left-0 right-0 flex justify-between px-1 sm:px-2 pb-0.5 sm:pb-1">
+          {[0, 12, 24].map(h => (
+            <span key={h} className="text-[8px] sm:text-[10px] text-zinc-600 font-mono sm:hidden">
+              {h === 0 ? '-24h' : h === 24 ? 'now' : `-${24-h}h`}
+            </span>
+          ))}
           {[0, 6, 12, 18, 24].map(h => (
-            <span key={h} className="text-[10px] text-zinc-600 font-mono">
+            <span key={h} className="hidden sm:block text-[10px] text-zinc-600 font-mono">
               {h === 0 ? '-24h' : h === 24 ? 'now' : `-${24-h}h`}
             </span>
           ))}
@@ -1025,6 +1019,9 @@ export default function RealtimeMap() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [soundVolume, setSoundVolume] = useState(0.5);
   const lastPlayedEqRef = useRef(new Set()); // Track which earthquakes we've played sounds for
+
+  // Mobile sidebar state
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const playIntervalRef = useRef(null);
 
@@ -1227,37 +1224,38 @@ export default function RealtimeMap() {
   return (
     <div className="h-screen bg-zinc-900 flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="flex-shrink-0 bg-gradient-to-r from-zinc-900 to-zinc-800 border-b-2 border-orange-500 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link to="/" className="text-zinc-400 hover:text-white transition-colors">
+      <header className="flex-shrink-0 bg-gradient-to-r from-zinc-900 to-zinc-800 border-b border-orange-500/50 z-50">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 sm:py-3">
+          <div className="flex items-center justify-between gap-2">
+            {/* Left: Back + Title */}
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+              <Link to="/" className="text-zinc-400 hover:text-white transition-colors flex-shrink-0">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
               </Link>
-              <div>
-                <h1 className="text-xl font-bold text-orange-500 flex items-center gap-2">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="min-w-0">
+                <h1 className="text-base sm:text-xl font-bold text-orange-500 flex items-center gap-2 truncate">
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  Earthquake Time Machine
+                  <span className="hidden sm:inline">Earthquake</span> Time Machine
                 </h1>
-                <p className="text-zinc-500 text-xs">Watch 24 hours of seismic activity unfold</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              {/* Sound Controls */}
-              <div className="flex items-center gap-2 bg-zinc-800 rounded-full px-3 py-1.5 border border-zinc-700">
+            {/* Right: Controls */}
+            <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
+              {/* Sound Controls - Compact on mobile */}
+              <div className="flex items-center gap-1 sm:gap-2 bg-zinc-800 rounded-full px-2 sm:px-3 py-1 sm:py-1.5 border border-zinc-700">
                 <button
                   onClick={() => {
                     if (!soundEnabled) {
-                      soundEngine.init(); // Initialize on first click (user gesture)
+                      soundEngine.init();
                     }
                     setSoundEnabled(!soundEnabled);
                   }}
-                  className={`p-1 rounded-full transition-all ${
+                  className={`p-0.5 sm:p-1 rounded-full transition-all ${
                     soundEnabled
                       ? 'text-orange-400 hover:text-orange-300'
                       : 'text-zinc-500 hover:text-zinc-300'
@@ -1265,16 +1263,17 @@ export default function RealtimeMap() {
                   title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
                 >
                   {soundEnabled ? (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
                     </svg>
                   ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
                     </svg>
                   )}
                 </button>
+                {/* Hide volume slider on mobile */}
                 {soundEnabled && (
                   <input
                     type="range"
@@ -1286,34 +1285,76 @@ export default function RealtimeMap() {
                       setSoundVolume(vol);
                       soundEngine.setVolume(vol);
                     }}
-                    className="w-16 h-1 bg-zinc-600 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                    className="hidden sm:block w-16 h-1 bg-zinc-600 rounded-lg appearance-none cursor-pointer accent-orange-500"
                     title={`Volume: ${Math.round(soundVolume * 100)}%`}
                   />
                 )}
               </div>
 
-              {/* Live/Playback indicator */}
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${
+              {/* Live/Playback indicator - Compact on mobile */}
+              <div className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full ${
                 isPlaying ? 'bg-orange-500/20' : 'bg-green-500/20'
               }`}>
-                <div className={`w-2.5 h-2.5 rounded-full ${
+                <div className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${
                   isPlaying ? 'bg-orange-500 animate-pulse' : 'bg-green-500 animate-pulse'
                 }`} />
-                <span className={`text-xs font-medium ${
+                <span className={`text-[10px] sm:text-xs font-medium ${
                   isPlaying ? 'text-orange-400' : 'text-green-400'
                 }`}>
-                  {isPlaying ? 'PLAYBACK' : 'LIVE'}
+                  {isPlaying ? 'PLAY' : 'LIVE'}
                 </span>
               </div>
+
+              {/* Mobile sidebar toggle */}
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="lg:hidden p-1.5 bg-zinc-800 rounded-lg border border-zinc-700 text-zinc-400 hover:text-white"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {sidebarOpen ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  )}
+                </svg>
+              </button>
             </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        {/* Sidebar */}
-        <div className="lg:w-72 bg-zinc-800/50 border-b lg:border-b-0 lg:border-r border-zinc-700 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+        {/* Mobile Sidebar Overlay */}
+        {sidebarOpen && (
+          <div
+            className="lg:hidden fixed inset-0 bg-black/50 z-40"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* Sidebar - Slide out panel on mobile, fixed on desktop */}
+        <div className={`
+          fixed lg:relative inset-y-0 left-0 z-50 lg:z-auto
+          w-72 lg:w-72 bg-zinc-800 lg:bg-zinc-800/50
+          border-r border-zinc-700
+          flex flex-col overflow-hidden
+          transform transition-transform duration-300 ease-in-out
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}>
+          {/* Mobile Close Button */}
+          <div className="lg:hidden flex items-center justify-between p-2 border-b border-zinc-700 bg-zinc-900">
+            <span className="text-orange-500 font-bold text-sm">Filters & Events</span>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="p-1 text-zinc-400 hover:text-white"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
           {/* Fixed Header: Filter + Stats */}
           <div className="flex-shrink-0">
             {/* Magnitude Filter */}
@@ -1360,7 +1401,9 @@ export default function RealtimeMap() {
 
             <MapContainer
               center={[20, 0]}
-              zoom={2}
+              zoom={1}
+              minZoom={1}
+              maxBoundsViscosity={1.0}
               style={{ height: '100%', width: '100%' }}
               className="z-0"
             >
@@ -1381,93 +1424,45 @@ export default function RealtimeMap() {
               ))}
             </MapContainer>
 
-            {/* Map overlay stats */}
-            <div className="absolute top-4 right-4 bg-zinc-900/90 backdrop-blur rounded-lg p-3 border border-zinc-700 z-[1000]">
+            {/* Map overlay stats - Compact on mobile */}
+            <div className="absolute top-2 sm:top-4 right-2 sm:right-4 bg-zinc-900/90 backdrop-blur rounded-lg p-2 sm:p-3 border border-zinc-700 z-[1000]">
               <div className="text-center">
-                <div className="text-3xl font-bold text-orange-500 font-mono">
+                <div className="text-xl sm:text-3xl font-bold text-orange-500 font-mono">
                   {visibleEarthquakes.length}
                 </div>
-                <div className="text-zinc-500 text-[10px] uppercase">Visible Events</div>
+                <div className="text-zinc-500 text-[8px] sm:text-[10px] uppercase">Events</div>
               </div>
             </div>
 
-            {/* Visual Legend - Explains the animation */}
-            <div className="absolute bottom-28 right-4 bg-zinc-900/95 backdrop-blur rounded-lg p-3 border border-zinc-700 z-[1000] max-w-[180px]">
-              <div className="text-zinc-400 text-[10px] uppercase mb-2 font-bold">How to Read</div>
-
-              {/* Time fade explanation */}
-              <div className="space-y-2">
-                {/* Fresh earthquake */}
+            {/* Visual Legend - Hidden on mobile, visible on larger screens */}
+            <div className="hidden lg:block absolute bottom-12 right-4 bg-zinc-900/90 backdrop-blur rounded p-2 border border-zinc-700 z-[1000]">
+              <div className="text-zinc-400 text-[9px] uppercase mb-1.5 font-bold">Legend</div>
+              <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <div className="w-4 h-4 rounded-full bg-orange-500 animate-pulse" />
-                    <div className="absolute inset-0 w-4 h-4 rounded-full bg-orange-500/30 animate-ping" />
-                  </div>
-                  <div>
-                    <div className="text-white text-[11px] font-medium">Pulsing + Rings</div>
-                    <div className="text-zinc-500 text-[9px]">Just happened (&lt;10 min)</div>
-                  </div>
+                  <div className="w-3 h-3 rounded-full bg-orange-500 animate-pulse" />
+                  <span className="text-zinc-300 text-[10px]">New (&lt;10m)</span>
                 </div>
-
-                {/* Recent earthquake */}
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full bg-orange-500 opacity-100" />
-                  <div>
-                    <div className="text-white text-[11px] font-medium">Bright & Full</div>
-                    <div className="text-zinc-500 text-[9px]">Recent (10-30 min)</div>
-                  </div>
+                  <div className="w-3 h-3 rounded-full bg-orange-500 opacity-60" />
+                  <span className="text-zinc-300 text-[10px]">Fading (30-60m)</span>
                 </div>
-
-                {/* Fading earthquake */}
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-orange-500 opacity-50" />
-                  <div>
-                    <div className="text-white text-[11px] font-medium">Fading Away</div>
-                    <div className="text-zinc-500 text-[9px]">Aging (30-60 min)</div>
-                  </div>
-                </div>
-
-                {/* Old earthquake */}
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-orange-500 opacity-20" />
-                  <div>
-                    <div className="text-white text-[11px] font-medium">Ghost</div>
-                    <div className="text-zinc-500 text-[9px]">Old (&gt;60 min)</div>
-                  </div>
+                  <span className="text-zinc-300 text-[10px]">Old (&gt;60m)</span>
                 </div>
-              </div>
-
-              {/* Divider */}
-              <div className="border-t border-zinc-700 my-2" />
-
-              {/* Tip */}
-              <div className="text-zinc-500 text-[9px] italic">
-                Watch markers fade as time passes during playback
               </div>
             </div>
 
-            {/* Instructions overlay - always show when not playing */}
+            {/* Instructions overlay - Simpler on mobile */}
             {!isPlaying && (
-              <div className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-gradient-to-r from-zinc-900/95 via-zinc-800/95 to-zinc-900/95 backdrop-blur rounded-xl px-6 py-3 border border-orange-500/50 z-[1000] shadow-lg shadow-orange-500/20">
-                <div className="flex items-center gap-3 text-orange-400">
-                  <div className="relative">
-                    <svg className="w-8 h-8 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z"/>
-                    </svg>
-                    <div className="absolute inset-0 w-8 h-8 animate-ping">
-                      <svg className="w-8 h-8 opacity-30" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z"/>
-                      </svg>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold">
-                      {currentTime >= timeRange.end - 1000 ? 'Replay Time-Lapse' : 'Continue Playback'}
-                    </div>
-                    <div className="text-[10px] text-orange-300/70">
-                      Watch 24 hours unfold - earthquakes appear, pulse, then fade
-                    </div>
-                  </div>
+              <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 bg-zinc-900/90 backdrop-blur rounded-lg px-3 py-1.5 sm:px-4 sm:py-2 border border-orange-500/50 z-[1000]">
+                <div className="flex items-center gap-2 text-orange-400">
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                  <span className="text-xs sm:text-sm font-bold">
+                    {currentTime >= timeRange.end - 1000 ? 'Replay' : 'Press Play'}
+                  </span>
                 </div>
               </div>
             )}

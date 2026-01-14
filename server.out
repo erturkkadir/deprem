@@ -1,6 +1,1687 @@
-/home/erturk/.local/lib/python3.12/site-packages/torch/_subclasses/functional_tensor.py:295: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at ../torch/csrc/utils/tensor_numpy.cpp:84.)
-  cpu = _conversion_method_template(device=torch.device("cpu"))
-Traceback (most recent call last):
-  File "/var/www/syshuman/quake/server.py", line 16, in <module>
-    from flask import Flask, jsonify, request, send_from_directory
-ModuleNotFoundError: No module named 'flask'
+nohup: ignoring input
+============================================================
+EARTHQUAKE PREDICTION SERVER
+============================================================
+Device: cpu
+Model: n_embed=1176, T=256, heads=8, layers=6
+Hybrid: M2.0+ input, M4.0+ targets
+
+Loading hybrid data...
+Database connection established
+Loaded 1,481,981 records (M2.0+)
+  Training targets (M4.0+): 519,166 (35.0%)
+
+Loading model...
+[2026-01-13 22:12:28.670590] Loading model...
+Database connection established
+Loaded 1,481,981 records (M2.0+)
+  Training targets (M4.0+): 519,166 (35.0%)
+[2026-01-13 22:13:39.029589] Loaded checkpoint: eqModel_complex_20260113_221117.pth
+
+Checking for active prediction...
+Active prediction found: #537 (68.8 minutes remaining)
+
+Starting scheduler...
+Scheduler started: monitoring every 120 seconds
+============================================================
+Server ready! Monitoring every 30 seconds.
+============================================================
+Server starting on http://0.0.0.0:3000
+ * Serving Flask app 'server'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:3000
+ * Running on http://192.168.1.177:3000
+[33mPress CTRL+C to quit[0m
+45.43.154.230 - - [13/Jan/2026 22:13:44] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:13:44] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:13:44] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:13:44] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:13:45] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:13:54] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:14:04] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:14:14] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:14:24] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:14:34] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:14:44] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:14:51] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:14:51] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:14:51] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:14:51] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:14:51] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:15:01] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:15:11] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:15:11] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:15:11] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:15:11] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:15:11] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:15:12] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:15:21] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:15:31] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:15:31] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 22:15:39.075607] New checkpoint detected: eqModel_complex_20260113_221354.pth
+[2026-01-13 22:15:39.804667] Reloaded weights: eqModel_complex_20260113_221354.pth
+Fetched 79 earthquakes for day -1
+Batch inserted 79 earthquakes
+Executed ins_quakes()
+[2026-01-13 22:15:41.586925] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 66.8}
+45.43.154.230 - - [13/Jan/2026 22:15:41] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:15:51] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:16:01] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:16:11] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:16:21] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:16:31] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:16:31] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:16:41] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:16:51] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:17:01] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:17:11] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:17:11] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:17:11] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:17:21] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:17:26] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:17:31] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:17:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:17:32] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:17:32] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:17:32] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:17:33] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+Fetched 79 earthquakes for day -1
+Batch inserted 79 earthquakes
+Executed ins_quakes()
+[2026-01-13 22:17:40.452864] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 64.8}
+45.43.154.230 - - [13/Jan/2026 22:17:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:17:51] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:17:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:18:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:18:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:18:13] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:18:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:18:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:18:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:18:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:19:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:19:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:19:22] "GET /api/live HTTP/1.1" 200 -
+95.214.55.246 - - [13/Jan/2026 22:19:32] "[31m[1mPOST / HTTP/1.1[0m" 405 -
+45.43.154.230 - - [13/Jan/2026 22:19:32] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:19:32] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:19:32] "GET /api/live HTTP/1.1" 200 -
+95.214.55.246 - - [13/Jan/2026 22:19:32] "[31m[1mPOST /_next HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 22:19:32] "[31m[1mPOST /api HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 22:19:33] "[31m[1mPOST /_next/server HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 22:19:33] "[31m[1mPOST /app HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 22:19:34] "[31m[1mPOST /api/route HTTP/1.1[0m" 405 -
+[2026-01-13 22:19:39.075240] New checkpoint detected: eqModel_complex_20260113_221823.pth
+[2026-01-13 22:19:39.509592] Reloaded weights: eqModel_complex_20260113_221823.pth
+Fetched 79 earthquakes for day -1
+Batch inserted 79 earthquakes
+Executed ins_quakes()
+[2026-01-13 22:19:40.668801] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 62.8}
+45.43.154.230 - - [13/Jan/2026 22:19:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:19:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:20:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:20:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:20:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:20:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:20:40] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:20:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:20:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:21:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:21:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:21:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:21:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:21:32] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:21:32] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+[2026-01-13 22:21:39.075231] New checkpoint detected: eqModel_complex_20260113_222102.pth
+[2026-01-13 22:21:39.578578] Reloaded weights: eqModel_complex_20260113_222102.pth
+Fetched 79 earthquakes for day -1
+Batch inserted 79 earthquakes
+Executed ins_quakes()
+45.43.154.230 - - [13/Jan/2026 22:21:40] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+[2026-01-13 22:21:40.940773] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 60.8}
+45.43.154.230 - - [13/Jan/2026 22:21:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:21:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:22:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:22:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:22:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:22:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:22:32] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:22:40] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:22:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:22:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:23:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:23:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:23:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:23:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:23:32] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:23:32] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+Fetched 78 earthquakes for day -1
+Batch inserted 78 earthquakes
+Executed ins_quakes()
+[2026-01-13 22:23:40.202954] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 58.8}
+45.43.154.230 - - [13/Jan/2026 22:23:40] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:23:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:23:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:24:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:24:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:24:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:24:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:24:40] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:24:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:25:32] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:25:32] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:25:35] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 22:25:39.075234] New checkpoint detected: eqModel_complex_20260113_222340.pth
+[2026-01-13 22:25:39.575270] Reloaded weights: eqModel_complex_20260113_222340.pth
+Fetched 78 earthquakes for day -1
+Batch inserted 78 earthquakes
+Executed ins_quakes()
+45.43.154.230 - - [13/Jan/2026 22:25:40] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+[2026-01-13 22:25:40.799585] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 56.8}
+45.43.154.230 - - [13/Jan/2026 22:25:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:25:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:25:42] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:25:42] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:25:42] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:25:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:25:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:25:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:26:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:26:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:26:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:26:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:26:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:26:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:26:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:27:02] "GET /api/live HTTP/1.1" 200 -
+95.214.55.246 - - [13/Jan/2026 22:27:11] "[31m[1mPOST / HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 22:27:11] "[31m[1mPOST /_next HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 22:27:12] "[31m[1mPOST /api HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 22:27:12] "[31m[1mPOST /_next/server HTTP/1.1[0m" 405 -
+45.43.154.230 - - [13/Jan/2026 22:27:12] "GET /api/live HTTP/1.1" 200 -
+95.214.55.246 - - [13/Jan/2026 22:27:13] "[31m[1mPOST /app HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 22:27:13] "[31m[1mPOST /api/route HTTP/1.1[0m" 405 -
+45.43.154.230 - - [13/Jan/2026 22:27:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:27:32] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 22:27:39.075202] New checkpoint detected: eqModel_complex_20260113_222617.pth
+[2026-01-13 22:27:39.584063] Reloaded weights: eqModel_complex_20260113_222617.pth
+Fetched 78 earthquakes for day -1
+Batch inserted 78 earthquakes
+Executed ins_quakes()
+[2026-01-13 22:27:40.743589] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 54.8}
+45.43.154.230 - - [13/Jan/2026 22:27:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:27:42] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:27:42] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:27:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:27:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:28:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:28:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:28:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:28:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:28:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:28:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:28:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:29:03] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:29:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:29:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:29:32] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 22:29:39.075232] New checkpoint detected: eqModel_complex_20260113_222855.pth
+[2026-01-13 22:29:39.592624] Reloaded weights: eqModel_complex_20260113_222855.pth
+Fetched 77 earthquakes for day -1
+Batch inserted 77 earthquakes
+Executed ins_quakes()
+[2026-01-13 22:29:40.700919] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 52.8}
+45.43.154.230 - - [13/Jan/2026 22:29:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:29:42] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:29:42] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:29:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:29:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:30:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:30:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:30:23] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:30:33] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:30:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:30:43] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:30:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:30:53] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 22:31:39.075303] New checkpoint detected: eqModel_complex_20260113_223132.pth
+[2026-01-13 22:31:39.577433] Reloaded weights: eqModel_complex_20260113_223132.pth
+Fetched 77 earthquakes for day -1
+Batch inserted 77 earthquakes
+Executed ins_quakes()
+[2026-01-13 22:31:40.958861] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 50.8}
+45.43.154.230 - - [13/Jan/2026 22:31:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:31:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:31:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:31:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:32:47] "GET /api/live HTTP/1.1" 200 -
+Fetched 76 earthquakes for day -1
+Batch inserted 76 earthquakes
+Executed ins_quakes()
+[2026-01-13 22:33:40.305528] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 48.8}
+45.43.154.230 - - [13/Jan/2026 22:33:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:33:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:33:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:33:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:34:47] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 22:35:39.075217] New checkpoint detected: eqModel_complex_20260113_223410.pth
+[2026-01-13 22:35:39.580661] Reloaded weights: eqModel_complex_20260113_223410.pth
+Fetched 76 earthquakes for day -1
+Batch inserted 76 earthquakes
+Executed ins_quakes()
+[2026-01-13 22:35:40.721169] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 46.8}
+45.43.154.230 - - [13/Jan/2026 22:35:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:35:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:35:43] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:35:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:35:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:36:47] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 22:37:39.075229] New checkpoint detected: eqModel_complex_20260113_223648.pth
+[2026-01-13 22:37:39.536222] Reloaded weights: eqModel_complex_20260113_223648.pth
+Fetched 77 earthquakes for day -1
+Batch inserted 77 earthquakes
+Executed ins_quakes()
+Calculating dt for 1 new records...
+Done calculating dt
+[2026-01-13 22:37:41.030095] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 44.8}
+78.31.250.12 - - [13/Jan/2026 22:37:41] "[31m[1mPOST / HTTP/1.1[0m" 405 -
+78.31.250.12 - - [13/Jan/2026 22:37:41] "[31m[1mPOST /_next HTTP/1.1[0m" 405 -
+78.31.250.12 - - [13/Jan/2026 22:37:42] "[31m[1mPOST /api HTTP/1.1[0m" 405 -
+78.31.250.12 - - [13/Jan/2026 22:37:42] "[31m[1mPOST /_next/server HTTP/1.1[0m" 405 -
+78.31.250.12 - - [13/Jan/2026 22:37:42] "[31m[1mPOST /app HTTP/1.1[0m" 405 -
+78.31.250.12 - - [13/Jan/2026 22:37:43] "[31m[1mPOST /api/route HTTP/1.1[0m" 405 -
+45.43.154.230 - - [13/Jan/2026 22:37:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:37:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:37:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:37:47] "GET /api/live HTTP/1.1" 200 -
+95.214.55.246 - - [13/Jan/2026 22:37:59] code 400, message Bad request version ('À\x13À')
+95.214.55.246 - - [13/Jan/2026 22:37:59] "[31m[1m\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03àã öYT£\x0d\x90(grv­$¾\x87\x98.Áµ(á½FUì\x82\x02E`; êjg[·ì?K\x9c\x07 ø\\\x10¿åÀ¤ÞÊWÇÙ²ü7Øn\x0f\x8c±\\\x002À+À/À,À0Ì©Ì¨À\x09À\x13À[0m" 400 -
+95.214.55.246 - - [13/Jan/2026 22:38:00] code 400, message Bad request version ('À\x13À')
+95.214.55.246 - - [13/Jan/2026 22:38:00] "[31m[1m\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03BÊ\x1e8\x95|,ÈBõ_·wôÎKHÅ5?Á:\x95øk\x8b\x00\x8bÃ\x9cfÿ \x95V\x051\x99w6vúÂ@ éÚ<Jxòñµ½­Ù$À³\x8a1ÊÐDê\x002À+À/À,À0Ì©Ì¨À\x09À\x13À[0m" 400 -
+95.214.55.246 - - [13/Jan/2026 22:38:00] code 400, message Bad request syntax ('\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x034TÂAÅ«¼Ã\x03\x13å¶\x01i\x05ÃøtÜ\x06\x99\x8d{C\x17ì\xad.àrm')
+95.214.55.246 - - [13/Jan/2026 22:38:00] "[31m[1m\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x034TÂAÅ«¼Ã\x03\x13å¶\x01i\x05ÃøtÜ\x06\x99\x8d{C\x17ì­.àrm[0m" 400 -
+95.214.55.246 - - [13/Jan/2026 22:38:01] code 400, message Bad request version ('\x9a^_àq')
+95.214.55.246 - - [13/Jan/2026 22:38:01] "[31m[1m\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03í\x80fË\x89\x13\x88\x09\x96{\x80\x8dª \x9a^_àq[0m" 400 -
+95.214.55.246 - - [13/Jan/2026 22:38:01] code 400, message Bad request version ('À\x13À')
+95.214.55.246 - - [13/Jan/2026 22:38:01] "[31m[1m\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03¿\x1f\x0b\x90&ÏS\x052\x93Ë5\x01\x01`\x9d\x14\x86\x08W\x0c\x1cÆ\x9d\x14óûW\x92\x9a\x7f: qÛ:\x95ØUO¢Ú\x13\x02+cñ\x88èmBnT{ë[Å¯\x97Ýl_zå\x9f\x002À+À/À,À0Ì©Ì¨À\x09À\x13À[0m" 400 -
+95.214.55.246 - - [13/Jan/2026 22:38:01] code 400, message Bad request version ('À\x13À')
+95.214.55.246 - - [13/Jan/2026 22:38:01] "[31m[1m\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03¨í\x0b@ð\x158\x81ZàQZ\x08\x97\x93x4m@r\x04 FÖðÕ\x81ó\x81«¹¾ \x1d\x15x\x01.@·0«å\x05¹#\x0cW\x9dG)\x96Ø\x09\x85Ü|ä¥\x1d\x03*g\x84G\x002À+À/À,À0Ì©Ì¨À\x09À\x13À[0m" 400 -
+45.43.154.230 - - [13/Jan/2026 22:38:47] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 22:39:39.075253] New checkpoint detected: eqModel_complex_20260113_223926.pth
+[2026-01-13 22:39:39.581943] Reloaded weights: eqModel_complex_20260113_223926.pth
+Fetched 76 earthquakes for day -1
+Batch inserted 76 earthquakes
+Executed ins_quakes()
+[2026-01-13 22:39:40.918224] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 42.8}
+45.43.154.230 - - [13/Jan/2026 22:39:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:39:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:39:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:39:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:40:43] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:40:47] "GET /api/live HTTP/1.1" 200 -
+Fetched 76 earthquakes for day -1
+Batch inserted 76 earthquakes
+Executed ins_quakes()
+[2026-01-13 22:41:40.462602] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 40.8}
+45.43.154.230 - - [13/Jan/2026 22:41:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:41:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:41:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:41:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:42:47] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 22:43:39.075174] New checkpoint detected: eqModel_complex_20260113_224205.pth
+[2026-01-13 22:43:39.513126] Reloaded weights: eqModel_complex_20260113_224205.pth
+Fetched 76 earthquakes for day -1
+Batch inserted 76 earthquakes
+Executed ins_quakes()
+[2026-01-13 22:43:40.928588] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 38.8}
+45.43.154.230 - - [13/Jan/2026 22:43:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:43:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:43:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:43:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:44:47] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 22:45:39.075211] New checkpoint detected: eqModel_complex_20260113_224443.pth
+[2026-01-13 22:45:39.585870] Reloaded weights: eqModel_complex_20260113_224443.pth
+Fetched 77 earthquakes for day -1
+Batch inserted 77 earthquakes
+Executed ins_quakes()
+Calculating dt for 1 new records...
+Done calculating dt
+[2026-01-13 22:45:41.069991] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 36.8}
+45.43.154.230 - - [13/Jan/2026 22:45:43] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:45:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:45:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:45:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:45:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:46:47] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 22:47:39.075292] New checkpoint detected: eqModel_complex_20260113_224721.pth
+[2026-01-13 22:47:39.555071] Reloaded weights: eqModel_complex_20260113_224721.pth
+Fetched 77 earthquakes for day -1
+Batch inserted 77 earthquakes
+Executed ins_quakes()
+[2026-01-13 22:47:40.936250] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 34.8}
+45.43.154.230 - - [13/Jan/2026 22:47:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:47:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:47:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:47:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:48:47] "GET /api/live HTTP/1.1" 200 -
+Fetched 77 earthquakes for day -1
+Batch inserted 77 earthquakes
+Executed ins_quakes()
+[2026-01-13 22:49:40.461849] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 32.8}
+45.43.154.230 - - [13/Jan/2026 22:49:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:49:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:49:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:49:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:50:43] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:50:47] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 22:51:39.075263] New checkpoint detected: eqModel_complex_20260113_224959.pth
+[2026-01-13 22:51:39.576706] Reloaded weights: eqModel_complex_20260113_224959.pth
+Fetched 77 earthquakes for day -1
+Batch inserted 77 earthquakes
+Executed ins_quakes()
+[2026-01-13 22:51:40.742538] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 30.8}
+45.43.154.230 - - [13/Jan/2026 22:51:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:51:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:51:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:51:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:52:47] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 22:53:39.075223] New checkpoint detected: eqModel_complex_20260113_225235.pth
+[2026-01-13 22:53:39.576612] Reloaded weights: eqModel_complex_20260113_225235.pth
+Fetched 78 earthquakes for day -1
+Batch inserted 78 earthquakes
+Executed ins_quakes()
+Calculating dt for 1 new records...
+Done calculating dt
+[2026-01-13 22:53:40.906659] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 28.8}
+45.43.154.230 - - [13/Jan/2026 22:53:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:53:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:53:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:53:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:54:47] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 22:55:39.075236] New checkpoint detected: eqModel_complex_20260113_225513.pth
+[2026-01-13 22:55:39.574134] Reloaded weights: eqModel_complex_20260113_225513.pth
+Fetched 78 earthquakes for day -1
+Batch inserted 78 earthquakes
+Executed ins_quakes()
+Calculating dt for 1 new records...
+Done calculating dt
+[2026-01-13 22:55:40.920461] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 26.8}
+45.43.154.230 - - [13/Jan/2026 22:55:43] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:55:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:55:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:55:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:55:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:56:47] "GET /api/live HTTP/1.1" 200 -
+Fetched 78 earthquakes for day -1
+Batch inserted 78 earthquakes
+Executed ins_quakes()
+[2026-01-13 22:57:40.146665] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 24.8}
+45.43.154.230 - - [13/Jan/2026 22:57:44] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:57:45] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:57:45] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:57:45] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:57:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+95.214.55.246 - - [13/Jan/2026 22:57:49] "[31m[1mPOST / HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 22:57:49] "[31m[1mPOST /_next HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 22:57:49] "[31m[1mPOST /api HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 22:57:50] "[31m[1mPOST /_next/server HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 22:57:50] "[31m[1mPOST /app HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 22:57:51] "[31m[1mPOST /api/route HTTP/1.1[0m" 405 -
+45.43.154.230 - - [13/Jan/2026 22:57:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:58:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:58:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:58:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:58:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:58:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:58:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:58:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:59:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:59:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:59:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:59:32] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 22:59:39.075221] New checkpoint detected: eqModel_complex_20260113_225751.pth
+[2026-01-13 22:59:39.579220] Reloaded weights: eqModel_complex_20260113_225751.pth
+Fetched 78 earthquakes for day -1
+Batch inserted 78 earthquakes
+Executed ins_quakes()
+[2026-01-13 22:59:40.710527] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 22.8}
+45.43.154.230 - - [13/Jan/2026 22:59:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:59:42] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:59:42] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:59:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 22:59:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:00:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:00:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:00:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:00:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:00:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:00:42] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:00:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:00:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:01:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:01:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:01:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:01:32] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:01:39.075299] New checkpoint detected: eqModel_complex_20260113_230030.pth
+[2026-01-13 23:01:39.602128] Reloaded weights: eqModel_complex_20260113_230030.pth
+Fetched 78 earthquakes for day -1
+Batch inserted 78 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:01:41.180867] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 20.8}
+45.43.154.230 - - [13/Jan/2026 23:01:42] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:01:42] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:01:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:01:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:01:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:02:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:02:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:02:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:02:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:02:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:02:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:02:52] "GET /api/live HTTP/1.1" 200 -
+205.210.31.60 - - [13/Jan/2026 23:02:59] "GET / HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:03:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:03:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:03:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:03:32] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:03:39.075224] New checkpoint detected: eqModel_complex_20260113_230307.pth
+[2026-01-13 23:03:39.573431] Reloaded weights: eqModel_complex_20260113_230307.pth
+Fetched 78 earthquakes for day -1
+Batch inserted 78 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:03:40.734542] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 18.8}
+45.43.154.230 - - [13/Jan/2026 23:03:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:03:42] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:03:42] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:03:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:03:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:04:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:04:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:04:22] "GET /api/live HTTP/1.1" 200 -
+78.31.250.12 - - [13/Jan/2026 23:04:28] "[31m[1mPOST / HTTP/1.1[0m" 405 -
+78.31.250.12 - - [13/Jan/2026 23:04:28] "[31m[1mPOST /_next HTTP/1.1[0m" 405 -
+78.31.250.12 - - [13/Jan/2026 23:04:28] "[31m[1mPOST /api HTTP/1.1[0m" 405 -
+78.31.250.12 - - [13/Jan/2026 23:04:29] "[31m[1mPOST /_next/server HTTP/1.1[0m" 405 -
+78.31.250.12 - - [13/Jan/2026 23:04:29] "[31m[1mPOST /app HTTP/1.1[0m" 405 -
+78.31.250.12 - - [13/Jan/2026 23:04:29] "[31m[1mPOST /api/route HTTP/1.1[0m" 405 -
+45.43.154.230 - - [13/Jan/2026 23:04:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:04:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:04:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:04:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:05:02] "GET /api/live HTTP/1.1" 200 -
+95.214.55.246 - - [13/Jan/2026 23:05:08] "[31m[1mPOST / HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 23:05:08] "[31m[1mPOST /_next HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 23:05:09] "[31m[1mPOST /api HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 23:05:09] "[31m[1mPOST /_next/server HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 23:05:09] "[31m[1mPOST /app HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 23:05:10] "[31m[1mPOST /api/route HTTP/1.1[0m" 405 -
+45.43.154.230 - - [13/Jan/2026 23:05:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:05:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:05:32] "GET /api/live HTTP/1.1" 200 -
+Fetched 78 earthquakes for day -1
+Batch inserted 78 earthquakes
+Executed ins_quakes()
+Calculating dt for 1 new records...
+Done calculating dt
+[2026-01-13 23:05:40.612392] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 16.8}
+45.43.154.230 - - [13/Jan/2026 23:05:42] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:05:42] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:05:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:05:42] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:05:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:05:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:06:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:06:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:06:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:06:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:06:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:06:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:06:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:07:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:07:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:07:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:07:32] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:07:39.075209] New checkpoint detected: eqModel_complex_20260113_230544.pth
+[2026-01-13 23:07:39.572088] Reloaded weights: eqModel_complex_20260113_230544.pth
+Fetched 78 earthquakes for day -1
+Batch inserted 78 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:07:40.675205] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 14.8}
+45.43.154.230 - - [13/Jan/2026 23:07:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:07:42] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:07:42] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:07:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:07:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:08:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:08:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:08:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:08:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:08:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:08:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:08:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:09:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:09:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:09:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:09:32] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:09:39.075252] New checkpoint detected: eqModel_complex_20260113_230821.pth
+[2026-01-13 23:09:39.578696] Reloaded weights: eqModel_complex_20260113_230821.pth
+Fetched 78 earthquakes for day -1
+Batch inserted 78 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:09:40.940662] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 12.8}
+45.43.154.230 - - [13/Jan/2026 23:09:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:09:42] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:09:42] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:09:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:09:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:10:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:10:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:10:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:10:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:10:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:10:42] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:10:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:10:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:11:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:11:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:11:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:11:32] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:11:39.075238] New checkpoint detected: eqModel_complex_20260113_231059.pth
+[2026-01-13 23:11:39.578949] Reloaded weights: eqModel_complex_20260113_231059.pth
+Fetched 78 earthquakes for day -1
+Batch inserted 78 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:11:41.086040] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 10.8}
+45.43.154.230 - - [13/Jan/2026 23:11:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:11:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:11:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:11:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:11:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:12:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:12:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:12:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:12:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:12:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:12:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:12:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:13:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:13:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:13:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:13:32] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:13:39.075260] New checkpoint detected: eqModel_complex_20260113_231338.pth
+[2026-01-13 23:13:39.076205] Error loading checkpoint: PytorchStreamReader failed reading zip archive: failed finding central directory
+Fetched 79 earthquakes for day -1
+Batch inserted 79 earthquakes
+Executed ins_quakes()
+Calculating dt for 1 new records...
+Done calculating dt
+[2026-01-13 23:13:40.213869] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 8.8}
+45.43.154.230 - - [13/Jan/2026 23:13:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:13:42] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:13:42] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:13:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:13:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:14:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:14:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:14:23] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:14:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:14:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:14:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:14:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:15:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:15:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:15:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:15:32] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:15:39.075207] New checkpoint detected: eqModel_complex_20260113_231338.pth
+[2026-01-13 23:15:39.591022] Reloaded weights: eqModel_complex_20260113_231338.pth
+Fetched 79 earthquakes for day -1
+Batch inserted 79 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:15:40.761616] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 6.8}
+45.43.154.230 - - [13/Jan/2026 23:15:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:15:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:15:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:15:43] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:15:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:15:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:16:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:16:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:16:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:16:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:16:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:16:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:16:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:17:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:17:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:17:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:17:32] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:17:39.075208] New checkpoint detected: eqModel_complex_20260113_231615.pth
+[2026-01-13 23:17:39.590819] Reloaded weights: eqModel_complex_20260113_231615.pth
+Fetched 79 earthquakes for day -1
+Batch inserted 79 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:17:40.957310] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 4.8}
+45.43.154.230 - - [13/Jan/2026 23:17:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:17:42] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:17:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:17:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:17:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:18] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:18] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:18] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:18] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:19] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:22] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:22] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:22] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:22] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:28] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:38] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:49] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:18:58] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:19:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:19:08] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:19:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:19:18] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:19:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:19:29] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:19:32] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:19:39.075219] New checkpoint detected: eqModel_complex_20260113_231851.pth
+45.43.154.230 - - [13/Jan/2026 23:19:39] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:19:39.578814] Reloaded weights: eqModel_complex_20260113_231851.pth
+Fetched 79 earthquakes for day -1
+Batch inserted 79 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:19:40.627809] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 2.8}
+45.43.154.230 - - [13/Jan/2026 23:19:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:19:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:19:43] "GET /api/stats HTTP/1.1" 200 -
+95.214.55.246 - - [13/Jan/2026 23:19:46] code 400, message Bad request version ('À\x13À')
+95.214.55.246 - - [13/Jan/2026 23:19:46] "[31m[1m\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03\x07Ùó\x83ð\x1dO{c\x9bxlµÍÆSðX°þEyÚ\x9aË\x90í\x9cÌñU\x04 \x16Ëu«f\x02+\x0bÜ¤\x12<NK­ÂÒKÏ$I"9zOg\x82S`ºÍ4\x002À+À/À,À0Ì©Ì¨À\x09À\x13À[0m" 400 -
+95.214.55.246 - - [13/Jan/2026 23:19:47] code 400, message Bad request syntax ('\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03\x06Fd°ô1\x07uÛû-núð\x7fÓ\x91\x18\xad¢')
+95.214.55.246 - - [13/Jan/2026 23:19:47] "[31m[1m\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03\x06Fd°ô1\x07uÛû-núð\x7fÓ\x91\x18­¢[0m" 400 -
+95.214.55.246 - - [13/Jan/2026 23:19:47] code 400, message Bad request version ('À\x13À')
+95.214.55.246 - - [13/Jan/2026 23:19:47] "[31m[1m\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03p_yü!v!\x05.\x82À¼\x16år\x0f>Î\x09ý\x17\x1eI\x89\x95È¾ìA*u¯ µG\x18ÉÉ\\t+$óü¸\x0f\x9déô"¯¶Ç}>Ñ;\x18\x1eðûû\x1aññ\x002À+À/À,À0Ì©Ì¨À\x09À\x13À[0m" 400 -
+95.214.55.246 - - [13/Jan/2026 23:19:47] code 400, message Bad request version ('À\x13À')
+95.214.55.246 - - [13/Jan/2026 23:19:47] "[31m[1m\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03=:<¼\x18Ïäe©ÏýÃ\x17\x15s\x8aèM\x8dÅNiV[CÚi\x9b\x97\x8auH \x1eÊÀÎXØ¬\x12§\x0dÍòé\x9eö\x1f\x8d+ ¸YA\x86pu\x14{\x0e#\x1aPd\x002À+À/À,À0Ì©Ì¨À\x09À\x13À[0m" 400 -
+95.214.55.246 - - [13/Jan/2026 23:19:48] code 400, message Bad request version ('À\x13À')
+95.214.55.246 - - [13/Jan/2026 23:19:48] "[31m[1m\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03~Ésh\x9dX;K°\x97wrÝ-\x15k\x8ag\x92\x07\x85v¢}iè»~ò/M\x91 \x0e\x8a¯&fÈLû\x9c\x83ïj\x03,\x83|)Õ!ÜÅC\x90\x0dZ$'ª¨,¾÷\x002À+À/À,À0Ì©Ì¨À\x09À\x13À[0m" 400 -
+45.43.154.230 - - [13/Jan/2026 23:19:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+95.214.55.246 - - [13/Jan/2026 23:19:48] code 400, message Bad request syntax ('\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03/,\x80ÀÌ')
+95.214.55.246 - - [13/Jan/2026 23:19:48] "[31m[1m\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03/,\x80ÀÌ[0m" 400 -
+45.43.154.230 - - [13/Jan/2026 23:19:49] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:19:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:19:59] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:20:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:20:09] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:20:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:20:19] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:20:19] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:20:19] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:20:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:20:28] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:20:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:20:38] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:20:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:20:43] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:20:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:20:48] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:20:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:20:59] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:21:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:21:08] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:21:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:21:19] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:21:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:21:29] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:21:32] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:21:39.075224] New checkpoint detected: eqModel_complex_20260113_232129.pth
+45.43.154.230 - - [13/Jan/2026 23:21:39] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:21:39.574846] Reloaded weights: eqModel_complex_20260113_232129.pth
+Fetched 79 earthquakes for day -1
+Batch inserted 79 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:21:41.014987] Status: waiting - {'action': 'waiting', 'prediction_id': 537, 'remaining_minutes': 0.8}
+45.43.154.230 - - [13/Jan/2026 23:21:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:21:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:21:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:21:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:21:49] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:21:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:21:59] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:22:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:22:09] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:22:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:22:22] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:22:32.991186] Prediction #537 EXPIRED (by 3s), marking as MISSED...
+[2026-01-13 23:22:32.991186] Creating new prediction...
+[2026-01-13 23:22:35.952699] Prediction: lat=18, lon=24 near شمال دارفور, السودان, dt=36min, mag=4.2 (id=538)
+45.43.154.230 - - [13/Jan/2026 23:22:35] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:22:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:22:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:22:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:23:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:23:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:23:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:23:32] "GET /api/live HTTP/1.1" 200 -
+Fetched 79 earthquakes for day -1
+Batch inserted 79 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:23:40.650305] Status: waiting - {'action': 'waiting', 'prediction_id': 538, 'remaining_minutes': 34.9}
+45.43.154.230 - - [13/Jan/2026 23:23:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:23:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:23:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:23:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:23:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:24:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:24:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:24:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:24:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:24:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:24:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:24:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:25:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:25:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:25:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:25:33] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:25:39.075178] New checkpoint detected: eqModel_complex_20260113_232405.pth
+[2026-01-13 23:25:39.536716] Reloaded weights: eqModel_complex_20260113_232405.pth
+Fetched 79 earthquakes for day -1
+Batch inserted 79 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:25:40.908796] Status: waiting - {'action': 'waiting', 'prediction_id': 538, 'remaining_minutes': 32.9}
+45.43.154.230 - - [13/Jan/2026 23:25:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:25:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:25:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:25:43] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:25:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:25:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:26:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:26:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:26:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:26:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:26:43] "GET /api/live HTTP/1.1" 200 -
+185.242.226.18 - - [13/Jan/2026 23:26:45] "GET / HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:26:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:26:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:27:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:27:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:27:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:27:32] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:27:39.075228] New checkpoint detected: eqModel_complex_20260113_232641.pth
+[2026-01-13 23:27:39.576516] Reloaded weights: eqModel_complex_20260113_232641.pth
+Fetched 79 earthquakes for day -1
+Batch inserted 79 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:27:40.707560] Status: waiting - {'action': 'waiting', 'prediction_id': 538, 'remaining_minutes': 30.9}
+45.43.154.230 - - [13/Jan/2026 23:27:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:27:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:27:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:27:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:27:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:28:03] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:28:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:28:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:28:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:28:42] "GET /api/live HTTP/1.1" 200 -
+185.242.226.18 - - [13/Jan/2026 23:28:48] "GET /vite.svg HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:28:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:28:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:29:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:29:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:29:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:29:32] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:29:39.075276] New checkpoint detected: eqModel_complex_20260113_232920.pth
+[2026-01-13 23:29:39.590032] Reloaded weights: eqModel_complex_20260113_232920.pth
+Fetched 79 earthquakes for day -1
+Batch inserted 79 earthquakes
+Executed ins_quakes()
+Calculating dt for 1 new records...
+Done calculating dt
+[2026-01-13 23:29:40.785195] Status: waiting - {'action': 'waiting', 'prediction_id': 538, 'remaining_minutes': 28.9}
+45.43.154.230 - - [13/Jan/2026 23:29:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:29:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:29:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:29:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:29:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:30:03] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:30:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:30:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:30:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:30:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:30:43] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:30:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:30:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:31:03] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:31:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:31:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:31:33] "GET /api/live HTTP/1.1" 200 -
+Fetched 80 earthquakes for day -1
+Batch inserted 80 earthquakes
+Executed ins_quakes()
+Calculating dt for 1 new records...
+Done calculating dt
+[2026-01-13 23:31:40.421999] Status: waiting - {'action': 'waiting', 'prediction_id': 538, 'remaining_minutes': 26.9}
+45.43.154.230 - - [13/Jan/2026 23:31:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:31:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:31:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:31:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:31:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:32:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:32:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:32:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:32:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:32:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:32:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:32:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:33:03] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:33:14] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:33:23] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:33:33] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:33:39.075222] New checkpoint detected: eqModel_complex_20260113_233158.pth
+[2026-01-13 23:33:39.609720] Reloaded weights: eqModel_complex_20260113_233158.pth
+Fetched 80 earthquakes for day -1
+Batch inserted 80 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:33:41.005070] Status: waiting - {'action': 'waiting', 'prediction_id': 538, 'remaining_minutes': 24.9}
+45.43.154.230 - - [13/Jan/2026 23:33:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:33:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:33:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:33:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:33:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:34:47] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:35:39.075209] New checkpoint detected: eqModel_complex_20260113_233439.pth
+[2026-01-13 23:35:39.574931] Reloaded weights: eqModel_complex_20260113_233439.pth
+Fetched 80 earthquakes for day -1
+Batch inserted 80 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:35:40.743358] Status: waiting - {'action': 'waiting', 'prediction_id': 538, 'remaining_minutes': 22.9}
+45.43.154.230 - - [13/Jan/2026 23:35:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:35:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:35:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:35:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:35:47] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:36:47] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:37:39.075206] New checkpoint detected: eqModel_complex_20260113_233716.pth
+[2026-01-13 23:37:39.572673] Reloaded weights: eqModel_complex_20260113_233716.pth
+Fetched 81 earthquakes for day -1
+Batch inserted 81 earthquakes
+Executed ins_quakes()
+Calculating dt for 1 new records...
+Done calculating dt
+[2026-01-13 23:37:41.051981] Status: waiting - {'action': 'waiting', 'prediction_id': 538, 'remaining_minutes': 20.9}
+45.43.154.230 - - [13/Jan/2026 23:37:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:37:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:37:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:37:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:38:47] "GET /api/live HTTP/1.1" 200 -
+Fetched 81 earthquakes for day -1
+Batch inserted 81 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:39:40.143105] Status: waiting - {'action': 'waiting', 'prediction_id': 538, 'remaining_minutes': 18.9}
+95.214.55.246 - - [13/Jan/2026 23:39:40] "[31m[1mPOST / HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 23:39:41] "[31m[1mPOST /_next HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 23:39:41] "[31m[1mPOST /api HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 23:39:41] "[31m[1mPOST /_next/server HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 23:39:42] "[31m[1mPOST /app HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 23:39:42] "[31m[1mPOST /api/route HTTP/1.1[0m" 405 -
+45.43.154.230 - - [13/Jan/2026 23:39:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:39:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:39:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:39:47] "GET /api/stats HTTP/1.1" 200 -
+95.214.55.246 - - [13/Jan/2026 23:40:40] "[31m[1mPOST / HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 23:40:40] "[31m[1mPOST /_next HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 23:40:41] "[31m[1mPOST /api HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 23:40:41] "[31m[1mPOST /_next/server HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 23:40:42] "[31m[1mPOST /app HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 23:40:42] "[31m[1mPOST /api/route HTTP/1.1[0m" 405 -
+45.43.154.230 - - [13/Jan/2026 23:40:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:40:47] "GET /api/model/status HTTP/1.1" 200 -
+[2026-01-13 23:41:39.075202] New checkpoint detected: eqModel_complex_20260113_233953.pth
+[2026-01-13 23:41:39.573668] Reloaded weights: eqModel_complex_20260113_233953.pth
+Fetched 81 earthquakes for day -1
+Batch inserted 81 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:41:40.978718] Status: waiting - {'action': 'waiting', 'prediction_id': 538, 'remaining_minutes': 16.9}
+45.43.154.230 - - [13/Jan/2026 23:41:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:41:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:41:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:41:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:42:47] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:43:39.075188] New checkpoint detected: eqModel_complex_20260113_234230.pth
+[2026-01-13 23:43:39.584360] Reloaded weights: eqModel_complex_20260113_234230.pth
+Fetched 82 earthquakes for day -1
+Batch inserted 82 earthquakes
+Executed ins_quakes()
+Calculating dt for 1 new records...
+Done calculating dt
+[2026-01-13 23:43:41.054015] Status: waiting - {'action': 'waiting', 'prediction_id': 538, 'remaining_minutes': 14.9}
+45.43.154.230 - - [13/Jan/2026 23:43:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:43:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:43:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:43:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:44:47] "GET /api/live HTTP/1.1" 200 -
+48.217.84.135 - - [13/Jan/2026 23:44:49] "GET / HTTP/1.1" 200 -
+48.217.84.135 - - [13/Jan/2026 23:44:50] code 400, message Bad request syntax ('MGLNDD_192.157.111.245_3000')
+48.217.84.135 - - [13/Jan/2026 23:44:50] "[31m[1mMGLNDD_192.157.111.245_3000[0m" 400 -
+[2026-01-13 23:45:39.075221] New checkpoint detected: eqModel_complex_20260113_234509.pth
+[2026-01-13 23:45:39.581765] Reloaded weights: eqModel_complex_20260113_234509.pth
+Fetched 83 earthquakes for day -1
+Batch inserted 83 earthquakes
+Executed ins_quakes()
+Calculating dt for 1 new records...
+Done calculating dt
+[2026-01-13 23:45:40.801546] Status: waiting - {'action': 'waiting', 'prediction_id': 538, 'remaining_minutes': 12.9}
+45.43.154.230 - - [13/Jan/2026 23:45:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:45:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:45:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:45:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:45:47] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:46:33] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:46:33] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:46:33] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:46:33] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:46:34] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:46:35] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:46:47] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:46:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:46:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:46:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:46:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:46:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:46:49] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:46:57] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:47:07] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:47:09] "GET /api/earthquakes-24h?min_mag=6 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:47:17] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:47:27] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:47:37] "GET /api/live HTTP/1.1" 200 -
+Fetched 83 earthquakes for day -1
+Batch inserted 83 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:47:40.462319] Status: waiting - {'action': 'waiting', 'prediction_id': 538, 'remaining_minutes': 10.9}
+45.43.154.230 - - [13/Jan/2026 23:47:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:47:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:47:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:47:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:47:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:47:51] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:47:54] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:47:54] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:47:54] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:47:55] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:47:55] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:48:04] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:48:05] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:48:10] "GET /api/earthquakes-24h?min_mag=6 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:48:15] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:48:24] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:48:29] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:48:35] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:48:45] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:48:47] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:49:39.075088] New checkpoint detected: eqModel_complex_20260113_234748.pth
+[2026-01-13 23:49:39.569138] Reloaded weights: eqModel_complex_20260113_234748.pth
+Fetched 84 earthquakes for day -1
+Batch inserted 84 earthquakes
+Executed ins_quakes()
+Calculating dt for 1 new records...
+Done calculating dt
+[2026-01-13 23:49:41.058704] Status: waiting - {'action': 'waiting', 'prediction_id': 538, 'remaining_minutes': 8.9}
+45.43.154.230 - - [13/Jan/2026 23:49:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:49:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:49:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:49:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:50:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:50:47] "GET /api/model/status HTTP/1.1" 200 -
+[2026-01-13 23:51:39.075260] New checkpoint detected: eqModel_complex_20260113_235025.pth
+[2026-01-13 23:51:39.582790] Reloaded weights: eqModel_complex_20260113_235025.pth
+Fetched 84 earthquakes for day -1
+Batch inserted 84 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:51:40.746636] Status: waiting - {'action': 'waiting', 'prediction_id': 538, 'remaining_minutes': 6.9}
+45.43.154.230 - - [13/Jan/2026 23:51:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:51:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:51:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:51:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+3.90.248.24 - - [13/Jan/2026 23:51:56] "GET / HTTP/1.1" 200 -
+3.90.248.24 - - [13/Jan/2026 23:51:56] "GET /assets/index-j0uhoBtJ.js HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:52:47] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:53:39.075250] New checkpoint detected: eqModel_complex_20260113_235303.pth
+[2026-01-13 23:53:39.556206] Reloaded weights: eqModel_complex_20260113_235303.pth
+Fetched 84 earthquakes for day -1
+Batch inserted 84 earthquakes
+Executed ins_quakes()
+Calculating dt for 1 new records...
+Done calculating dt
+[2026-01-13 23:53:40.855233] Status: waiting - {'action': 'waiting', 'prediction_id': 538, 'remaining_minutes': 4.9}
+45.43.154.230 - - [13/Jan/2026 23:53:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:53:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:53:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:53:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:54:47] "GET /api/live HTTP/1.1" 200 -
+78.31.250.12 - - [13/Jan/2026 23:54:54] "[31m[1mPOST / HTTP/1.1[0m" 405 -
+78.31.250.12 - - [13/Jan/2026 23:54:54] "[31m[1mPOST /_next HTTP/1.1[0m" 405 -
+78.31.250.12 - - [13/Jan/2026 23:54:55] "[31m[1mPOST /api HTTP/1.1[0m" 405 -
+78.31.250.12 - - [13/Jan/2026 23:54:55] "[31m[1mPOST /_next/server HTTP/1.1[0m" 405 -
+78.31.250.12 - - [13/Jan/2026 23:54:56] "[31m[1mPOST /app HTTP/1.1[0m" 405 -
+78.31.250.12 - - [13/Jan/2026 23:54:56] "[31m[1mPOST /api/route HTTP/1.1[0m" 405 -
+95.214.55.246 - - [13/Jan/2026 23:55:18] code 400, message Bad request version ('À\x13À')
+95.214.55.246 - - [13/Jan/2026 23:55:18] "[31m[1m\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03]úZ\x0d°íuºDo.cÞ\x12gyÂnõ¢ûÞ\x9bÍ£;+ÛM\x9d`C ¨É-S\x9eFo\x88h_½;4\x86¨à\x19t\x91b½Xûªqù d¼MóM\x002À+À/À,À0Ì©Ì¨À\x09À\x13À[0m" 400 -
+95.214.55.246 - - [13/Jan/2026 23:55:19] code 400, message Bad request version ('À\x13À')
+95.214.55.246 - - [13/Jan/2026 23:55:19] "[31m[1m\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03ý(ú\x0få\x12P\x8cÊ»õ}\x1a~\x849/Æ%AgÁ«í\x93çÞ\x1c\x86\x0b\x85G \\×q\x93Ï\x05\x09\x07º\x0csí³ë\x84*ÅZºæpë\x861ö·\x91ù±ÆÉ\x15\x002À+À/À,À0Ì©Ì¨À\x09À\x13À[0m" 400 -
+95.214.55.246 - - [13/Jan/2026 23:55:19] code 400, message Bad HTTP/0.9 request type ('\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03\\\x9eðøV\xad\x82ÒgÆsádq«dÚ\x01ÿ%ªumF¸@6jCêi\x11')
+95.214.55.246 - - [13/Jan/2026 23:55:19] "[31m[1m\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03\\\x9eðøV­\x82ÒgÆsádq«dÚ\x01ÿ%ªumF¸@6jCêi\x11 §{\x83ºVyï,[0m" 400 -
+95.214.55.246 - - [13/Jan/2026 23:55:19] code 400, message Bad request version ('À\x13À')
+95.214.55.246 - - [13/Jan/2026 23:55:19] "[31m[1m\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03*m\x98¥\x90æ\x8anIÈí´á®\x9c³\x08\x96ù\x97§z \x0ebs3\x0cBräÈ \x91.æ\x8d"]Ñtü\x15\x0cl_Dv\x11.49\x1cU\x0fÓ\x1c(^n\x8bóÑ L\x002À+À/À,À0Ì©Ì¨À\x09À\x13À[0m" 400 -
+95.214.55.246 - - [13/Jan/2026 23:55:20] code 400, message Bad request version ('À\x13À')
+95.214.55.246 - - [13/Jan/2026 23:55:20] "[31m[1m\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03÷ÖäÅF® þ¥\x0dÛf´\x9d\x8f\x9f-Uª\x92yÎé{\x98~ûííz\x1bx !ï\x1c¤<ÌÅ_j\x04U\x88\x9aÅã\x09àÜM\x994\x0cÿ{\x04\x0bÈ¸\x9ald©\x002À+À/À,À0Ì©Ì¨À\x09À\x13À[0m" 400 -
+95.214.55.246 - - [13/Jan/2026 23:55:20] code 400, message Bad request version ('J¬\x891')
+95.214.55.246 - - [13/Jan/2026 23:55:20] "[31m[1m\x16\x03\x01\x00þ\x01\x00\x00ú\x03\x03÷\\ÂY¤\x01{Ö\x16\x96tb?¯.\x08Åø*ïÃ'Ð9Ë\x87!Ð`vk\x1c $\x16Ûu\x15\x15ÂþÖ±Ñ\x1dJ¬\x891[0m" 400 -
+Fetched 84 earthquakes for day -1
+Batch inserted 84 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:55:40.430335] Status: waiting - {'action': 'waiting', 'prediction_id': 538, 'remaining_minutes': 2.9}
+45.43.154.230 - - [13/Jan/2026 23:55:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:55:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:55:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:55:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:55:47] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:56:47] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:57:39.075216] New checkpoint detected: eqModel_complex_20260113_235541.pth
+[2026-01-13 23:57:39.576711] Reloaded weights: eqModel_complex_20260113_235541.pth
+Fetched 84 earthquakes for day -1
+Batch inserted 84 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:57:40.783297] Status: waiting - {'action': 'waiting', 'prediction_id': 538, 'remaining_minutes': 0.9}
+45.43.154.230 - - [13/Jan/2026 23:57:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:57:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:57:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:57:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+[2026-01-13 23:58:47.689671] Prediction #538 EXPIRED (by 12s), marking as MISSED...
+[2026-01-13 23:58:47.689671] Creating new prediction...
+[2026-01-13 23:58:50.724929] Prediction: lat=-55, lon=133, dt=77min, mag=4.4 (id=539)
+45.43.154.230 - - [13/Jan/2026 23:58:50] "GET /api/live HTTP/1.1" 200 -
+[2026-01-13 23:59:39.075254] New checkpoint detected: eqModel_complex_20260113_235818.pth
+[2026-01-13 23:59:39.579067] Reloaded weights: eqModel_complex_20260113_235818.pth
+Fetched 84 earthquakes for day -1
+Batch inserted 84 earthquakes
+Executed ins_quakes()
+[2026-01-13 23:59:41.002067] Status: waiting - {'action': 'waiting', 'prediction_id': 539, 'remaining_minutes': 76.1}
+45.43.154.230 - - [13/Jan/2026 23:59:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:59:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:59:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [13/Jan/2026 23:59:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:00:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:00:47] "GET /api/model/status HTTP/1.1" 200 -
+[2026-01-14 00:01:39.075206] New checkpoint detected: eqModel_complex_20260114_000057.pth
+[2026-01-14 00:01:39.582333] Reloaded weights: eqModel_complex_20260114_000057.pth
+Fetched 84 earthquakes for day -1
+Batch inserted 84 earthquakes
+Executed ins_quakes()
+[2026-01-14 00:01:40.802490] Status: waiting - {'action': 'waiting', 'prediction_id': 539, 'remaining_minutes': 74.2}
+45.43.154.230 - - [14/Jan/2026 00:01:47] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:01:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:01:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:01:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:02:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:03:31] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:03:31] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:03:33] "GET /api/live HTTP/1.1" 200 -
+[2026-01-14 00:03:39.075351] New checkpoint detected: eqModel_complex_20260114_000337.pth
+[2026-01-14 00:03:39.639617] Reloaded weights: eqModel_complex_20260114_000337.pth
+Fetched 84 earthquakes for day -1
+Batch inserted 84 earthquakes
+Executed ins_quakes()
+[2026-01-14 00:03:40.977325] Status: waiting - {'action': 'waiting', 'prediction_id': 539, 'remaining_minutes': 72.2}
+45.43.154.230 - - [14/Jan/2026 00:03:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:03:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:03:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:03:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:03:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:04:03] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:04:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:04:23] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:04:33] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:04:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:04:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:04:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:05:03] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:05:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:05:23] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:05:33] "GET /api/live HTTP/1.1" 200 -
+Fetched 84 earthquakes for day -1
+Batch inserted 84 earthquakes
+Executed ins_quakes()
+[2026-01-14 00:05:40.443969] Status: waiting - {'action': 'waiting', 'prediction_id': 539, 'remaining_minutes': 70.2}
+45.43.154.230 - - [14/Jan/2026 00:05:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:05:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:05:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:05:43] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:05:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:05:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:06:03] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:06:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:06:23] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:06:33] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:06:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:06:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:06:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:07:03] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:07:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:07:23] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:07:33] "GET /api/live HTTP/1.1" 200 -
+[2026-01-14 00:07:39.075177] New checkpoint detected: eqModel_complex_20260114_000616.pth
+[2026-01-14 00:07:39.572435] Reloaded weights: eqModel_complex_20260114_000616.pth
+Fetched 84 earthquakes for day -1
+Batch inserted 84 earthquakes
+Executed ins_quakes()
+[2026-01-14 00:07:41.025807] Status: waiting - {'action': 'waiting', 'prediction_id': 539, 'remaining_minutes': 68.1}
+45.43.154.230 - - [14/Jan/2026 00:07:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:07:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:07:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:07:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:07:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:08:03] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:08:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:08:23] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:08:33] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:08:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:08:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:08:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:09:03] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:09:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:09:23] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:09:33] "GET /api/live HTTP/1.1" 200 -
+[2026-01-14 00:09:39.075191] New checkpoint detected: eqModel_complex_20260114_000855.pth
+[2026-01-14 00:09:39.576806] Reloaded weights: eqModel_complex_20260114_000855.pth
+Fetched 84 earthquakes for day -1
+Batch inserted 84 earthquakes
+Executed ins_quakes()
+[2026-01-14 00:09:40.787110] Status: waiting - {'action': 'waiting', 'prediction_id': 539, 'remaining_minutes': 66.2}
+45.43.154.230 - - [14/Jan/2026 00:09:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:09:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:09:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:09:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:09:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:10:03] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:10:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:10:23] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:10:33] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:10:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:10:43] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:10:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:10:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:10:56] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:10:56] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:10:56] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:10:56] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:10:57] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:11:03] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:11:04] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:11:06] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:11:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:11:16] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:11:23] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:11:26] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:11:33] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:11:36] "GET /api/live HTTP/1.1" 200 -
+[2026-01-14 00:11:39.075275] New checkpoint detected: eqModel_complex_20260114_001135.pth
+[2026-01-14 00:11:39.581630] Reloaded weights: eqModel_complex_20260114_001135.pth
+Fetched 84 earthquakes for day -1
+Batch inserted 84 earthquakes
+Executed ins_quakes()
+[2026-01-14 00:11:40.955883] Status: waiting - {'action': 'waiting', 'prediction_id': 539, 'remaining_minutes': 64.2}
+45.43.154.230 - - [14/Jan/2026 00:11:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:11:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:11:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:11:44] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:11:45] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:11:46] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:11:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:11:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:11:56] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:12:03] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:12:06] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:12:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:12:16] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:12:23] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:12:26] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:12:33] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:12:36] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:12:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:12:45] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:12:46] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:12:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:12:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:12:56] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:12:56] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:12:56] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:03] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:06] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:16] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:20] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:20] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:20] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:20] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:20] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:21] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:23] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:26] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:30] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:33] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:36] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:37] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:37] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:37] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:37] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:38] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+Fetched 84 earthquakes for day -1
+Batch inserted 84 earthquakes
+Executed ins_quakes()
+[2026-01-14 00:13:40.151596] Status: waiting - {'action': 'waiting', 'prediction_id': 539, 'remaining_minutes': 62.2}
+45.43.154.230 - - [14/Jan/2026 00:13:40] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:43] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:43] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:43] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:45] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:46] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:48] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:50] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:53] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:57] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:13:57] "GET /api/live HTTP/1.1" 200 -
+192.159.99.95 - - [14/Jan/2026 00:14:02] "[31m[1mPOST / HTTP/1.1[0m" 405 -
+45.43.154.230 - - [14/Jan/2026 00:14:03] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:06] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:07] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:16] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:17] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:18] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:21] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:21] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:21] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:21] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:22] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:23] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:25] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:25] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:25] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:25] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:25] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:26] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:31] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:35] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:36] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:36] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:41] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:45] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:45] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:46] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:51] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:55] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:56] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:56] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:14:56] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:01] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:05] "GET /api/earthquakes-24h?min_mag=6 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:05] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:06] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:11] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:15] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:16] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:21] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:23] "GET /api/earthquakes-24h?min_mag=5 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:25] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:26] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:31] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:35] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:36] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:36] "GET /api/live HTTP/1.1" 200 -
+[2026-01-14 00:15:39.075217] New checkpoint detected: eqModel_complex_20260114_001414.pth
+[2026-01-14 00:15:39.586763] Reloaded weights: eqModel_complex_20260114_001414.pth
+Fetched 85 earthquakes for day -1
+Batch inserted 85 earthquakes
+Executed ins_quakes()
+Calculating dt for 1 new records...
+Done calculating dt
+[2026-01-14 00:15:41.297745] Status: waiting - {'action': 'waiting', 'prediction_id': 539, 'remaining_minutes': 60.1}
+45.43.154.230 - - [14/Jan/2026 00:15:41] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:45] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:45] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:46] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:51] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:55] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:56] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:15:56] "GET /api/model/status HTTP/1.1" 200 -
+95.214.55.246 - - [14/Jan/2026 00:15:58] "[31m[1mPOST / HTTP/1.1[0m" 405 -
+95.214.55.246 - - [14/Jan/2026 00:15:58] "[31m[1mPOST /_next HTTP/1.1[0m" 405 -
+95.214.55.246 - - [14/Jan/2026 00:15:59] "[31m[1mPOST /api HTTP/1.1[0m" 405 -
+95.214.55.246 - - [14/Jan/2026 00:15:59] "[31m[1mPOST /_next/server HTTP/1.1[0m" 405 -
+95.214.55.246 - - [14/Jan/2026 00:15:59] "[31m[1mPOST /app HTTP/1.1[0m" 405 -
+95.214.55.246 - - [14/Jan/2026 00:16:01] "[31m[1mPOST /api/route HTTP/1.1[0m" 405 -
+45.43.154.230 - - [14/Jan/2026 00:16:01] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:05] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:06] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:11] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:15] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:16] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:21] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:21] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:21] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:23] "GET /api/earthquakes-24h?min_mag=5 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:25] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:25] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:25] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:26] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:26] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:31] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:35] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:36] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:41] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:45] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:45] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:46] "GET /api/live HTTP/1.1" 200 -
+95.214.55.246 - - [14/Jan/2026 00:16:49] "[31m[1mPOST / HTTP/1.1[0m" 405 -
+95.214.55.246 - - [14/Jan/2026 00:16:49] "[31m[1mPOST /_next HTTP/1.1[0m" 405 -
+95.214.55.246 - - [14/Jan/2026 00:16:49] "[31m[1mPOST /api HTTP/1.1[0m" 405 -
+95.214.55.246 - - [14/Jan/2026 00:16:50] "[31m[1mPOST /_next/server HTTP/1.1[0m" 405 -
+95.214.55.246 - - [14/Jan/2026 00:16:50] "[31m[1mPOST /app HTTP/1.1[0m" 405 -
+95.214.55.246 - - [14/Jan/2026 00:16:50] "[31m[1mPOST /api/route HTTP/1.1[0m" 405 -
+45.43.154.230 - - [14/Jan/2026 00:16:51] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:55] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:56] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:56] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:16:56] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:17:01] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:17:05] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:17:06] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:17:11] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:17:12] "GET /api/predictions?page=2&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:17:15] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:17:16] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:17:21] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:17:21] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:17:23] "GET /api/earthquakes-24h?min_mag=5 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:17:25] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:17:26] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:17:31] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:17:36] "GET /api/live HTTP/1.1" 200 -
+[2026-01-14 00:17:39.075204] New checkpoint detected: eqModel_complex_20260114_001654.pth
+[2026-01-14 00:17:39.580686] Reloaded weights: eqModel_complex_20260114_001654.pth
+Fetched 85 earthquakes for day -1
+Batch inserted 85 earthquakes
+Executed ins_quakes()
+[2026-01-14 00:17:40.693417] Status: waiting - {'action': 'waiting', 'prediction_id': 539, 'remaining_minutes': 58.2}
+45.43.154.230 - - [14/Jan/2026 00:17:41] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:17:45] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:17:46] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:17:51] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:17:56] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:18:01] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:18:06] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:18:11] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:18:16] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:18:21] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:18:21] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:18:21] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:18:23] "GET /api/earthquakes-24h?min_mag=5 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:18:26] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:18:31] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:18:36] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:18:41] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:18:45] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:18:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:18:51] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:18:56] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:18:56] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:18:56] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:19:01] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:19:06] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:19:11] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:19:16] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:19:21] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:19:21] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:19:23] "GET /api/earthquakes-24h?min_mag=5 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:19:26] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:19:31] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:19:36] "GET /api/live HTTP/1.1" 200 -
+[2026-01-14 00:19:39.075209] New checkpoint detected: eqModel_complex_20260114_001931.pth
+[2026-01-14 00:19:39.591118] Reloaded weights: eqModel_complex_20260114_001931.pth
+Fetched 84 earthquakes for day -1
+Batch inserted 84 earthquakes
+Executed ins_quakes()
+[2026-01-14 00:19:40.731413] Status: waiting - {'action': 'waiting', 'prediction_id': 539, 'remaining_minutes': 56.2}
+45.43.154.230 - - [14/Jan/2026 00:19:41] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:19:45] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:19:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:19:51] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:19:56] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:01] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:06] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:11] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:16] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:21] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:21] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:21] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:23] "GET /api/earthquakes-24h?min_mag=5 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:26] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:31] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:36] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:41] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:45] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:51] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:56] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:56] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:56] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:20:56] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:21:01] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:21:06] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:21:11] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:21:16] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:21:21] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:21:23] "GET /api/earthquakes-24h?min_mag=5 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:21:26] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:21:31] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:21:36] "GET /api/live HTTP/1.1" 200 -
+Fetched 84 earthquakes for day -1
+Batch inserted 84 earthquakes
+Executed ins_quakes()
+[2026-01-14 00:21:40.258783] Status: waiting - {'action': 'waiting', 'prediction_id': 539, 'remaining_minutes': 54.2}
+45.43.154.230 - - [14/Jan/2026 00:21:41] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:21:45] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:21:46] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:21:51] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:21:56] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:01] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:06] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:11] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:16] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:21] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:21] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:21] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:23] "GET /api/earthquakes-24h?min_mag=5 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:24] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:27] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:27] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:27] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:27] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:28] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:29] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:31] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:37] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:41] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:51] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:22:57] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:23:01] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:23:07] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:23:11] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:23:17] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:23:21] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:23:23] "GET /api/earthquakes-24h?min_mag=5 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:23:27] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:23:29] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:23:31] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:23:37] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:23:37] "GET /api/live HTTP/1.1" 200 -
+[2026-01-14 00:23:39.075225] New checkpoint detected: eqModel_complex_20260114_002207.pth
+[2026-01-14 00:23:39.583382] Reloaded weights: eqModel_complex_20260114_002207.pth
+Fetched 86 earthquakes for day -1
+Batch inserted 86 earthquakes
+Executed ins_quakes()
+45.43.154.230 - - [14/Jan/2026 00:23:40] "GET /api/model/status HTTP/1.1" 200 -
+Calculating dt for 2 new records...
+Done calculating dt
+Connection ping failed: bytearray index out of range, reconnecting...
+Database connection established
+45.43.154.230 - - [14/Jan/2026 00:23:41] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:23:41] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:23:41] "GET /api/live HTTP/1.1" 200 -
+[2026-01-14 00:23:41.220615] Status: waiting - {'action': 'waiting', 'prediction_id': 539, 'remaining_minutes': 52.1}
+45.43.154.230 - - [14/Jan/2026 00:23:41] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:23:47] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:23:50] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:23:57] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:00] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:07] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:10] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:17] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:20] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:27] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:27] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:27] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:29] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:30] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:37] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:39] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:40] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:40] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:40] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:40] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:40] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:41] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:50] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:24:50] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:25:00] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:25:00] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:25:10] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:25:10] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:25:14] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:25:14] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:25:14] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:25:14] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:25:15] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:25:15] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:25:20] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:25:24] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:25:30] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:25:34] "GET /api/live HTTP/1.1" 200 -
+[2026-01-14 00:25:39.075202] New checkpoint detected: eqModel_complex_20260114_002444.pth
+[2026-01-14 00:25:39.571554] Reloaded weights: eqModel_complex_20260114_002444.pth
+Fetched 86 earthquakes for day -1
+Batch inserted 86 earthquakes
+Executed ins_quakes()
+45.43.154.230 - - [14/Jan/2026 00:25:40] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:25:40] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:25:40] "GET /api/live HTTP/1.1" 200 -
+[2026-01-14 00:25:40.770751] Status: waiting - {'action': 'waiting', 'prediction_id': 539, 'remaining_minutes': 50.2}
+45.43.154.230 - - [14/Jan/2026 00:25:44] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:25:50] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:25:54] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:26:00] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:26:04] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:26:10] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:26:14] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:26:15] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:26:20] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:26:24] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:26:30] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:26:34] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:26:40] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:26:44] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:26:50] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:26:54] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:27:00] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:27:04] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:27:10] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:27:14] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:27:14] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:27:14] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:27:15] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:27:20] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:27:24] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:27:30] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:27:34] "GET /api/live HTTP/1.1" 200 -
+[2026-01-14 00:27:39.075191] New checkpoint detected: eqModel_complex_20260114_002722.pth
+[2026-01-14 00:27:39.578080] Reloaded weights: eqModel_complex_20260114_002722.pth
+Fetched 87 earthquakes for day -1
+Batch inserted 87 earthquakes
+Executed ins_quakes()
+Calculating dt for 1 new records...
+45.43.154.230 - - [14/Jan/2026 00:27:40] "GET /api/live HTTP/1.1" 200 -
+Connection ping failed: bytearray index out of range, reconnecting...
+Done calculating dt
+Database connection established
+45.43.154.230 - - [14/Jan/2026 00:27:40] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:27:40] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+[2026-01-14 00:27:40.801363] Status: waiting - {'action': 'waiting', 'prediction_id': 539, 'remaining_minutes': 48.2}
+45.43.154.230 - - [14/Jan/2026 00:27:44] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:27:50] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:27:54] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:00] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:04] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:10] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:14] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:15] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:20] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:24] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:30] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:31] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:34] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:38] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:38] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:38] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:38] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:38] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:39] "GET /api/earthquakes-24h?min_mag=2 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:40] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:40] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:48] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:50] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:28:58] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:29:00] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:29:08] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:29:10] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:29:18] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:29:20] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:29:27] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:29:28] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:29:30] "GET /api/live HTTP/1.1" 200 -
+Fetched 87 earthquakes for day -1
+Batch inserted 87 earthquakes
+Executed ins_quakes()
+[2026-01-14 00:29:40.160341] Status: waiting - {'action': 'waiting', 'prediction_id': 539, 'remaining_minutes': 46.2}
+45.43.154.230 - - [14/Jan/2026 00:29:40] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:29:40] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:29:40] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:29:50] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:30:00] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:30:10] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:30:20] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [14/Jan/2026 00:30:30] "GET /api/live HTTP/1.1" 200 -

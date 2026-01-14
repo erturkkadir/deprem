@@ -204,10 +204,10 @@ const earthquakeSlice = createSlice({
           currentCheckpoint: action.payload.current_checkpoint,
           checkpointTime: action.payload.checkpoint_time,
           training: {
-            latestStep: training.latest_step,
-            latestLoss: training.latest_loss,
-            checkpointStep: training.checkpoint_step,
-            checkpointLoss: training.checkpoint_loss,
+            latestStep: training.latestStep,
+            latestLoss: training.latestLoss,
+            checkpointStep: training.checkpointStep,
+            checkpointLoss: training.checkpointLoss,
           },
         };
         state.isConnected = true;
