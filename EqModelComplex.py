@@ -335,15 +335,418 @@ class ComplexTransformerBlock(nn.Module):
 
 
 # =============================================================================
-# Custom Embedding for Earthquake Features
+# Geographic Positional Encoding (GPE) - Enhanced Location Awareness
+# =============================================================================
+
+class SphericalHarmonicEncoding(nn.Module):
+    """
+    Encode lat/lon using spherical harmonics - natural basis for spherical surfaces.
+    This captures global patterns and tectonic relationships better than simple embeddings.
+
+    Uses complex exponentials: e^(i*m*lon) * P_l^m(cos(lat))
+    where P_l^m are associated Legendre polynomials.
+    """
+    def __init__(self, max_degree=8, embed_dim=64):
+        super().__init__()
+        self.max_degree = max_degree
+        self.embed_dim = embed_dim
+
+        # Number of spherical harmonic coefficients: sum(2l+1) for l=0 to max_degree
+        self.n_harmonics = (max_degree + 1) ** 2
+
+        # Learnable weights for each harmonic
+        self.harmonic_weights_real = nn.Parameter(torch.randn(self.n_harmonics, embed_dim) * 0.02)
+        self.harmonic_weights_imag = nn.Parameter(torch.randn(self.n_harmonics, embed_dim) * 0.02)
+
+    def _compute_legendre(self, cos_lat, l, m):
+        """Compute associated Legendre polynomial P_l^m(x) using recurrence."""
+        x = cos_lat
+        abs_m = abs(m)
+
+        # Start with P_m^m
+        pmm = torch.ones_like(x)
+        if abs_m > 0:
+            somx2 = torch.sqrt((1 - x) * (1 + x))
+            fact = 1.0
+            for i in range(1, abs_m + 1):
+                pmm = pmm * (-fact * somx2)
+                fact += 2.0
+
+        if l == abs_m:
+            return pmm
+
+        # Compute P_{m+1}^m
+        pmmp1 = x * (2 * abs_m + 1) * pmm
+        if l == abs_m + 1:
+            return pmmp1
+
+        # Use recurrence for higher l
+        pll = pmmp1
+        for ll in range(abs_m + 2, l + 1):
+            pll = ((2 * ll - 1) * x * pmmp1 - (ll + abs_m - 1) * pmm) / (ll - abs_m)
+            pmm = pmmp1
+            pmmp1 = pll
+
+        return pll
+
+    def forward(self, lat_encoded, lon_encoded):
+        """
+        Args:
+            lat_encoded: [B, T] latitude (0-180, where 90 is equator)
+            lon_encoded: [B, T] longitude (0-360)
+        Returns:
+            Complex tensor [B, T, embed_dim]
+        """
+        B, T = lat_encoded.shape
+        device = lat_encoded.device
+
+        # Convert to radians (lat: 0-180 -> 0-pi, lon: 0-360 -> 0-2pi)
+        lat_rad = (lat_encoded.float() / 180.0) * math.pi  # colatitude
+        lon_rad = (lon_encoded.float() / 360.0) * 2 * math.pi
+
+        cos_lat = torch.cos(lat_rad)
+
+        harmonics_real = []
+        harmonics_imag = []
+
+        idx = 0
+        for l in range(self.max_degree + 1):
+            for m in range(-l, l + 1):
+                # Y_l^m = P_l^|m|(cos(lat)) * e^(i*m*lon)
+                plm = self._compute_legendre(cos_lat, l, abs(m))
+
+                # Complex exponential for longitude
+                phase = m * lon_rad
+                ylm_real = plm * torch.cos(phase)
+                ylm_imag = plm * torch.sin(phase)
+
+                harmonics_real.append(ylm_real)
+                harmonics_imag.append(ylm_imag)
+                idx += 1
+
+        # Stack harmonics: [B, T, n_harmonics]
+        harmonics_real = torch.stack(harmonics_real, dim=-1)
+        harmonics_imag = torch.stack(harmonics_imag, dim=-1)
+
+        # Project to embedding dimension
+        out_real = harmonics_real @ self.harmonic_weights_real - harmonics_imag @ self.harmonic_weights_imag
+        out_imag = harmonics_real @ self.harmonic_weights_imag + harmonics_imag @ self.harmonic_weights_real
+
+        return torch.complex(out_real, out_imag)
+
+
+class FourierLocationEncoding(nn.Module):
+    """
+    Multi-scale Fourier features for geographic coordinates.
+    Captures patterns at different spatial scales (local faults to global plates).
+    """
+    def __init__(self, embed_dim=64, num_frequencies=16):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.num_frequencies = num_frequencies
+
+        # Frequencies for multi-scale encoding (log-spaced for different scales)
+        # Small frequencies = large-scale patterns (plates)
+        # Large frequencies = small-scale patterns (local faults)
+        frequencies = 2.0 ** torch.linspace(0, num_frequencies - 1, num_frequencies)
+        self.register_buffer('frequencies', frequencies)
+
+        # Input: 2 coords * 2 (sin/cos) * num_frequencies = 4 * num_frequencies
+        fourier_dim = 4 * num_frequencies
+
+        # Complex projection
+        self.proj_real = nn.Linear(fourier_dim, embed_dim)
+        self.proj_imag = nn.Linear(fourier_dim, embed_dim)
+
+        nn.init.normal_(self.proj_real.weight, std=0.02)
+        nn.init.normal_(self.proj_imag.weight, std=0.02)
+
+    def forward(self, lat_encoded, lon_encoded):
+        """
+        Args:
+            lat_encoded: [B, T] latitude (0-180)
+            lon_encoded: [B, T] longitude (0-360)
+        Returns:
+            Complex tensor [B, T, embed_dim]
+        """
+        # Normalize to [-1, 1]
+        lat_norm = (lat_encoded.float() - 90) / 90.0  # -1 to 1
+        lon_norm = (lon_encoded.float() - 180) / 180.0  # -1 to 1
+
+        # Apply frequencies
+        lat_scaled = lat_norm.unsqueeze(-1) * self.frequencies * math.pi
+        lon_scaled = lon_norm.unsqueeze(-1) * self.frequencies * math.pi
+
+        # Fourier features: [B, T, 4 * num_frequencies]
+        features = torch.cat([
+            torch.sin(lat_scaled),
+            torch.cos(lat_scaled),
+            torch.sin(lon_scaled),
+            torch.cos(lon_scaled)
+        ], dim=-1)
+
+        # Project to complex embedding
+        out_real = self.proj_real(features)
+        out_imag = self.proj_imag(features)
+
+        return torch.complex(out_real, out_imag)
+
+
+class TectonicZoneEncoding(nn.Module):
+    """
+    Learn embeddings for major tectonic zones / earthquake-prone regions.
+    Uses a soft assignment based on location to blend zone embeddings.
+    """
+    def __init__(self, embed_dim=64, num_zones=32):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.num_zones = num_zones
+
+        # Learnable zone centers (lat, lon)
+        # Initialize with known earthquake-prone regions
+        self.zone_centers = nn.Parameter(self._init_zone_centers())
+
+        # Learnable zone scales (how wide each zone is)
+        self.zone_scales = nn.Parameter(torch.ones(num_zones) * 0.1)
+
+        # Complex zone embeddings
+        self.zone_embed_real = nn.Parameter(torch.randn(num_zones, embed_dim) * 0.02)
+        self.zone_embed_imag = nn.Parameter(torch.randn(num_zones, embed_dim) * 0.02)
+
+    def _init_zone_centers(self):
+        """Initialize zone centers near known tectonic boundaries."""
+        # Major earthquake zones (normalized: lat 0-1, lon 0-1)
+        known_zones = torch.tensor([
+            [0.25, 0.42],   # Pacific Ring of Fire - Japan
+            [0.28, 0.33],   # Pacific Ring of Fire - Philippines
+            [0.55, 0.65],   # Pacific Ring of Fire - Chile
+            [0.50, 0.67],   # Pacific Ring of Fire - Peru
+            [0.45, 0.70],   # Central America
+            [0.40, 0.69],   # Mexico
+            [0.38, 0.68],   # California
+            [0.30, 0.60],   # Alaska/Aleutians
+            [0.22, 0.35],   # Indonesia
+            [0.25, 0.30],   # Sumatra
+            [0.35, 0.22],   # Mediterranean
+            [0.35, 0.15],   # Turkey/Iran
+            [0.30, 0.20],   # Himalayas/Nepal
+            [0.40, 0.50],   # Mid-Atlantic Ridge
+            [0.20, 0.45],   # New Zealand
+            [0.15, 0.40],   # Fiji/Tonga
+        ], dtype=torch.float32)
+
+        # Fill remaining zones with random positions
+        n_known = known_zones.shape[0]
+        n_random = self.num_zones - n_known
+        random_zones = torch.rand(n_random, 2)
+
+        return torch.cat([known_zones, random_zones], dim=0)
+
+    def forward(self, lat_encoded, lon_encoded):
+        """
+        Args:
+            lat_encoded: [B, T] latitude (0-180)
+            lon_encoded: [B, T] longitude (0-360)
+        Returns:
+            Complex tensor [B, T, embed_dim]
+        """
+        B, T = lat_encoded.shape
+
+        # Normalize coordinates to [0, 1]
+        lat_norm = lat_encoded.float() / 180.0
+        lon_norm = lon_encoded.float() / 360.0
+
+        # Stack coordinates: [B, T, 2]
+        coords = torch.stack([lat_norm, lon_norm], dim=-1)
+
+        # Compute distances to all zone centers: [B, T, num_zones]
+        # Using great circle approximation on normalized coords
+        centers = self.zone_centers.unsqueeze(0).unsqueeze(0)  # [1, 1, num_zones, 2]
+        coords_exp = coords.unsqueeze(2)  # [B, T, 1, 2]
+
+        # Squared Euclidean distance (approximation)
+        dist_sq = ((coords_exp - centers) ** 2).sum(dim=-1)  # [B, T, num_zones]
+
+        # Soft assignment using scaled distances
+        scales = FN.softplus(self.zone_scales).unsqueeze(0).unsqueeze(0)
+        weights = FN.softmax(-dist_sq / (scales ** 2), dim=-1)  # [B, T, num_zones]
+
+        # Weighted combination of zone embeddings
+        out_real = weights @ self.zone_embed_real
+        out_imag = weights @ self.zone_embed_imag
+
+        return torch.complex(out_real, out_imag)
+
+
+class RelativeLocationEncoding(nn.Module):
+    """
+    Encode relative positions between earthquakes in a sequence.
+    Helps model learn spatial propagation patterns (aftershock sequences, etc.)
+    """
+    def __init__(self, embed_dim=64, max_distance_km=2000):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.max_distance_km = max_distance_km
+
+        # Learnable distance encoding
+        self.dist_proj_real = nn.Linear(1, embed_dim)
+        self.dist_proj_imag = nn.Linear(1, embed_dim)
+
+        # Learnable bearing encoding (direction)
+        self.bearing_embed_dim = embed_dim
+
+        nn.init.normal_(self.dist_proj_real.weight, std=0.02)
+        nn.init.normal_(self.dist_proj_imag.weight, std=0.02)
+
+    def _haversine_distance(self, lat1, lon1, lat2, lon2):
+        """Compute haversine distance in km between two points."""
+        R = 6371.0  # Earth radius in km
+
+        # Convert encoded values to radians
+        lat1_rad = ((lat1.float() - 90) / 180.0) * math.pi
+        lat2_rad = ((lat2.float() - 90) / 180.0) * math.pi
+        lon1_rad = (lon1.float() / 360.0) * 2 * math.pi
+        lon2_rad = (lon2.float() / 360.0) * 2 * math.pi
+
+        dlat = lat2_rad - lat1_rad
+        dlon = lon2_rad - lon1_rad
+
+        a = torch.sin(dlat/2)**2 + torch.cos(lat1_rad) * torch.cos(lat2_rad) * torch.sin(dlon/2)**2
+        c = 2 * torch.asin(torch.sqrt(torch.clamp(a, 0, 1)))
+
+        return R * c
+
+    def _bearing(self, lat1, lon1, lat2, lon2):
+        """Compute bearing from point 1 to point 2."""
+        lat1_rad = ((lat1.float() - 90) / 180.0) * math.pi
+        lat2_rad = ((lat2.float() - 90) / 180.0) * math.pi
+        lon1_rad = (lon1.float() / 360.0) * 2 * math.pi
+        lon2_rad = (lon2.float() / 360.0) * 2 * math.pi
+
+        dlon = lon2_rad - lon1_rad
+
+        x = torch.sin(dlon) * torch.cos(lat2_rad)
+        y = torch.cos(lat1_rad) * torch.sin(lat2_rad) - torch.sin(lat1_rad) * torch.cos(lat2_rad) * torch.cos(dlon)
+
+        return torch.atan2(x, y)
+
+    def forward(self, lat_encoded, lon_encoded):
+        """
+        Compute relative location encoding from previous earthquake to current.
+
+        Args:
+            lat_encoded: [B, T] latitude (0-180)
+            lon_encoded: [B, T] longitude (0-360)
+        Returns:
+            Complex tensor [B, T, embed_dim]
+        """
+        B, T = lat_encoded.shape
+        device = lat_encoded.device
+
+        # Initialize output
+        out_real = torch.zeros(B, T, self.embed_dim, device=device)
+        out_imag = torch.zeros(B, T, self.embed_dim, device=device)
+
+        if T > 1:
+            # Compute distances from previous earthquake
+            lat_prev = lat_encoded[:, :-1]
+            lat_curr = lat_encoded[:, 1:]
+            lon_prev = lon_encoded[:, :-1]
+            lon_curr = lon_encoded[:, 1:]
+
+            distances = self._haversine_distance(lat_prev, lon_prev, lat_curr, lon_curr)
+            bearings = self._bearing(lat_prev, lon_prev, lat_curr, lon_curr)
+
+            # Normalize distance
+            dist_norm = (distances / self.max_distance_km).unsqueeze(-1).clamp(0, 1)
+
+            # Distance encoding
+            dist_enc_real = self.dist_proj_real(dist_norm)
+            dist_enc_imag = self.dist_proj_imag(dist_norm)
+
+            # Bearing as phase rotation
+            bearing_phase = bearings.unsqueeze(-1).expand(-1, -1, self.embed_dim)
+
+            # Combine distance magnitude with bearing direction
+            out_real[:, 1:] = dist_enc_real * torch.cos(bearing_phase) - dist_enc_imag * torch.sin(bearing_phase)
+            out_imag[:, 1:] = dist_enc_real * torch.sin(bearing_phase) + dist_enc_imag * torch.cos(bearing_phase)
+
+        return torch.complex(out_real, out_imag)
+
+
+class GeographicPositionalEncoding(nn.Module):
+    """
+    Combined Geographic Positional Encoding.
+    Merges multiple location encoding strategies for rich spatial representation.
+    """
+    def __init__(self, embed_dim=168, spherical_degree=6, num_frequencies=12, num_zones=24):
+        super().__init__()
+        self.embed_dim = embed_dim
+
+        # Divide embedding dimension among different encodings
+        self.spherical_dim = embed_dim // 4
+        self.fourier_dim = embed_dim // 4
+        self.zone_dim = embed_dim // 4
+        self.relative_dim = embed_dim - 3 * (embed_dim // 4)
+
+        # Sub-encoders
+        self.spherical = SphericalHarmonicEncoding(max_degree=spherical_degree, embed_dim=self.spherical_dim)
+        self.fourier = FourierLocationEncoding(embed_dim=self.fourier_dim, num_frequencies=num_frequencies)
+        self.tectonic = TectonicZoneEncoding(embed_dim=self.zone_dim, num_zones=num_zones)
+        self.relative = RelativeLocationEncoding(embed_dim=self.relative_dim)
+
+        # Learnable combination weights
+        self.combine_weights = nn.Parameter(torch.ones(4) / 4)
+
+        # Final projection to ensure proper dimension
+        self.out_proj = ComplexLinear(embed_dim, embed_dim)
+
+    def forward(self, lat_encoded, lon_encoded):
+        """
+        Args:
+            lat_encoded: [B, T] latitude (0-180)
+            lon_encoded: [B, T] longitude (0-360)
+        Returns:
+            Complex tensor [B, T, embed_dim]
+        """
+        # Compute all encodings
+        spherical_enc = self.spherical(lat_encoded, lon_encoded)
+        fourier_enc = self.fourier(lat_encoded, lon_encoded)
+        tectonic_enc = self.tectonic(lat_encoded, lon_encoded)
+        relative_enc = self.relative(lat_encoded, lon_encoded)
+
+        # Normalize combination weights
+        weights = FN.softmax(self.combine_weights, dim=0)
+
+        # Concatenate all encodings
+        combined = torch.cat([
+            spherical_enc * weights[0],
+            fourier_enc * weights[1],
+            tectonic_enc * weights[2],
+            relative_enc * weights[3]
+        ], dim=-1)
+
+        # Project to output dimension
+        return self.out_proj(combined)
+
+
+# =============================================================================
+# Custom Embedding for Earthquake Features (Enhanced with GPE)
 # =============================================================================
 
 class CustomComplexEmbedding(nn.Module):
-    """Complex-valued embedding for earthquake features.
+    """Complex-valued embedding for earthquake features with enhanced geographic encoding.
 
     Embeds 7 features: year, month, latitude, longitude, magnitude, depth, time_diff
+
+    Key improvement: Uses Geographic Positional Encoding (GPE) for lat/lon instead of
+    simple lookup embeddings. This captures:
+    - Spherical geometry of Earth
+    - Multi-scale spatial patterns (faults to plates)
+    - Tectonic zone relationships
+    - Relative positions between earthquakes
     """
-    def __init__(self, sizes, embed_dim):
+    def __init__(self, sizes, embed_dim, use_gpe=True):
         super().__init__()
         self.yr_size = sizes['yr_size'] + 1
         self.mt_size = sizes['mt_size'] + 1
@@ -354,33 +757,68 @@ class CustomComplexEmbedding(nn.Module):
         self.t_size = sizes['t_size'] + 1
 
         self.embed_dim = embed_dim
-        self.feature_dim = embed_dim // 7
+        self.use_gpe = use_gpe
 
-        # Complex embeddings for each feature
-        self.yr_embed = ComplexEmbedding(self.yr_size, self.feature_dim)
-        self.mt_embed = ComplexEmbedding(self.mt_size, self.feature_dim)
-        self.x_embed = ComplexEmbedding(self.x_size, self.feature_dim)
-        self.y_embed = ComplexEmbedding(self.y_size, self.feature_dim)
-        self.m_embed = ComplexEmbedding(self.m_size, self.feature_dim)
-        self.d_embed = ComplexEmbedding(self.d_size, self.feature_dim)
-        self.t_embed = ComplexEmbedding(self.t_size, self.feature_dim)
+        if use_gpe:
+            # With GPE: 5 features + GPE location encoding
+            # year, month, magnitude, depth, time_diff = 5 features
+            self.feature_dim = embed_dim // 6  # 5 features + 1 for GPE
+            self.gpe_dim = embed_dim - 5 * self.feature_dim
+
+            # Complex embeddings for non-location features
+            self.yr_embed = ComplexEmbedding(self.yr_size, self.feature_dim)
+            self.mt_embed = ComplexEmbedding(self.mt_size, self.feature_dim)
+            self.m_embed = ComplexEmbedding(self.m_size, self.feature_dim)
+            self.d_embed = ComplexEmbedding(self.d_size, self.feature_dim)
+            self.t_embed = ComplexEmbedding(self.t_size, self.feature_dim)
+
+            # Geographic Positional Encoding for lat/lon
+            self.gpe = GeographicPositionalEncoding(
+                embed_dim=self.gpe_dim,
+                spherical_degree=6,
+                num_frequencies=12,
+                num_zones=24
+            )
+        else:
+            # Original behavior: simple embeddings for all features
+            self.feature_dim = embed_dim // 7
+
+            self.yr_embed = ComplexEmbedding(self.yr_size, self.feature_dim)
+            self.mt_embed = ComplexEmbedding(self.mt_size, self.feature_dim)
+            self.x_embed = ComplexEmbedding(self.x_size, self.feature_dim)
+            self.y_embed = ComplexEmbedding(self.y_size, self.feature_dim)
+            self.m_embed = ComplexEmbedding(self.m_size, self.feature_dim)
+            self.d_embed = ComplexEmbedding(self.d_size, self.feature_dim)
+            self.t_embed = ComplexEmbedding(self.t_size, self.feature_dim)
+            self.gpe = None
 
     def forward(self, data):
         """
         Args:
             data: Tensor of shape [B, T, 7] with earthquake features
+                  [year, month, lat, lon, mag, depth, time_diff]
         Returns:
             Complex tensor of shape [B, T, embed_dim]
         """
         yr_emb = self.yr_embed(data[:, :, 0])
         mt_emb = self.mt_embed(data[:, :, 1])
-        x_emb = self.x_embed(data[:, :, 2])
-        y_emb = self.y_embed(data[:, :, 3])
         m_emb = self.m_embed(data[:, :, 4])
         d_emb = self.d_embed(data[:, :, 5])
         t_emb = self.t_embed(data[:, :, 6])
 
-        emb = torch.cat((yr_emb, mt_emb, x_emb, y_emb, m_emb, d_emb, t_emb), dim=-1)
+        if self.use_gpe:
+            # Use Geographic Positional Encoding for location
+            lat_encoded = data[:, :, 2]
+            lon_encoded = data[:, :, 3]
+            loc_emb = self.gpe(lat_encoded, lon_encoded)
+
+            emb = torch.cat((yr_emb, mt_emb, loc_emb, m_emb, d_emb, t_emb), dim=-1)
+        else:
+            # Original: separate embeddings for lat/lon
+            x_emb = self.x_embed(data[:, :, 2])
+            y_emb = self.y_embed(data[:, :, 3])
+            emb = torch.cat((yr_emb, mt_emb, x_emb, y_emb, m_emb, d_emb, t_emb), dim=-1)
+
         return emb
 
 
@@ -436,7 +874,7 @@ class EqModelComplex(nn.Module):
     - Magnitude (0-91 encoded, actual 0.0 to 9.1)
     """
 
-    def __init__(self, sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max, use_rope=True):
+    def __init__(self, sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max, use_rope=True, use_gpe=True):
         super().__init__()
         self.n_layer = n_layer
         self.B = B
@@ -444,9 +882,10 @@ class EqModelComplex(nn.Module):
         self.n_embed = n_embed
         self.device = device
         self.use_rope = use_rope
+        self.use_gpe = use_gpe
 
-        # Complex embedding for earthquake features
-        self.embed = CustomComplexEmbedding(sizes, n_embed)
+        # Complex embedding for earthquake features with Geographic Positional Encoding
+        self.embed = CustomComplexEmbedding(sizes, n_embed, use_gpe=use_gpe)
 
         # Optional positional encoding (disabled if using RoPE)
         if not use_rope:

@@ -1182,10 +1182,10 @@ export default function RealtimeMap() {
   }, [earthquakes, currentTime]);
 
   // Calculate opacity for each earthquake based on age
-  // Fast fade: 0-30min = full bright, 30-60min = fade out completely
-  const fadeStartMs = 30 * 60 * 1000;  // Start fading after 30 minutes
-  const fadeEndMs = 60 * 60 * 1000;    // Fully faded by 60 minutes
-  const recentThreshold = 10 * 60 * 1000; // 10 minutes - "brand new" with special effects
+  // Quick fade: 0-10min = full bright, 10-20min = fade out completely
+  const fadeStartMs = 10 * 60 * 1000;  // Start fading after 10 minutes
+  const fadeEndMs = 20 * 60 * 1000;    // Fully faded by 20 minutes
+  const recentThreshold = 5 * 60 * 1000; // 5 minutes - "brand new" with special effects
 
   const earthquakeOpacities = useMemo(() => {
     const opacities = new Map();

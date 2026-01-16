@@ -22,7 +22,7 @@ MODEL_DIR = '/var/www/syshuman/quake'
 MODEL_PREFIX = 'eqModel_complex'
 TRAINING_STATUS_FILE = f'{MODEL_DIR}/training_status.json'
 PRINT_INTERVAL = 200       # Print loss every N iterations
-CHECKPOINT_INTERVAL = 500  # Save every N iterations
+CHECKPOINT_INTERVAL = 600  # Save every N iterations
 KEEP_CHECKPOINTS = 5       # Keep last N checkpoints
 
 # Model hyperparameters
@@ -142,15 +142,17 @@ def train():
     # Load data
     dataC, sizes = load_data()
 
-    # Create model
-    print(f"\n[{datetime.now()}] Creating model...")
-    model = EqModelComplex(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max=181, use_rope=True)
+    # Create model with Geographic Positional Encoding (GPE) for enhanced location awareness
+    # GPE includes: Spherical Harmonics, Fourier Features, Tectonic Zones, Relative Position
+    print(f"\n[{datetime.now()}] Creating model with Geographic Positional Encoding (GPE)...")
+    model = EqModelComplex(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max=181, use_rope=True, use_gpe=True)
     model.to(device)
 
     total_params = sum(p.numel() for p in model.parameters())
     print(f"Model parameters: {total_params:,}")
 
     # Load checkpoint if exists and compatible
+    # NOTE: GPE architecture change requires fresh start - old checkpoints won't be compatible
     checkpoint_path = get_latest_checkpoint()
     if checkpoint_path:
         print(f"Found checkpoint: {checkpoint_path}")
@@ -159,12 +161,12 @@ def train():
             model.load_state_dict(state_dict, strict=False)
             print("Checkpoint loaded successfully")
         except RuntimeError as e:
-            if "size mismatch" in str(e):
-                print(f"Checkpoint incompatible with new model architecture, starting fresh")
+            if "size mismatch" in str(e) or "Missing key" in str(e):
+                print(f"Checkpoint incompatible with new GPE architecture, starting fresh")
             else:
                 raise e
     else:
-        print("Starting from scratch")
+        print("Starting from scratch with GPE architecture")
 
     model.train()
 

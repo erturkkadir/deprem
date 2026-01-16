@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "additionalDirectories": [
+      "/var/www/syshuman/quake"
+    ]
+  }
+}

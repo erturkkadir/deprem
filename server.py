@@ -141,7 +141,7 @@ def load_model(force_reload=False):
 
     sizes = dataC.getSizes()
 
-    model = EqModelComplex(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max, use_rope=True)
+    model = EqModelComplex(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max, use_rope=True, use_gpe=True)
     model.to(device)
 
     if checkpoint_path:

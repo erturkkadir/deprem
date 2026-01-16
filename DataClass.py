@@ -516,7 +516,8 @@ class DataC():
             for row in rows:
                 d = dict(zip(columns, row))
                 if d['time']:
-                    d['time'] = d['time'].isoformat()
+                    # Add Z suffix for UTC timezone consistency with frontend
+                    d['time'] = d['time'].isoformat() + 'Z'
                 result.append(d)
             return result
         except Exception as e:
@@ -667,56 +668,122 @@ class DataC():
 
         except Exception as e:
             print(f"Error in db2File: {e}")
-        
+
+    def _fetch_emsc(self, days=1, min_magnitude=2):
+        """Fetch earthquake data from EMSC (European-Mediterranean Seismological Centre).
+
+        EMSC often has more real-time data than USGS with less delay.
+        API: https://www.seismicportal.eu/fdsnws/event/1/query
+
+        Args:
+            days: Number of days to fetch
+            min_magnitude: Minimum magnitude filter
+
+        Returns:
+            List of tuples matching usgs_tmp table format
+        """
+        from datetime import datetime, timedelta
+
+        all_values = []
+
+        # Calculate time range
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(days=days)
+
+        # EMSC API endpoint (FDSN standard, similar to USGS)
+        url = (
+            f"https://www.seismicportal.eu/fdsnws/event/1/query"
+            f"?format=json"
+            f"&starttime={start_time.strftime('%Y-%m-%dT%H:%M:%S')}"
+            f"&endtime={end_time.strftime('%Y-%m-%dT%H:%M:%S')}"
+            f"&minmagnitude={min_magnitude}"
+            f"&limit=10000"
+            f"&orderby=time"
+        )
+
+        try:
+            response = requests.get(url, timeout=20)
+            if response.status_code != 200:
+                print(f"[EMSC] API returned status {response.status_code}")
+                return []
+
+            dataset = response.json()
+            features = dataset.get('features', [])
+            print(f"[EMSC] Fetched {len(features)} earthquakes for last {days} day(s)")
+
+            for feature in features:
+                props = feature.get('properties', {})
+                geom = feature.get('geometry', {})
+                coords = geom.get('coordinates', [0, 0, 0])
+
+                mag = props.get('mag') or 0
+
+                # Use flynn_region as place (EMSC's location description)
+                plc = props.get('flynn_region', '')
+                if plc:
+                    plc = plc.replace("'", "").replace('"', "")
+
+                # Parse time - EMSC uses ISO format
+                time_str = props.get('time', '')
+                if time_str:
+                    try:
+                        eq_time = pd.to_datetime(time_str)
+                        dtm = eq_time.strftime('%y/%m/%d %H:%M:%S')
+                        dat = eq_time.strftime('%y/%m/%d')
+                        tim = eq_time.strftime('%H:%M:%S')
+                    except:
+                        continue
+                else:
+                    continue
+
+                # Event type - EMSC uses 'evtype' field
+                # 'ke' = known earthquake, 'se' = suspected earthquake
+                evtype = props.get('evtype', '')
+                typ = 'earthquake' if evtype in ['ke', 'se', ''] else evtype
+
+                magType = props.get('magtype', 'm')
+
+                lon = coords[0] if len(coords) > 0 else 0
+                lat = coords[1] if len(coords) > 1 else 0
+                dep = abs(coords[2]) if len(coords) > 2 else 0  # EMSC sometimes has negative depth
+
+                # Generate unique code based on datetime + location + magnitude (integers only)
+                # Format: YYMMDDHHMMSS_LAT_LON_M (short and unique)
+                code = f"{eq_time.strftime('%y%m%d%H%M%S')}_{int(lat)}_{int(lon)}_{int(mag)}"
+
+                # Encode for model
+                x = lat + 90
+                y = lon + 180
+                d = dep / 10
+                m = mag * 10
+
+                all_values.append((code, dat, tim, dtm, lat, lon, dep, mag, plc, typ, magType, x, y, d, m))
+
+        except requests.exceptions.Timeout:
+            print(f"[EMSC] Request timeout")
+        except requests.exceptions.RequestException as e:
+            print(f"[EMSC] Request error: {e}")
+        except Exception as e:
+            print(f"[EMSC] Error parsing data: {e}")
+
+        return all_values
+
     def usgs2DB(self, days=1):
-        """Fetch USGS data. days=1 for quick updates, days=3 for full refresh"""
+        """Fetch earthquake data from EMSC (primary source - faster, more real-time).
+
+        EMSC (European-Mediterranean Seismological Centre) provides near real-time
+        earthquake data with less delay than USGS (~10-15 min vs ~1.5-2 hours).
+        """
         self._safe_execute("delete from usgs_tmp")
 
         min_magnitude = 2
         all_values = []
 
-        # Collect data from USGS API
-        for i in range(days, 0, -1):
-            start_time = f"now-{i}days"
-            end_time = f"now-{(i-1)}days"
-            path = f"https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime={start_time}&endtime={end_time}&minmagnitude={min_magnitude}"
-
-            try:
-                response = requests.get(path, timeout=15)
-                dataset = response.json()
-                features = dataset['features']
-                print(f"Fetched {len(features)} earthquakes for day -{i}")
-
-                for feature in features:
-                    code = feature['id']
-                    mag = feature['properties']['mag'] or 0
-                    plc = feature['properties']['place']
-                    if plc:
-                        plc = plc.replace("'", "").replace('"', "")
-                    else:
-                        plc = ""
-
-                    dtm = pd.to_datetime(feature['properties']['time'], unit='ms').strftime('%y/%m/%d %H:%M:%S')
-                    dat = pd.to_datetime(feature['properties']['time'], unit='ms').strftime('%y/%m/%d')
-                    tim = pd.to_datetime(feature['properties']['time'], unit='ms').strftime('%H:%M:%S')
-
-                    typ = feature['properties']['type'] or ''
-                    magType = feature['properties']['magType'] or ''
-
-                    lon = feature['geometry']['coordinates'][0]
-                    lat = feature['geometry']['coordinates'][1]
-                    dep = feature['geometry']['coordinates'][2] or 0
-                    if dep < 0:
-                        dep = 0
-                    x = lat + 90
-                    y = lon + 180
-                    d = dep / 10
-                    m = mag * 10
-
-                    all_values.append((code, dat, tim, dtm, lat, lon, dep, mag, plc, typ, magType, x, y, d, m))
-
-            except Exception as e:
-                print(f"Error fetching USGS data for day -{i}: {e}")
+        # ==================== EMSC API (primary source) ====================
+        try:
+            all_values = self._fetch_emsc(days=days, min_magnitude=min_magnitude)
+        except Exception as e:
+            print(f"[EMSC] Error fetching data: {e}")
 
         # Batch insert all records at once
         if all_values:
