@@ -9,6 +9,7 @@ import PredictionsTable from './components/PredictionsTable';
 import PredictionDetail from './components/PredictionDetail';
 import About from './components/About';
 import RealtimeMap from './components/RealtimeMap';
+import TrainingLossChart from './components/TrainingLossChart';
 
 function App() {
   const dispatch = useDispatch();
@@ -107,6 +108,13 @@ function App() {
           <PredictionsTable />
           <About />
 
+          {/* Training Progress Section */}
+          <section className="py-6 bg-zinc-900">
+            <div className="max-w-7xl mx-auto px-4">
+              <TrainingLossChart />
+            </div>
+          </section>
+
           {/* Footer */}
           <footer className="bg-zinc-900 border-t border-zinc-800 py-8">
             <div className="max-w-7xl mx-auto px-4 text-center">
@@ -114,7 +122,7 @@ function App() {
                 Earthquake Prediction System — Fully Automated, No User Interaction Required
               </p>
               <p className="text-zinc-600 text-xs mt-2">
-                Data sourced from USGS every 5 minutes | Predictions verified after 24 hours
+                Data sourced from EMSC every 2 minutes | Predictions verified after 2 hours
               </p>
             </div>
           </footer>

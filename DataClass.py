@@ -1104,6 +1104,16 @@ class DataC():
 
         x = torch.stack([data_tensor[int(pos)-T:int(pos)] for pos in target_positions])
 
+        # CRITICAL: Clamp input data to model embedding ranges
+        # Column indices: 0=year, 1=month, 2=lat, 3=lon, 4=mag, 5=depth, 6=dt
+        x[:, :, 0] = torch.clamp(x[:, :, 0], 0, self.yr_max)  # year: 0-55
+        x[:, :, 1] = torch.clamp(x[:, :, 1], 1, self.mt_max)  # month: 1-12
+        x[:, :, 2] = torch.clamp(x[:, :, 2], 0, self.x_max)   # lat: 0-180
+        x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)   # lon: 0-360
+        x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)   # mag: 0-91
+        x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)   # depth: 0-75
+        x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)   # dt: 0-150
+
         # Get target values from the M4+ positions
         next_pos = torch.stack([data_tensor[int(pos)] for pos in target_positions])
 
@@ -1143,6 +1153,16 @@ class DataC():
             raise ValueError(f"Not enough data: have {len(data_)}, need {T}")
 
         x = data_[start_idx:].unsqueeze(0)  # [1, T, 7]
+
+        # CRITICAL: Clamp input data to model embedding ranges
+        # Column indices: 0=year, 1=month, 2=lat, 3=lon, 4=mag, 5=depth, 6=dt
+        x[:, :, 0] = torch.clamp(x[:, :, 0], 0, self.yr_max)  # year: 0-55
+        x[:, :, 1] = torch.clamp(x[:, :, 1], 1, self.mt_max)  # month: 1-12
+        x[:, :, 2] = torch.clamp(x[:, :, 2], 0, self.x_max)   # lat: 0-180
+        x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)   # lon: 0-360
+        x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)   # mag: 0-91
+        x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)   # depth: 0-75
+        x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)   # dt: 0-150
 
         # For y, return the last record's target column (used for reference only)
         y = data_[-1, col].unsqueeze(0)  # [1]

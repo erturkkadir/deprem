@@ -1273,6 +1273,50 @@ def reload_model():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/training-loss', methods=['GET'])
+def get_training_loss():
+    """Get training loss history for web UI graph"""
+    global dataC
+
+    if dataC is None:
+        return jsonify({'error': 'Data not loaded'}), 500
+
+    try:
+        # Get limit parameter (default 500 points for graph)
+        limit = request.args.get('limit', 500, type=int)
+
+        # Query loss history from database
+        sql = """
+        SELECT step, train_loss, val_loss, timestamp
+        FROM training_loss
+        ORDER BY step DESC
+        LIMIT %s
+        """
+        rows = dataC._safe_fetch(sql, (limit,))
+
+        if not rows:
+            return jsonify({'loss_history': [], 'total': 0})
+
+        # Convert to list of dicts (reverse to get ascending order)
+        loss_history = []
+        for row in reversed(rows):
+            loss_history.append({
+                'step': row[0],
+                'train_loss': float(row[1]) if row[1] else None,
+                'val_loss': float(row[2]) if row[2] else None,
+                'timestamp': row[3].isoformat() if row[3] else None
+            })
+
+        return jsonify({
+            'loss_history': loss_history,
+            'total': len(loss_history)
+        })
+
+    except Exception as e:
+        print(f"Error getting training loss: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/cycle', methods=['POST'])
 def trigger_cycle():
     """Manually trigger a monitoring cycle"""

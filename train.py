@@ -2,17 +2,20 @@
 Earthquake Prediction Model - Hybrid Training Script
 - Uses M2+ input context, M4+ targets
 - Runs continuously
-- Prints loss every 2000 steps
-- Saves checkpoint every 5000 steps
+- Prints loss every 200 steps
+- Saves checkpoint every 600 steps
+- Tracks train/validation loss for web UI
 """
 import os
 import sys
 import glob
 import json
 import torch
+import mysql.connector
 from datetime import datetime
 from DataClass import DataC
 from EqModelComplex import EqModelComplex
+import config
 
 # Force unbuffered output for real-time monitoring
 sys.stdout.reconfigure(line_buffering=True)
@@ -118,6 +121,77 @@ def cleanup_old_checkpoints():
                 pass
 
 
+def ensure_loss_history_table():
+    """Create loss history table if it doesn't exist"""
+    try:
+        db = mysql.connector.connect(
+            host=config.DB_HOST,
+            user=config.DB_USER,
+            password=config.DB_PASS,
+            database=config.DB_NAME,
+            ssl_disabled=True
+        )
+        cursor = db.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS training_loss (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                step INT NOT NULL,
+                train_loss FLOAT NOT NULL,
+                val_loss FLOAT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_step (step)
+            )
+        """)
+        db.commit()
+        cursor.close()
+        db.close()
+    except Exception as e:
+        print(f"Warning: Could not create loss history table: {e}")
+
+
+def save_loss_to_db(step, train_loss, val_loss=None):
+    """Save loss values to database for web UI"""
+    try:
+        db = mysql.connector.connect(
+            host=config.DB_HOST,
+            user=config.DB_USER,
+            password=config.DB_PASS,
+            database=config.DB_NAME,
+            ssl_disabled=True
+        )
+        cursor = db.cursor()
+        cursor.execute(
+            "INSERT INTO training_loss (step, train_loss, val_loss) VALUES (%s, %s, %s)",
+            (step, train_loss, val_loss)
+        )
+        db.commit()
+        cursor.close()
+        db.close()
+    except Exception as e:
+        print(f"Warning: Could not save loss to db: {e}")
+
+
+@torch.no_grad()
+def compute_val_loss(model, dataC, B, T, num_batches=10):
+    """Compute validation loss over multiple batches"""
+    model.eval()
+    total_loss = 0.0
+
+    for _ in range(num_batches):
+        try:
+            x, targets = dataC.getBatchHybrid(B, T, 'valid')
+            x = x.to(device)
+            targets = {k: v.to(device) for k, v in targets.items()}
+            _, loss = model(x, targets)
+            total_loss += loss.item()
+        except Exception as e:
+            print(f"Val batch error: {e}")
+            continue
+
+    model.train()
+    return total_loss / num_batches if num_batches > 0 else 0.0
+
+
 def load_data():
     """Load hybrid data from database"""
     print(f"[{datetime.now()}] Loading hybrid data (M{INPUT_MAG}+ input, M{TARGET_MAG}+ targets)...")
@@ -138,6 +212,9 @@ def train():
     print(f"Print every: {PRINT_INTERVAL}  |  Save every: {CHECKPOINT_INTERVAL}")
     print(f"Learning rate: {LEARNING_RATE}")
     print("=" * 60)
+
+    # Ensure loss history table exists
+    ensure_loss_history_table()
 
     # Load data
     dataC, sizes = load_data()
@@ -206,10 +283,17 @@ def train():
             # Print progress
             if iteration % PRINT_INTERVAL == 0:
                 avg_loss = running_loss / PRINT_INTERVAL
-                print(f"step {iteration:6d} | loss {avg_loss:.4f}")
+
+                # Compute validation loss every print interval
+                val_loss = compute_val_loss(model, dataC, B, T, num_batches=5)
+
+                print(f"step {iteration:6d} | train {avg_loss:.4f} | val {val_loss:.4f}")
 
                 # Update status file for server
                 update_training_status(iteration, avg_loss)
+
+                # Save loss to database for web UI
+                save_loss_to_db(iteration, avg_loss, val_loss)
 
                 if avg_loss < best_loss:
                     best_loss = avg_loss
