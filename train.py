@@ -10,6 +10,7 @@ import os
 import sys
 import glob
 import json
+import math
 import torch
 import mysql.connector
 from datetime import datetime
@@ -247,18 +248,39 @@ def train():
 
     model.train()
 
-    # Optimizer
-    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
+    # Optimizer with weight decay
+    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=0.01)
+
+    # Learning rate scheduler: warmup + cosine decay
+    WARMUP_STEPS = 2000
+    MAX_STEPS = 500000  # ~24h of training at current rate
+
+    def get_lr(step):
+        """Learning rate with linear warmup and cosine decay."""
+        if step < WARMUP_STEPS:
+            # Linear warmup
+            return LEARNING_RATE * step / WARMUP_STEPS
+        else:
+            # Cosine decay to 10% of max LR
+            progress = (step - WARMUP_STEPS) / (MAX_STEPS - WARMUP_STEPS)
+            progress = min(1.0, progress)
+            return LEARNING_RATE * (0.1 + 0.9 * (1 + math.cos(math.pi * progress)) / 2)
 
     iteration = 0
     running_loss = 0.0
     best_loss = float('inf')
 
-    print(f"\n[{datetime.now()}] Training started...\n")
+    print(f"\n[{datetime.now()}] Training started...")
+    print(f"LR schedule: warmup {WARMUP_STEPS} steps, cosine decay to {MAX_STEPS} steps\n")
 
     try:
         while True:
             iteration += 1
+
+            # Update learning rate
+            lr = get_lr(iteration)
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = lr
 
             # Get batch
             try:
@@ -287,7 +309,7 @@ def train():
                 # Compute validation loss every print interval
                 val_loss = compute_val_loss(model, dataC, B, T, num_batches=5)
 
-                print(f"step {iteration:6d} | train {avg_loss:.4f} | val {val_loss:.4f}")
+                print(f"step {iteration:6d} | train {avg_loss:.4f} | val {val_loss:.4f} | lr {lr:.2e}")
 
                 # Update status file for server
                 update_training_status(iteration, avg_loss)

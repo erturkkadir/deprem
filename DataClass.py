@@ -16,13 +16,15 @@ class DataC():
     _lock = threading.RLock()
 
     def __init__(self):
-        self.yr_max = 55
-        self.mt_max = 12
-        self.x_max = 180
-        self.y_max = 360
-        self.m_max =  91
-        self.d_max =  75
-        self.t_max = 150
+        # Embedding size constants (max index value, NOT count)
+        # Embedding layer needs size = max_index + 1
+        self.yr_max = 55       # Years 0-55 (1970-2025+) → 56 embeddings
+        self.mt_max = 11       # Months 0-11 (converted from 1-12) → 12 embeddings
+        self.x_max = 180       # Latitude 0-180 (encoded: lat+90) → 181 embeddings
+        self.y_max = 360       # Longitude 0-360 (encoded: lon+180) → 361 embeddings
+        self.m_max = 91        # Magnitude 0-91 (encoded: mag*10) → 92 embeddings
+        self.d_max = 75        # Depth 0-75 km → 76 embeddings
+        self.t_max = 150       # Time diff 0-150 minutes → 151 embeddings
         self.data = []
         self.train = []
         self.valid = []
@@ -884,18 +886,30 @@ class DataC():
             return np.array([])
 
     def _update_data_splits(self):
-        """Update train/valid splits and max values from loaded data."""
+        """Update train/valid splits from loaded data.
+
+        NOTE: Embedding sizes (yr_max, mt_max, etc.) are FIXED constants defined in __init__
+        to ensure model architecture consistency. Do NOT update them from data.
+        Data values exceeding these limits are clamped in getBatchHybrid/getLast.
+        """
         n = int(self.n * len(self.data))
         self.train = self.data[:n]
         self.valid = self.data[n:]
 
-        self.yr_max = int(self.data[:, 0].max()) + 1  # year 0 to 54
-        self.mt_max = int(self.data[:, 1].max()) + 1
-        self.x_max  = int(self.data[:, 2].max()) + 1
-        self.y_max  = int(self.data[:, 3].max()) + 1
-        self.m_max  = int(self.data[:, 4].max()) + 1
-        self.d_max  = int(self.data[:, 5].max()) + 1
-        self.t_max  = int(self.data[:, 6].max()) + 1
+        # Log data statistics for debugging (but don't update max values)
+        actual_yr_max = int(self.data[:, 0].max())
+        actual_mt_max = int(self.data[:, 1].max())
+        actual_x_max = int(self.data[:, 2].max())
+        actual_y_max = int(self.data[:, 3].max())
+        actual_m_max = int(self.data[:, 4].max())
+        actual_d_max = int(self.data[:, 5].max())
+        actual_t_max = int(self.data[:, 6].max())
+
+        # Warn if data exceeds model limits (values will be clamped)
+        if actual_d_max > self.d_max:
+            print(f"  Warning: depth max {actual_d_max} exceeds model limit {self.d_max}, will be clamped")
+        if actual_t_max > self.t_max:
+            print(f"  Warning: dt max {actual_t_max} exceeds model limit {self.t_max}, will be clamped")
 
     def getDataHybrid(self, input_mag=2.0, target_mag=4.0):
         """Load hybrid training data: ALL earthquakes >= input_mag as context,
@@ -979,23 +993,17 @@ class DataC():
         return sizes    
 
     def getScaledData(self):
+        """Load data and return it. Note: max values are FIXED constants, not updated from data."""
         data = self.getData()
-        # I checked data and values up until this point
-        #
-        # year [0 54] Some years are active then others
-        # month [1 12] some months are active than other, July is the most active month for sure
-        # lat [6 177] most activity around 130 degree (range is [0 180])
-        # lon [0 360] most activity around  70 degree (range is [0 360])
-        # mag [0 9] 2,3,4 dominate the data
-        # dep [0 70] 1 and 10 dominates
-        # dt  [0 150] in minutes, nice curve
-        self.yr_max = data[:, 0].max()  # year 0 to 54
-        self.mt_max = data[:, 1].max()  
-        self.x_max  = data[:, 2].max()  
-        self.y_max  = data[:, 3].max()  
-        self.m_max  = data[:, 4].max()  
-        self.d_max  = data[:, 5].max()  
-        self.t_max  = data[:, 6].max()
+        # Data statistics (for reference, NOT used for embedding sizes):
+        # year [0 55] Some years are active then others
+        # month [1 12] some months are active than other, July is the most active month
+        # lat [0 180] most activity around 130 degree (encoded: lat+90)
+        # lon [0 360] most activity around 70 degree (encoded: lon+180)
+        # mag [0 91] encoded as mag*10; 2,3,4 dominate
+        # dep [0 75] clamped; 1 and 10 km dominates
+        # dt  [0 150] clamped; in minutes
+        # NOTE: Embedding sizes are FIXED in __init__ - do NOT update them here
         return data
     
     def getBatch(self, B, T, split, col):
@@ -1106,13 +1114,13 @@ class DataC():
 
         # CRITICAL: Clamp input data to model embedding ranges
         # Column indices: 0=year, 1=month, 2=lat, 3=lon, 4=mag, 5=depth, 6=dt
-        x[:, :, 0] = torch.clamp(x[:, :, 0], 0, self.yr_max)  # year: 0-55
-        x[:, :, 1] = torch.clamp(x[:, :, 1], 1, self.mt_max)  # month: 1-12
-        x[:, :, 2] = torch.clamp(x[:, :, 2], 0, self.x_max)   # lat: 0-180
-        x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)   # lon: 0-360
-        x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)   # mag: 0-91
-        x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)   # depth: 0-75
-        x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)   # dt: 0-150
+        x[:, :, 0] = torch.clamp(x[:, :, 0], 0, self.yr_max)      # year: 0-55
+        x[:, :, 1] = torch.clamp(x[:, :, 1] - 1, 0, 11)           # month: convert 1-12 to 0-11 for embedding
+        x[:, :, 2] = torch.clamp(x[:, :, 2], 0, self.x_max)       # lat: 0-180
+        x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)       # lon: 0-360
+        x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)       # mag: 0-91
+        x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-75
+        x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-150
 
         # Get target values from the M4+ positions
         next_pos = torch.stack([data_tensor[int(pos)] for pos in target_positions])
@@ -1156,13 +1164,13 @@ class DataC():
 
         # CRITICAL: Clamp input data to model embedding ranges
         # Column indices: 0=year, 1=month, 2=lat, 3=lon, 4=mag, 5=depth, 6=dt
-        x[:, :, 0] = torch.clamp(x[:, :, 0], 0, self.yr_max)  # year: 0-55
-        x[:, :, 1] = torch.clamp(x[:, :, 1], 1, self.mt_max)  # month: 1-12
-        x[:, :, 2] = torch.clamp(x[:, :, 2], 0, self.x_max)   # lat: 0-180
-        x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)   # lon: 0-360
-        x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)   # mag: 0-91
-        x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)   # depth: 0-75
-        x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)   # dt: 0-150
+        x[:, :, 0] = torch.clamp(x[:, :, 0], 0, self.yr_max)      # year: 0-55
+        x[:, :, 1] = torch.clamp(x[:, :, 1] - 1, 0, 11)           # month: convert 1-12 to 0-11 for embedding
+        x[:, :, 2] = torch.clamp(x[:, :, 2], 0, self.x_max)       # lat: 0-180
+        x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)       # lon: 0-360
+        x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)       # mag: 0-91
+        x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-75
+        x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-150
 
         # For y, return the last record's target column (used for reference only)
         y = data_[-1, col].unsqueeze(0)  # [1]

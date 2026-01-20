@@ -7,127 +7,59 @@ Batch: 2  |  Seq len: 256  |  Embed: 1176
 Print every: 200  |  Save every: 600
 Learning rate: 0.0003
 ============================================================
-[2026-01-20 16:47:29.958825] Loading hybrid data (M2.0+ input, M4.0+ targets)...
+[2026-01-20 18:24:19.979635] Loading hybrid data (M2.0+ input, M4.0+ targets)...
 Database connection established
-Loaded 1,484,741 records (M2.0+)
-  Training targets (M4.0+): 519,639 (35.0%)
+Loaded 1,484,773 records (M2.0+)
+  Training targets (M4.0+): 519,647 (35.0%)
+  Warning: depth max 651 exceeds model limit 75, will be clamped
+  Warning: dt max 720 exceeds model limit 150, will be clamped
 
-[2026-01-20 16:48:18.282264] Creating model with Geographic Positional Encoding (GPE)...
-Model parameters: 201,862,044
+[2026-01-20 18:25:21.563576] Creating model with Geographic Positional Encoding (GPE)...
+Model parameters: 201,410,068
 Starting from scratch with GPE architecture
 
-[2026-01-20 16:48:24.984435] Training started...
+[2026-01-20 18:25:28.163164] Training started...
+LR schedule: warmup 2000 steps, cosine decay to 500000 steps
 
-step    200 | train 96.5104 | val 40.6369
+step    200 | train 93.7141 | val 76.0862 | lr 3.00e-05
   -> New best loss!
-step    400 | train 41.4958 | val 31.1201
+step    400 | train 73.2122 | val 67.5694 | lr 6.00e-05
   -> New best loss!
-step    600 | train 34.4498 | val 27.0030
+step    600 | train 51.0915 | val 47.3923 | lr 9.00e-05
   -> New best loss!
-[2026-01-20 16:51:53.935869] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_165151.pth (iter=600, loss=34.4498)
-step    800 | train 30.5815 | val 29.4922
+[2026-01-20 18:29:00.250839] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_182857.pth (iter=600, loss=51.0915)
+step    800 | train 39.4156 | val 36.0390 | lr 1.20e-04
   -> New best loss!
-step   1000 | train 28.4344 | val 27.2375
+step   1000 | train 33.4502 | val 28.6849 | lr 1.50e-04
   -> New best loss!
-step   1200 | train 27.0279 | val 25.5803
+step   1200 | train 30.0803 | val 33.5722 | lr 1.80e-04
   -> New best loss!
-[2026-01-20 16:55:44.632776] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_165522.pth (iter=1200, loss=27.0279)
-step   1400 | train 25.1971 | val 25.4013
+[2026-01-20 18:32:38.037380] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_183230.pth (iter=1200, loss=30.0803)
+step   1400 | train 29.2865 | val 26.0301 | lr 2.10e-04
   -> New best loss!
-step   1600 | train 25.7695 | val 24.6774
-step   1800 | train 24.3830 | val 22.3770
+step   1600 | train 28.3702 | val 24.2897 | lr 2.40e-04
   -> New best loss!
-[2026-01-20 16:59:20.942309] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_165912.pth (iter=1800, loss=24.3830)
-step   2000 | train 24.1675 | val 23.9442
+step   1800 | train 27.2432 | val 27.8485 | lr 2.70e-04
   -> New best loss!
-step   2200 | train 23.4928 | val 19.8136
+[2026-01-20 18:36:16.555077] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_183606.pth (iter=1800, loss=27.2432)
+step   2000 | train 27.1849 | val 23.7300 | lr 3.00e-04
   -> New best loss!
-step   2400 | train 23.3149 | val 20.6896
+step   2200 | train 25.9267 | val 24.9967 | lr 3.00e-04
   -> New best loss!
-[2026-01-20 17:02:58.723283] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_170250.pth (iter=2400, loss=23.3149)
-step   2600 | train 22.9114 | val 21.7086
+step   2400 | train 24.3592 | val 20.9822 | lr 3.00e-04
   -> New best loss!
-step   2800 | train 22.1657 | val 21.0126
+[2026-01-20 18:39:52.330597] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_183944.pth (iter=2400, loss=24.3592)
+step   2600 | train 23.4365 | val 23.3995 | lr 3.00e-04
   -> New best loss!
-step   3000 | train 22.2798 | val 21.2546
-[2026-01-20 17:06:38.923961] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_170628.pth (iter=3000, loss=22.2798)
-step   3200 | train 21.6228 | val 20.2807
+step   2800 | train 22.7457 | val 21.6553 | lr 3.00e-04
   -> New best loss!
-step   3400 | train 21.2871 | val 21.2905
+step   3000 | train 22.6832 | val 24.1448 | lr 3.00e-04
   -> New best loss!
-step   3600 | train 21.6458 | val 20.1909
-[2026-01-20 17:10:13.358929] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_171005.pth (iter=3600, loss=21.6458)
-step   3800 | train 21.8165 | val 20.8111
-step   4000 | train 21.4615 | val 21.4307
-step   4200 | train 21.3995 | val 20.0798
-[2026-01-20 17:13:54.675839] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_171343.pth (iter=4200, loss=21.3995)
-step   4400 | train 20.9693 | val 20.6652
+[2026-01-20 18:43:29.498724] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_184321.pth (iter=3000, loss=22.6832)
+step   3200 | train 22.3713 | val 21.1532 | lr 3.00e-04
   -> New best loss!
-step   4600 | train 21.0627 | val 19.6906
-step   4800 | train 20.8327 | val 18.0276
+step   3400 | train 22.0044 | val 22.5936 | lr 3.00e-04
   -> New best loss!
-[2026-01-20 17:17:31.129391] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_171723.pth (iter=4800, loss=20.8327)
-step   5000 | train 21.0035 | val 21.8978
-step   5200 | train 21.0773 | val 19.2121
-step   5400 | train 20.5316 | val 20.0744
+step   3600 | train 21.6671 | val 20.6229 | lr 3.00e-04
   -> New best loss!
-[2026-01-20 17:21:08.003223] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_172058.pth (iter=5400, loss=20.5316)
-step   5600 | train 20.7131 | val 19.7814
-step   5800 | train 20.5716 | val 21.1018
-step   6000 | train 20.5928 | val 19.7687
-[2026-01-20 17:24:44.230500] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_172435.pth (iter=6000, loss=20.5928)
-step   6200 | train 20.4495 | val 18.3919
-  -> New best loss!
-step   6400 | train 20.5148 | val 20.3437
-step   6600 | train 20.0018 | val 19.1513
-  -> New best loss!
-[2026-01-20 17:28:21.525097] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_172812.pth (iter=6600, loss=20.0018)
-step   6800 | train 20.1468 | val 19.4147
-step   7000 | train 20.1464 | val 19.3934
-step   7200 | train 20.0743 | val 18.8483
-[2026-01-20 17:31:57.927027] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_173150.pth (iter=7200, loss=20.0743)
-step   7400 | train 20.0496 | val 18.8641
-step   7600 | train 19.9856 | val 19.4376
-  -> New best loss!
-step   7800 | train 19.9515 | val 19.1971
-  -> New best loss!
-[2026-01-20 17:35:34.270114] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_173526.pth (iter=7800, loss=19.9515)
-step   8000 | train 19.6129 | val 18.1494
-  -> New best loss!
-step   8200 | train 19.5778 | val 17.7649
-  -> New best loss!
-step   8400 | train 19.6987 | val 17.8733
-[2026-01-20 17:39:10.478751] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_173902.pth (iter=8400, loss=19.6987)
-step   8600 | train 19.6323 | val 19.1076
-step   8800 | train 19.7369 | val 18.7936
-step   9000 | train 19.6917 | val 18.2025
-[2026-01-20 17:42:43.860308] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_174235.pth (iter=9000, loss=19.6917)
-step   9200 | train 19.6537 | val 17.0681
-step   9400 | train 19.3751 | val 17.4784
-  -> New best loss!
-step   9600 | train 19.7137 | val 19.5610
-[2026-01-20 17:46:17.682267] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_174609.pth (iter=9600, loss=19.7137)
-step   9800 | train 19.3487 | val 21.0107
-  -> New best loss!
-step  10000 | train 19.7428 | val 18.2182
-step  10200 | train 19.6254 | val 18.1603
-[2026-01-20 17:49:52.773851] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_174944.pth (iter=10200, loss=19.6254)
-step  10400 | train 19.4791 | val 19.1684
-step  10600 | train 19.3963 | val 20.6025
-step  10800 | train 19.5457 | val 18.1706
-[2026-01-20 17:53:30.250146] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_175322.pth (iter=10800, loss=19.5457)
-step  11000 | train 19.4061 | val 17.8928
-step  11200 | train 19.1598 | val 17.5849
-  -> New best loss!
-step  11400 | train 19.2789 | val 19.4456
-[2026-01-20 17:57:07.989553] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_175659.pth (iter=11400, loss=19.2789)
-step  11600 | train 19.3838 | val 17.6800
-step  11800 | train 19.2654 | val 17.5096
-step  12000 | train 19.2974 | val 18.7076
-[2026-01-20 18:00:46.203800] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_180037.pth (iter=12000, loss=19.2974)
-step  12200 | train 19.0773 | val 19.2210
-  -> New best loss!
-step  12400 | train 19.0880 | val 16.8821
-step  12600 | train 19.3122 | val 19.1051
-[2026-01-20 18:04:22.128799] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_180414.pth (iter=12600, loss=19.3122)
-step  12800 | train 19.2049 | val 17.4431
+[2026-01-20 18:47:06.553715] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260120_184658.pth (iter=3600, loss=21.6671)

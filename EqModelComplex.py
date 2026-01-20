@@ -832,12 +832,12 @@ class ComplexPositionalEncoding(nn.Module):
         div_term = torch.exp(torch.arange(0, embed_dim, 2).float() * (-math.log(10000.0) / embed_dim))
 
         pe_real = torch.zeros(max_len, embed_dim)
-        pe_real[:, 0::2] = torch.cos(position * div_term)
-        pe_real[:, 1::2] = torch.cos(position * div_term)
+        pe_real[:, 0::2] = torch.sin(position * div_term)  # sin for even indices
+        pe_real[:, 1::2] = torch.cos(position * div_term)  # cos for odd indices
 
         pe_imag = torch.zeros(max_len, embed_dim)
-        pe_imag[:, 0::2] = torch.sin(position * div_term)
-        pe_imag[:, 1::2] = torch.sin(position * div_term)
+        pe_imag[:, 0::2] = torch.cos(position * div_term)  # cos for even indices (phase shifted)
+        pe_imag[:, 1::2] = torch.sin(position * div_term)  # sin for odd indices (phase shifted)
 
         pe = torch.complex(pe_real, pe_imag).unsqueeze(0)
         self.register_buffer('pe', pe)
@@ -972,11 +972,18 @@ class EqModelComplex(nn.Module):
             loss = None
         else:
             # Compute cross-entropy loss for each target (using last position)
+            # Weight losses inversely proportional to number of classes to balance gradients
+            # lat: 181 classes -> weight ~1.0 (reference)
+            # lon: 361 classes -> weight ~0.5 (has 2x classes)
+            # dt:  151 classes -> weight ~1.2 (fewer classes)
+            # mag:  92 classes -> weight ~2.0 (fewest classes, most important)
             lat_loss = FN.cross_entropy(lat_logits[:, -1, :], targets['lat'])
             lon_loss = FN.cross_entropy(lon_logits[:, -1, :], targets['lon'])
             dt_loss = FN.cross_entropy(dt_logits[:, -1, :], targets['dt'])
             mag_loss = FN.cross_entropy(mag_logits[:, -1, :], targets['mag'])
-            loss = lat_loss + lon_loss + dt_loss + mag_loss
+
+            # Balanced loss weighting (normalized to sum to 4.0 for comparable total)
+            loss = 1.0 * lat_loss + 0.5 * lon_loss + 1.2 * dt_loss + 1.3 * mag_loss
 
         return logits, loss
 
@@ -1031,11 +1038,11 @@ class EqModelComplex(nn.Module):
         dt_pred = torch.multinomial(dt_probs, num_samples=1)
         mag_pred = torch.multinomial(mag_probs, num_samples=1)
 
-        # Clamp to valid ranges
+        # Clamp to valid ranges (no artificial minimum on magnitude)
         lat_val = min(max(lat_pred.item(), 0), 180)
         lon_val = min(max(lon_pred.item(), 0), 360)
-        dt_val = min(max(dt_pred.item(), 1), 150)
-        mag_val = min(max(mag_pred.item(), 40), 90)
+        dt_val = min(max(dt_pred.item(), 1), 150)    # Min 1 minute between events
+        mag_val = min(max(mag_pred.item(), 0), 91)   # Full magnitude range 0-91 (0.0-9.1)
 
         return {
             'lat': lat_val,
