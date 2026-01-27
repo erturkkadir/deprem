@@ -105,6 +105,7 @@ DISTANCE_RADIUS = 15  # degrees - circular distance for matching
 DT_TOLERANCE = 30     # minutes
 MAG_TOLERANCE = 1.0   # magnitude
 MIN_MAG_DISPLAY = 4.0 # Only show predictions with mag >= 4.0
+DATA_DELAY_BUFFER = 60  # minutes - extra time to wait for delayed earthquake reports
 
 
 def get_latest_checkpoint():
@@ -475,10 +476,14 @@ def check_and_handle_prediction():
                         'mag': us_mag
                     }
 
-        # Check if prediction window has expired
+        # Check if prediction window has expired (with buffer for delayed data)
         expected_event_time = pr_timestamp + timedelta(minutes=pr_dt)
-        if datetime.now() > expected_event_time:
-            print(f"[{datetime.now()}] Prediction #{pr_id} expired (waited {pr_dt} min), marking as MISSED...")
+        buffer_end_time = expected_event_time + timedelta(minutes=DATA_DELAY_BUFFER)
+        now = datetime.now()
+
+        if now > buffer_end_time:
+            # Buffer period passed - mark as missed
+            print(f"[{now}] Prediction #{pr_id} expired + buffer ({DATA_DELAY_BUFFER}min) passed, marking as MISSED...")
 
             # Mark the expired prediction as missed (verified=true, correct=false)
             dataC.verify_prediction(
@@ -497,12 +502,17 @@ def check_and_handle_prediction():
             )
 
             # Create new prediction
-            print(f"[{datetime.now()}] Creating new prediction...")
+            print(f"[{now}] Creating new prediction...")
             make_prediction()
             return {'action': 'expired_marked_missed', 'prediction_id': pr_id}
 
+        elif now > expected_event_time:
+            # In buffer period - still checking for delayed earthquake reports
+            buffer_remaining = (buffer_end_time - now).total_seconds() / 60
+            return {'action': 'in_buffer', 'prediction_id': pr_id, 'buffer_remaining_minutes': round(buffer_remaining, 1)}
+
         # Still waiting - no action needed
-        remaining = (expected_event_time - datetime.now()).total_seconds() / 60
+        remaining = (expected_event_time - now).total_seconds() / 60
         return {'action': 'waiting', 'prediction_id': pr_id, 'remaining_minutes': round(remaining, 1)}
 
     except Exception as e:
@@ -671,7 +681,9 @@ def get_live_data():
 
             # Calculate time window
             expected_event_time = pr_timestamp + timedelta(minutes=pr_dt)
+            buffer_end_time = expected_event_time + timedelta(minutes=DATA_DELAY_BUFFER)
             is_expired = now > expected_event_time
+            is_buffer_expired = now > buffer_end_time  # True only after buffer period
 
             # Calculate remaining/elapsed time
             if is_expired:
@@ -683,9 +695,12 @@ def get_live_data():
             # Build prediction status for frontend (UTC times with Z suffix)
             prediction_status = {
                 'is_expired': is_expired,
+                'is_in_buffer': is_expired and not is_buffer_expired,  # Expired but still checking for delayed data
+                'buffer_minutes': DATA_DELAY_BUFFER,
                 'time_remaining_seconds': time_remaining_seconds,
                 'start_time': pr_timestamp.isoformat() + 'Z',
                 'end_time': expected_event_time.isoformat() + 'Z',
+                'buffer_end_time': buffer_end_time.isoformat() + 'Z',
                 'current_time': now.isoformat() + 'Z'
             }
 
@@ -751,9 +766,11 @@ def get_live_data():
                 if match_info:
                     match_info['verified_match'] = True
 
-            # AUTO-HANDLE: If expired without match, mark as missed and create new prediction
-            elif is_expired:
-                print(f"[{now}] Prediction #{pr_id} EXPIRED (by {-time_remaining_seconds}s), marking as MISSED...")
+            # AUTO-HANDLE: If expired AND buffer period passed without match, mark as missed
+            # Buffer allows time for delayed earthquake reports from data sources
+            elif is_buffer_expired:
+                buffer_elapsed = int((now - buffer_end_time).total_seconds())
+                print(f"[{now}] Prediction #{pr_id} EXPIRED + BUFFER ({DATA_DELAY_BUFFER}min) passed, marking as MISSED...")
 
                 # Mark expired prediction as missed
                 dataC.verify_prediction(
