@@ -204,10 +204,24 @@ def reload_checkpoint_weights():
 def reload_if_new_checkpoint():
     """Check for new checkpoint and reload if found"""
     global current_checkpoint
+    import time
 
     latest = get_latest_checkpoint()
     if latest and latest != current_checkpoint:
         print(f"[{datetime.now()}] New checkpoint detected: {os.path.basename(latest)}")
+
+        # Wait for file to finish writing (check if file size is stable)
+        try:
+            size1 = os.path.getsize(latest)
+            time.sleep(2)  # Wait 2 seconds
+            size2 = os.path.getsize(latest)
+
+            if size1 != size2:
+                print(f"[{datetime.now()}] Checkpoint still being written, skipping this cycle")
+                return False
+        except OSError:
+            return False
+
         # Just reload weights, not the entire data
         return reload_checkpoint_weights()
     return False
@@ -232,12 +246,12 @@ def make_prediction():
                 print(f"[{datetime.now()}] Skipping - recent pending prediction #{existing['id']} exists")
                 return existing['id']
 
-        # Note: We don't reload all 1.5M records here anymore - too slow!
-        # Data is loaded at startup and usgs2DB updates the DB.
-        # The dataC already has sufficient data for predictions.
-
-        # Get last sequence from data
-        x_test, y_actual = dataC.getLast(1, T, 'val', col=col)
+        # IMPORTANT: Use getLastFromDB() to get FRESH data directly from database
+        # This ensures predictions use the most recent earthquakes, not stale cached data
+        x_test = dataC.getLastFromDB(T, input_mag=INPUT_MAG)
+        if x_test is None:
+            print(f"[{datetime.now()}] Error: Could not get fresh data from database")
+            return None
         x_test = x_test.to(device)
 
         with torch.no_grad():
@@ -1445,4 +1459,17 @@ init_app()
 
 if __name__ == '__main__':
     print(f"Server starting on http://0.0.0.0:3000")
-    app.run(host='0.0.0.0', port=3000, debug=False, threaded=True, use_reloader=False)
+    try:
+        app.run(host='0.0.0.0', port=3000, debug=False, threaded=True, use_reloader=False)
+    except KeyboardInterrupt:
+        print("\nShutting down gracefully...")
+        if scheduler:
+            scheduler.shutdown()
+        sys.exit(0)
+    except Exception as e:
+        print(f"\n[FATAL ERROR] Server crashed: {e}")
+        import traceback
+        traceback.print_exc()
+        if scheduler:
+            scheduler.shutdown()
+        sys.exit(1)

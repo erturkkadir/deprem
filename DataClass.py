@@ -1178,6 +1178,100 @@ class DataC():
         return x.long(), y.long()
     
 
+    def getLastFromDB(self, T, input_mag=2.0):
+        """Get the LAST T earthquakes directly from database for FRESH predictions.
+
+        This method queries the database directly instead of using the cached
+        data array, ensuring predictions use the most recent earthquake data.
+
+        IMPORTANT: dt is calculated dynamically using LAG() to match training data,
+        NOT from the us_t column which stores different values.
+
+        Args:
+            T: Sequence length (number of recent earthquakes to fetch)
+            input_mag: Minimum magnitude filter (default 2.0)
+
+        Returns:
+            x: Last T earthquakes [1, T, 7] as tensor ready for model input
+        """
+        try:
+            # Query the database for the last T earthquakes
+            # Calculate dt dynamically using LAG() - MUST match get_data_hybrid() exactly!
+            # Fetch T+1 records so we can calculate dt for all T records (first one needs prior)
+            sql = """
+            SELECT year, month, us_x, us_y, us_m, us_d, us_t FROM (
+                SELECT
+                    YEAR(us_datetime) - 1970 as year,
+                    MONTH(us_datetime) as month,
+                    us_x,
+                    us_y,
+                    us_m,
+                    GREATEST(us_d, 0) as us_d,
+                    CASE
+                        WHEN dt IS NULL THEN 0
+                        WHEN dt > 720 THEN 720
+                        ELSE dt
+                    END as us_t,
+                    us_datetime,
+                    ROW_NUMBER() OVER (ORDER BY us_datetime DESC) as rn
+                FROM (
+                    SELECT
+                        us_datetime,
+                        us_x,
+                        us_y,
+                        us_m,
+                        us_d,
+                        CAST(
+                            -TIMESTAMPDIFF(MINUTE, us_datetime, LAG(us_datetime) OVER (ORDER BY us_datetime))
+                            AS SIGNED
+                        ) as dt
+                    FROM usgs
+                    WHERE us_mag >= %s
+                      AND us_type = 'earthquake'
+                      AND us_magtype LIKE 'm%%'
+                    ORDER BY us_datetime DESC
+                    LIMIT %s
+                ) inner_sub
+            ) sub
+            WHERE rn <= %s
+            ORDER BY us_datetime ASC
+            """
+
+            # Pass T+1 to inner query (for dt calculation), then filter to T records
+            rows = self._safe_fetch(sql, (input_mag, T + 1, T))
+
+            if not rows or len(rows) < T:
+                print(f"Warning: Only got {len(rows) if rows else 0} earthquakes, need {T}")
+                return None
+
+            # Data is already in chronological order (oldest first) from SQL ORDER BY
+
+            # Convert to numpy array
+            import numpy as np
+            data = np.array(rows, dtype=np.float64)
+            data = np.nan_to_num(data, 0)
+
+            # Convert to tensor
+            x = torch.from_numpy(data).unsqueeze(0)  # [1, T, 7]
+
+            # CRITICAL: Clamp input data to model embedding ranges
+            # Column indices: 0=year, 1=month, 2=lat, 3=lon, 4=mag, 5=depth, 6=dt
+            x[:, :, 0] = torch.clamp(x[:, :, 0], 0, self.yr_max)      # year: 0-55
+            x[:, :, 1] = torch.clamp(x[:, :, 1] - 1, 0, 11)           # month: convert 1-12 to 0-11 for embedding
+            x[:, :, 2] = torch.clamp(x[:, :, 2], 0, self.x_max)       # lat: 0-180
+            x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)       # lon: 0-360
+            x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)       # mag: 0-91
+            x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-75
+            x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-150
+
+            return x.long()
+
+        except Exception as e:
+            print(f"Error in getLastFromDB: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
     def closeAll(self):
         """Close the database connection."""
         self._close_connection()
