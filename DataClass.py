@@ -23,8 +23,8 @@ class DataC():
         self.x_max = 180       # Latitude 0-180 (encoded: lat+90) → 181 embeddings
         self.y_max = 360       # Longitude 0-360 (encoded: lon+180) → 361 embeddings
         self.m_max = 91        # Magnitude 0-91 (encoded: mag*10) → 92 embeddings
-        self.d_max = 75        # Depth 0-75 km → 76 embeddings
-        self.t_max = 150       # Time diff 0-150 minutes → 151 embeddings
+        self.d_max = 200       # Depth 0-200 km → 201 embeddings (captures subduction zones)
+        self.t_max = 480       # Time diff 0-480 minutes (8 hours) → 481 embeddings
         self.data = []
         self.train = []
         self.valid = []
@@ -1063,7 +1063,7 @@ class DataC():
             'lat': torch.clamp(next_pos[:, 2], 0, 180).long(),  # latitude (0-180)
             'lon': torch.clamp(next_pos[:, 3], 0, 360).long(),  # longitude (0-360)
             'mag': torch.clamp(next_pos[:, 4], 0, 91).long(),   # magnitude (0-91)
-            'dt':  torch.clamp(next_pos[:, 6], 0, 150).long(),  # time difference (0-150)
+            'dt':  torch.clamp(next_pos[:, 6], 0, self.t_max).long(),  # time difference
         }
 
         return x.long(), targets
@@ -1120,7 +1120,7 @@ class DataC():
         x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)       # lon: 0-360
         x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)       # mag: 0-91
         x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-75
-        x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-150
+        x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-480
 
         # Get target values from the M4+ positions
         next_pos = torch.stack([data_tensor[int(pos)] for pos in target_positions])
@@ -1129,7 +1129,7 @@ class DataC():
             'lat': torch.clamp(next_pos[:, 2], 0, 180).long(),
             'lon': torch.clamp(next_pos[:, 3], 0, 360).long(),
             'mag': torch.clamp(next_pos[:, 4], 0, 91).long(),
-            'dt':  torch.clamp(next_pos[:, 6], 0, 150).long(),
+            'dt':  torch.clamp(next_pos[:, 6], 0, self.t_max).long(),
         }
 
         return x.long(), targets

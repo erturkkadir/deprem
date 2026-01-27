@@ -909,7 +909,7 @@ class EqModelComplex(nn.Module):
         # Input is concatenation of real and imaginary parts
         self.lat_head = nn.Linear(n_embed * 2, 181, bias=False)   # Latitude: 0-180
         self.lon_head = nn.Linear(n_embed * 2, 361, bias=False)   # Longitude: 0-360
-        self.dt_head = nn.Linear(n_embed * 2, 151, bias=False)    # Time diff: 0-150 minutes
+        self.dt_head = nn.Linear(n_embed * 2, 481, bias=False)    # Time diff: 0-480 minutes (8 hours)
         self.mag_head = nn.Linear(n_embed * 2, 92, bias=False)    # Magnitude: 0-91
 
         self.apply(self._init_weights)
@@ -923,18 +923,22 @@ class EqModelComplex(nn.Module):
         elif isinstance(module, nn.Embedding):
             nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx, targets=None):
+    def forward(self, idx, targets=None, label_smoothing=0.0, use_all_positions=False):
         """
         Forward pass for 4-parameter prediction.
 
         Args:
             idx: Input tensor [B, T, 7] - sequence of earthquakes
             targets: Dict {'lat': [B], 'lon': [B], 'dt': [B], 'mag': [B]} or None
+            label_smoothing: Label smoothing factor (0.0-0.2 recommended)
+            use_all_positions: If True, compute loss on all positions (more training signal)
 
         Returns:
             logits: Dict with 'lat', 'lon', 'dt', 'mag' logits
             loss: Combined loss or None
         """
+        B_actual, T_actual = idx.shape[0], idx.shape[1]
+
         # Complex embedding
         x = self.embed(idx)
 
@@ -971,16 +975,18 @@ class EqModelComplex(nn.Module):
         if targets is None:
             loss = None
         else:
-            # Compute cross-entropy loss for each target (using last position)
+            # Compute cross-entropy loss with label smoothing
             # Weight losses inversely proportional to number of classes to balance gradients
             # lat: 181 classes -> weight ~1.0 (reference)
             # lon: 361 classes -> weight ~0.5 (has 2x classes)
-            # dt:  151 classes -> weight ~1.2 (fewer classes)
-            # mag:  92 classes -> weight ~2.0 (fewest classes, most important)
-            lat_loss = FN.cross_entropy(lat_logits[:, -1, :], targets['lat'])
-            lon_loss = FN.cross_entropy(lon_logits[:, -1, :], targets['lon'])
-            dt_loss = FN.cross_entropy(dt_logits[:, -1, :], targets['dt'])
-            mag_loss = FN.cross_entropy(mag_logits[:, -1, :], targets['mag'])
+            # dt:  481 classes -> weight ~1.2 (time diff 0-480 minutes)
+            # mag:  92 classes -> weight ~1.3 (fewest classes, most important)
+
+            # Use last position only (standard approach for next-token prediction)
+            lat_loss = FN.cross_entropy(lat_logits[:, -1, :], targets['lat'], label_smoothing=label_smoothing)
+            lon_loss = FN.cross_entropy(lon_logits[:, -1, :], targets['lon'], label_smoothing=label_smoothing)
+            dt_loss = FN.cross_entropy(dt_logits[:, -1, :], targets['dt'], label_smoothing=label_smoothing)
+            mag_loss = FN.cross_entropy(mag_logits[:, -1, :], targets['mag'], label_smoothing=label_smoothing)
 
             # Balanced loss weighting (normalized to sum to 4.0 for comparable total)
             loss = 1.0 * lat_loss + 0.5 * lon_loss + 1.2 * dt_loss + 1.3 * mag_loss
@@ -1041,7 +1047,7 @@ class EqModelComplex(nn.Module):
         # Clamp to valid ranges (no artificial minimum on magnitude)
         lat_val = min(max(lat_pred.item(), 0), 180)
         lon_val = min(max(lon_pred.item(), 0), 360)
-        dt_val = min(max(dt_pred.item(), 1), 150)    # Min 1 minute between events
+        dt_val = min(max(dt_pred.item(), 1), 480)    # Min 1 minute, max 8 hours between events
         mag_val = min(max(mag_pred.item(), 0), 91)   # Full magnitude range 0-91 (0.0-9.1)
 
         return {
@@ -1081,13 +1087,13 @@ if __name__ == "__main__":
 
     # Test configuration
     sizes = {
-        'yr_size': 56,
-        'mt_size': 12,
+        'yr_size': 55,
+        'mt_size': 11,
         'x_size': 180,
         'y_size': 360,
         'm_size': 91,
-        'd_size': 70,
-        't_size': 150
+        'd_size': 200,
+        't_size': 480
     }
 
     B = 4       # Batch size
@@ -1136,7 +1142,7 @@ if __name__ == "__main__":
         targets = {
             'lat': torch.randint(0, 181, (B,)).to(device),
             'lon': torch.randint(0, 361, (B,)).to(device),
-            'dt': torch.randint(0, 151, (B,)).to(device),
+            'dt': torch.randint(0, 481, (B,)).to(device),  # 0-480 minutes (8 hours)
             'mag': torch.randint(0, 92, (B,)).to(device)
         }
         logits, loss = model(sample_input, targets)

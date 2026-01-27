@@ -35,10 +35,12 @@ T = 256            # Sequence length (reduced for memory)
 n_embed = 1176     # Embedding size (divisible by 7 features and 8 heads)
 n_heads = 8
 n_layer = 6        # Reduced layers for memory
-dropout = 0.01
+dropout = 0.1      # Increased from 0.01 - prevents overfitting
 
 # Training hyperparameters
 LEARNING_RATE = 3e-4
+ACCUMULATION_STEPS = 8  # Effective batch size = B * ACCUMULATION_STEPS = 16
+LABEL_SMOOTHING = 0.1   # Reduces overconfidence
 INPUT_MAG = 2.0    # Min magnitude for input context
 TARGET_MAG = 4.0   # Min magnitude for targets
 
@@ -173,24 +175,26 @@ def save_loss_to_db(step, train_loss, val_loss=None):
 
 
 @torch.no_grad()
-def compute_val_loss(model, dataC, B, T, num_batches=10):
+def compute_val_loss(model, dataC, B, T, num_batches=10, label_smoothing=0.0):
     """Compute validation loss over multiple batches"""
     model.eval()
     total_loss = 0.0
+    valid_batches = 0
 
     for _ in range(num_batches):
         try:
             x, targets = dataC.getBatchHybrid(B, T, 'valid')
             x = x.to(device)
             targets = {k: v.to(device) for k, v in targets.items()}
-            _, loss = model(x, targets)
+            _, loss = model(x, targets, label_smoothing=label_smoothing)
             total_loss += loss.item()
+            valid_batches += 1
         except Exception as e:
             print(f"Val batch error: {e}")
             continue
 
     model.train()
-    return total_loss / num_batches if num_batches > 0 else 0.0
+    return total_loss / valid_batches if valid_batches > 0 else 0.0
 
 
 def load_data():
@@ -271,7 +275,12 @@ def train():
     best_loss = float('inf')
 
     print(f"\n[{datetime.now()}] Training started...")
-    print(f"LR schedule: warmup {WARMUP_STEPS} steps, cosine decay to {MAX_STEPS} steps\n")
+    print(f"LR schedule: warmup {WARMUP_STEPS} steps, cosine decay to {MAX_STEPS} steps")
+    print(f"Gradient accumulation: {ACCUMULATION_STEPS} steps (effective batch={B*ACCUMULATION_STEPS})")
+    print(f"Label smoothing: {LABEL_SMOOTHING}\n")
+
+    # Initialize gradient accumulation
+    optimizer.zero_grad(set_to_none=True)
 
     try:
         while True:
@@ -291,23 +300,29 @@ def train():
                 print(f"Batch error: {e}")
                 continue
 
-            # Forward pass (no autocast - complex tensors don't support bfloat16)
-            optimizer.zero_grad(set_to_none=True)
-            logits, loss = model(x, targets)
+            # Forward pass with label smoothing
+            logits, loss = model(x, targets, label_smoothing=LABEL_SMOOTHING)
 
-            # Backward pass
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
+            # Scale loss for gradient accumulation
+            scaled_loss = loss / ACCUMULATION_STEPS
 
-            running_loss += loss.item()
+            # Backward pass (accumulate gradients)
+            scaled_loss.backward()
+
+            # Only update weights every ACCUMULATION_STEPS
+            if iteration % ACCUMULATION_STEPS == 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                optimizer.step()
+                optimizer.zero_grad(set_to_none=True)
+
+            running_loss += loss.item()  # Log unscaled loss
 
             # Print progress
             if iteration % PRINT_INTERVAL == 0:
                 avg_loss = running_loss / PRINT_INTERVAL
 
-                # Compute validation loss every print interval
-                val_loss = compute_val_loss(model, dataC, B, T, num_batches=5)
+                # Compute validation loss every print interval (more batches for stability)
+                val_loss = compute_val_loss(model, dataC, B, T, num_batches=20, label_smoothing=LABEL_SMOOTHING)
 
                 print(f"step {iteration:6d} | train {avg_loss:.4f} | val {val_loss:.4f} | lr {lr:.2e}")
 
