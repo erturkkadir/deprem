@@ -831,3 +831,14 @@ Done calculating dt
 45.43.154.230 - - [27/Jan/2026 21:31:19] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
 45.43.154.230 - - [27/Jan/2026 21:31:19] "GET /api/live HTTP/1.1" 200 -
 45.43.154.230 - - [27/Jan/2026 21:31:19] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [27/Jan/2026 21:31:56] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [27/Jan/2026 21:32:19] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [27/Jan/2026 21:32:19] "GET /api/earthquakes-24h?min_mag=4 HTTP/1.1" 200 -
+[EMSC] Fetched 310 earthquakes for last 1 day(s)
+Batch inserted 310 earthquakes
+Executed ins_quakes()
+[2026-01-27 21:33:04.179504] Status: waiting - {'action': 'waiting', 'prediction_id': 1061, 'remaining_minutes': 44.5}
+45.43.154.230 - - [27/Jan/2026 21:33:19] "GET /api/earthquakes-24h?min_mag=4 HTTP/1.1" 200 -
+45.43.154.230 - - [27/Jan/2026 21:33:19] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [27/Jan/2026 21:33:19] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [27/Jan/2026 21:33:19] "GET /api/stats HTTP/1.1" 200 -
