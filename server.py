@@ -87,7 +87,7 @@ T = 256           # Sequence length (must match training)
 n_embed = 1176    # Embedding size (must match training, divisible by 8 heads)
 n_heads = 8
 n_layer = 6       # Must match training
-dropout = 0.01
+dropout = 0.1      # Must match train.py
 INPUT_MAG = 2.0   # Min magnitude for input context
 TARGET_MAG = 4.0  # Min magnitude for targets
 

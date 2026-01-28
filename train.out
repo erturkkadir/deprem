@@ -1,3 +1,4 @@
+nohup: ignoring input
 ============================================================
 EARTHQUAKE PREDICTION - HYBRID TRAINING
 ============================================================
@@ -7,87 +8,5 @@ Batch: 2  |  Seq len: 256  |  Embed: 1176
 Print every: 200  |  Save every: 600
 Learning rate: 0.0003
 ============================================================
-[2026-01-27 21:26:43.361955] Loading hybrid data (M2.0+ input, M4.0+ targets)...
+[2026-01-28 22:02:37.715489] Loading hybrid data (M2.0+ input, M4.0+ targets)...
 Database connection established
-Loaded 1,487,371 records (M2.0+)
-  Training targets (M4.0+): 520,082 (35.0%)
-  Warning: depth max 651 exceeds model limit 200, will be clamped
-  Warning: dt max 720 exceeds model limit 480, will be clamped
-
-[2026-01-27 21:27:31.958537] Creating model with Geographic Positional Encoding (GPE)...
-Model parameters: 202,364,588
-Found checkpoint: /var/www/syshuman/quake/eqModel_complex_20260127_212443.pth
-Checkpoint loaded successfully
-
-[2026-01-27 21:27:39.217636] Training started...
-LR schedule: warmup 2000 steps, cosine decay to 500000 steps
-Gradient accumulation: 8 steps (effective batch=16)
-Label smoothing: 0.1
-
-step    200 | train 19.5557 | val 17.1655 | lr 3.00e-05
-  -> New best loss!
-step    400 | train 18.8744 | val 17.0219 | lr 6.00e-05
-  -> New best loss!
-step    600 | train 19.0143 | val 16.9764 | lr 9.00e-05
-[2026-01-27 21:30:49.416109] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260127_213040.pth (iter=600, loss=19.0143)
-step    800 | train 19.1435 | val 17.3911 | lr 1.20e-04
-step   1000 | train 19.2467 | val 17.2737 | lr 1.50e-04
-step   1200 | train 19.3035 | val 18.0039 | lr 1.80e-04
-[2026-01-27 21:33:58.173089] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260127_213350.pth (iter=1200, loss=19.3035)
-step   1400 | train 19.6577 | val 17.7964 | lr 2.10e-04
-step   1600 | train 20.2174 | val 18.4133 | lr 2.40e-04
-step   1800 | train 20.0867 | val 18.6221 | lr 2.70e-04
-[2026-01-27 21:37:08.507977] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260127_213700.pth (iter=1800, loss=20.0867)
-step   2000 | train 20.4116 | val 18.6311 | lr 3.00e-04
-step   2200 | train 20.4449 | val 18.0236 | lr 3.00e-04
-step   2400 | train 20.5530 | val 17.5790 | lr 3.00e-04
-[2026-01-27 21:40:18.045485] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260127_214009.pth (iter=2400, loss=20.5530)
-step   2600 | train 20.4760 | val 18.7400 | lr 3.00e-04
-step   2800 | train 20.3983 | val 18.5443 | lr 3.00e-04
-step   3000 | train 20.3599 | val 18.1123 | lr 3.00e-04
-[2026-01-27 21:43:26.386291] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260127_214318.pth (iter=3000, loss=20.3599)
-step   3200 | train 20.1789 | val 18.4051 | lr 3.00e-04
-step   3400 | train 20.3982 | val 19.1928 | lr 3.00e-04
-step   3600 | train 20.2892 | val 17.7153 | lr 3.00e-04
-[2026-01-27 21:46:34.441263] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260127_214625.pth (iter=3600, loss=20.2892)
-step   3800 | train 20.1549 | val 17.4694 | lr 3.00e-04
-step   4000 | train 20.1105 | val 18.5555 | lr 3.00e-04
-step   4200 | train 19.9968 | val 17.4533 | lr 3.00e-04
-[2026-01-27 21:49:46.593685] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260127_214936.pth (iter=4200, loss=19.9968)
-step   4400 | train 20.1888 | val 18.5139 | lr 3.00e-04
-step   4600 | train 19.7352 | val 18.1719 | lr 3.00e-04
-step   4800 | train 20.4081 | val 18.3965 | lr 3.00e-04
-[2026-01-27 21:52:57.437080] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260127_215247.pth (iter=4800, loss=20.4081)
-step   5000 | train 20.0824 | val 17.9493 | lr 3.00e-04
-step   5200 | train 19.8872 | val 18.4136 | lr 3.00e-04
-step   5400 | train 20.2729 | val 17.5886 | lr 3.00e-04
-[2026-01-27 21:56:09.758503] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260127_215558.pth (iter=5400, loss=20.2729)
-step   5600 | train 19.9916 | val 18.8218 | lr 3.00e-04
-step   5800 | train 20.1167 | val 18.6483 | lr 3.00e-04
-step   6000 | train 20.3204 | val 17.6779 | lr 3.00e-04
-[2026-01-27 21:59:18.614206] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260127_215910.pth (iter=6000, loss=20.3204)
-step   6200 | train 19.7075 | val 17.5963 | lr 3.00e-04
-step   6400 | train 19.9270 | val 17.2967 | lr 3.00e-04
-step   6600 | train 20.0460 | val 18.1794 | lr 3.00e-04
-[2026-01-27 22:02:28.719211] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260127_220219.pth (iter=6600, loss=20.0460)
-step   6800 | train 20.0515 | val 18.5466 | lr 3.00e-04
-step   7000 | train 19.6287 | val 17.7722 | lr 3.00e-04
-step   7200 | train 19.8831 | val 18.7727 | lr 3.00e-04
-[2026-01-27 22:05:41.286014] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260127_220531.pth (iter=7200, loss=19.8831)
-step   7400 | train 19.8689 | val 17.4455 | lr 3.00e-04
-step   7600 | train 19.7310 | val 17.5463 | lr 3.00e-04
-step   7800 | train 19.7522 | val 17.6217 | lr 3.00e-04
-[2026-01-27 22:08:53.938086] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260127_220844.pth (iter=7800, loss=19.7522)
-step   8000 | train 19.7116 | val 18.7614 | lr 3.00e-04
-step   8200 | train 19.9838 | val 17.9916 | lr 3.00e-04
-step   8400 | train 19.9271 | val 17.8854 | lr 3.00e-04
-[2026-01-27 22:12:09.181594] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260127_221155.pth (iter=8400, loss=19.9271)
-step   8600 | train 19.7987 | val 17.4952 | lr 3.00e-04
-step   8800 | train 19.7909 | val 18.4159 | lr 3.00e-04
-step   9000 | train 19.9088 | val 18.4196 | lr 3.00e-04
-[2026-01-27 22:15:20.117890] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260127_221511.pth (iter=9000, loss=19.9088)
-step   9200 | train 19.6418 | val 18.1330 | lr 3.00e-04
-step   9400 | train 19.5793 | val 18.1558 | lr 3.00e-04
-step   9600 | train 19.7582 | val 17.8900 | lr 3.00e-04
-[2026-01-27 22:18:32.292030] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260127_221823.pth (iter=9600, loss=19.7582)
-step   9800 | train 19.7066 | val 18.1882 | lr 3.00e-04

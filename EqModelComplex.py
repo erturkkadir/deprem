@@ -3,7 +3,7 @@ EqModelComplex - Advanced Complex-Valued Transformer for Earthquake Prediction
 ===============================================================================
 Based on complex_transformer_complete.py architecture with:
 - Rotary Position Embeddings (RoPE)
-- ModReLU activation (phase-preserving)
+- PhaseGatedSiLU activation (smooth gradients + phase-aware gating)
 - Hermitian attention scores
 - Pre-norm architecture
 - Complex dropout
@@ -107,22 +107,46 @@ class ComplexLayerNorm(nn.Module):
         return torch.complex(out_real, out_imag)
 
 
-class ModReLU(nn.Module):
+class PhaseGatedSiLU(nn.Module):
     """
-    Modulus ReLU: applies ReLU to magnitude, preserves phase.
-    modReLU(z) = ReLU(|z| + b) * e^(i * angle(z))
+    Phase-Gated SiLU activation for complex tensors.
 
-    Better gradient flow and phase preservation than CReLU.
+    Three improvements over ModReLU:
+    1. SiLU (Swish) replaces ReLU: smooth gradient everywhere, no dead neurons
+    2. Learnable phase gate: sigmoid(s * cos(phase - phi)) selectively
+       amplifies or suppresses based on phase angle
+    3. Learnable phase rotation: small phase shift adds expressivity
+
+    Formula:
+        mag = |z|, phase = angle(z)
+        activated_mag = SiLU(mag + b_mag)
+        gate = sigmoid(s * cos(phase - phi))
+        output = activated_mag * gate * e^(i * (phase + delta))
+
+    Where b_mag, s, phi, delta are learnable per feature.
     """
     def __init__(self, num_features):
         super().__init__()
-        self.bias = nn.Parameter(torch.zeros(num_features))
+        self.mag_bias = nn.Parameter(torch.zeros(num_features))
+        self.phase_scale = nn.Parameter(torch.ones(num_features) * 2.0)
+        self.phase_offset = nn.Parameter(torch.zeros(num_features))
+        self.phase_shift = nn.Parameter(torch.zeros(num_features))
 
     def forward(self, z):
         magnitude = z.abs()
         phase = z.angle()
-        activated_magnitude = FN.relu(magnitude + self.bias)
-        return activated_magnitude * torch.exp(1j * phase)
+
+        # Smooth magnitude activation (SiLU = x * sigmoid(x), no dead neurons)
+        activated_mag = FN.silu(magnitude + self.mag_bias)
+
+        # Phase-dependent gating: learns which phase directions matter
+        # cos(phase - offset) peaks at preferred phase, sigmoid keeps it [0,1]
+        gate = torch.sigmoid(self.phase_scale * torch.cos(phase - self.phase_offset))
+
+        # Small learnable phase rotation for extra expressivity
+        new_phase = phase + self.phase_shift
+
+        return (activated_mag * gate) * torch.exp(1j * new_phase)
 
 
 class ComplexGELU(nn.Module):
@@ -228,12 +252,86 @@ def apply_complex_rotary_embedding(q, k, cos, sin):
 # Complex Multi-Head Attention with RoPE
 # =============================================================================
 
+class SpatialAttentionBias(nn.Module):
+    """
+    Learnable spatial attention bias based on geographic distance between earthquakes.
+
+    Nearby earthquakes should attend more strongly to each other (aftershock sequences,
+    fault propagation). This adds a distance-dependent bias to attention scores,
+    making every attention head spatially aware.
+
+    Uses log-distance with learnable scaling per head - captures both local (km-scale)
+    and regional (1000km-scale) spatial relationships.
+    """
+    def __init__(self, num_heads, max_distance_deg=180.0):
+        super().__init__()
+        self.num_heads = num_heads
+        self.max_distance_deg = max_distance_deg
+
+        # Per-head learnable parameters:
+        # distance_scale: how strongly distance affects attention (negative = nearby preferred)
+        # distance_offset: baseline bias
+        self.distance_scale = nn.Parameter(torch.randn(num_heads) * 0.1 - 0.5)  # Init slightly negative
+        self.distance_offset = nn.Parameter(torch.zeros(num_heads))
+
+    def forward(self, lat, lon, seq_len):
+        """
+        Compute pairwise spatial attention bias for the sequence.
+
+        Args:
+            lat: [B, T] latitude values (0-180 encoded)
+            lon: [B, T] longitude values (0-360 encoded)
+            seq_len: actual sequence length
+
+        Returns:
+            bias: [B, num_heads, T, T] attention bias to add to scores
+        """
+        B = lat.shape[0]
+        T = seq_len
+
+        # Convert to radians for great-circle distance
+        lat_rad = ((lat[:, :T].float() - 90) / 180.0) * math.pi
+        lon_rad = (lon[:, :T].float() / 360.0) * 2 * math.pi
+
+        # Compute pairwise great-circle distance (haversine)
+        # [B, T, 1] vs [B, 1, T] broadcasting
+        lat1 = lat_rad.unsqueeze(2)  # [B, T, 1]
+        lat2 = lat_rad.unsqueeze(1)  # [B, 1, T]
+        lon1 = lon_rad.unsqueeze(2)
+        lon2 = lon_rad.unsqueeze(1)
+
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+
+        a = torch.sin(dlat/2)**2 + torch.cos(lat1) * torch.cos(lat2) * torch.sin(dlon/2)**2
+        # Angular distance in degrees (0 to 180)
+        distance_deg = 2 * torch.asin(torch.sqrt(torch.clamp(a, 0, 1))) * (180.0 / math.pi)
+
+        # Log-distance features (smooth, handles zero distance)
+        log_dist = torch.log1p(distance_deg)  # [B, T, T]
+
+        # Per-head bias: scale * log_distance + offset
+        # [B, T, T] -> [B, 1, T, T] * [num_heads] -> [B, num_heads, T, T]
+        log_dist = log_dist.unsqueeze(1)  # [B, 1, T, T]
+        scale = self.distance_scale.view(1, self.num_heads, 1, 1)
+        offset = self.distance_offset.view(1, self.num_heads, 1, 1)
+
+        bias = scale * log_dist + offset
+
+        return bias
+
+
 class ComplexMultiHeadAttention(nn.Module):
     """
-    Multi-head attention with complex Q, K, V and optional Rotary Position Embeddings.
+    Multi-head attention with complex Q, K, V, Rotary Position Embeddings,
+    and Spatial Attention Bias for geographic distance awareness.
+
     Uses Hermitian inner product: Re(Q @ K*) = Re(Q)@Re(K)^T + Im(Q)@Im(K)^T
+
+    The Spatial Attention Bias adds a learnable distance-dependent term to
+    attention scores, making nearby earthquakes attend more strongly to each other.
     """
-    def __init__(self, embed_dim, num_heads, block_size, dropout=0.1, use_rope=True):
+    def __init__(self, embed_dim, num_heads, block_size, dropout=0.1, use_rope=True, use_spatial_bias=True):
         super().__init__()
         assert embed_dim % num_heads == 0
 
@@ -242,6 +340,7 @@ class ComplexMultiHeadAttention(nn.Module):
         self.scale = self.head_dim ** -0.5
         self.embed_dim = embed_dim
         self.use_rope = use_rope
+        self.use_spatial_bias = use_spatial_bias
 
         self.q_proj = ComplexLinear(embed_dim, embed_dim, bias=False)
         self.k_proj = ComplexLinear(embed_dim, embed_dim, bias=False)
@@ -253,11 +352,17 @@ class ComplexMultiHeadAttention(nn.Module):
         else:
             self.rotary_emb = None
 
+        # Spatial attention bias
+        if use_spatial_bias:
+            self.spatial_bias = SpatialAttentionBias(num_heads)
+        else:
+            self.spatial_bias = None
+
         self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
         self.dropout = nn.Dropout(dropout)
         self.resid_dropout = ComplexDropout(dropout)
 
-    def forward(self, x):
+    def forward(self, x, lat=None, lon=None):
         B, L, D = x.shape
 
         Q = self.q_proj(x).view(B, L, self.num_heads, self.head_dim).transpose(1, 2)
@@ -272,6 +377,11 @@ class ComplexMultiHeadAttention(nn.Module):
         # Hermitian attention: Re(Q @ K*)
         attn_scores = (Q.real @ K.real.transpose(-2, -1)) + (Q.imag @ K.imag.transpose(-2, -1))
         attn_scores = attn_scores * self.scale
+
+        # Add spatial attention bias (geographic distance awareness)
+        if self.spatial_bias is not None and lat is not None and lon is not None:
+            spatial_bias = self.spatial_bias(lat, lon, L)
+            attn_scores = attn_scores + spatial_bias
 
         # Causal mask
         attn_scores = attn_scores.masked_fill(self.tril[:L, :L] == 0, float('-inf'))
@@ -296,13 +406,13 @@ class ComplexMultiHeadAttention(nn.Module):
 # =============================================================================
 
 class ComplexFeedForward(nn.Module):
-    """Feed-forward network with ModReLU activation for better phase preservation."""
+    """Feed-forward network with PhaseGatedSiLU activation for smooth gradients and phase awareness."""
     def __init__(self, embed_dim, dropout=0.1, expansion=4):
         super().__init__()
         hidden_dim = expansion * embed_dim
         self.fc1 = ComplexLinear(embed_dim, hidden_dim)
         self.fc2 = ComplexLinear(hidden_dim, embed_dim)
-        self.activation = ModReLU(hidden_dim)
+        self.activation = PhaseGatedSiLU(hidden_dim)
         self.dropout = ComplexDropout(dropout)
 
     def forward(self, x):
@@ -318,18 +428,19 @@ class ComplexFeedForward(nn.Module):
 # =============================================================================
 
 class ComplexTransformerBlock(nn.Module):
-    """Complex transformer block with pre-norm architecture."""
-    def __init__(self, embed_dim, num_heads, block_size, dropout=0.1, use_rope=True):
+    """Complex transformer block with pre-norm architecture and spatial attention bias."""
+    def __init__(self, embed_dim, num_heads, block_size, dropout=0.1, use_rope=True, use_spatial_bias=True):
         super().__init__()
         self.norm1 = ComplexLayerNorm(embed_dim)
-        self.attn = ComplexMultiHeadAttention(embed_dim, num_heads, block_size, dropout, use_rope)
+        self.attn = ComplexMultiHeadAttention(embed_dim, num_heads, block_size, dropout, use_rope, use_spatial_bias)
         self.norm2 = ComplexLayerNorm(embed_dim)
         self.ffwd = ComplexFeedForward(embed_dim, dropout)
         self.dropout = ComplexDropout(dropout)
 
-    def forward(self, x):
+    def forward(self, x, lat=None, lon=None):
         # Pre-norm architecture: norm -> sublayer -> residual
-        x = x + self.attn(self.norm1(x))
+        # Pass lat/lon to attention for spatial bias
+        x = x + self.attn(self.norm1(x), lat=lat, lon=lon)
         x = x + self.dropout(self.ffwd(self.norm2(x)))
         return x
 
@@ -734,17 +845,84 @@ class GeographicPositionalEncoding(nn.Module):
 # Custom Embedding for Earthquake Features (Enhanced with GPE)
 # =============================================================================
 
+class LogScaleDtEncoding(nn.Module):
+    """
+    Log-scale encoding for earthquake inter-event times (dt).
+
+    Earthquake inter-event times follow a log-normal distribution:
+    most events cluster at short intervals (1-30 min) with a long tail.
+    Standard uniform embedding wastes capacity on rare long intervals.
+
+    This encoding creates multi-resolution features in log-space,
+    giving fine resolution for short intervals and coarse for long ones.
+    """
+    def __init__(self, embed_dim, max_dt=480, num_scales=8):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.max_dt = max_dt
+        self.num_scales = num_scales
+
+        # Log-scale frequencies (captures patterns at different time scales)
+        # Small freq = long-term patterns, large freq = short-term patterns
+        log_freqs = 2.0 ** torch.linspace(0, num_scales - 1, num_scales)
+        self.register_buffer('log_freqs', log_freqs)
+
+        # Features: log(1+dt), dt/max_dt, plus sin/cos at each frequency scale
+        input_dim = 2 + 2 * num_scales  # 2 + 16 = 18
+
+        # Complex projection
+        self.proj_real = nn.Linear(input_dim, embed_dim)
+        self.proj_imag = nn.Linear(input_dim, embed_dim)
+        nn.init.normal_(self.proj_real.weight, std=0.02)
+        nn.init.normal_(self.proj_imag.weight, std=0.02)
+
+    def forward(self, dt_values):
+        """
+        Args:
+            dt_values: [B, T] integer dt values (0-480)
+        Returns:
+            Complex tensor [B, T, embed_dim]
+        """
+        dt_float = dt_values.float()
+
+        # Log-scale feature: log(1 + dt) normalized
+        log_dt = torch.log1p(dt_float) / math.log(1 + self.max_dt)  # [0, 1]
+
+        # Linear-scale feature
+        lin_dt = dt_float / self.max_dt  # [0, 1]
+
+        # Multi-scale periodic features in log-space
+        log_scaled = log_dt.unsqueeze(-1) * self.log_freqs * math.pi  # [B, T, num_scales]
+
+        features = torch.cat([
+            log_dt.unsqueeze(-1),       # [B, T, 1]
+            lin_dt.unsqueeze(-1),       # [B, T, 1]
+            torch.sin(log_scaled),      # [B, T, num_scales]
+            torch.cos(log_scaled),      # [B, T, num_scales]
+        ], dim=-1)
+
+        out_real = self.proj_real(features)
+        out_imag = self.proj_imag(features)
+
+        return torch.complex(out_real, out_imag)
+
+
 class CustomComplexEmbedding(nn.Module):
     """Complex-valued embedding for earthquake features with enhanced geographic encoding.
 
     Embeds 7 features: year, month, latitude, longitude, magnitude, depth, time_diff
 
-    Key improvement: Uses Geographic Positional Encoding (GPE) for lat/lon instead of
-    simple lookup embeddings. This captures:
-    - Spherical geometry of Earth
+    Location-Priority Architecture:
+    - GPE (lat/lon) gets 40% of embedding space (was 16.7%)
+    - dt gets enhanced encoding: standard embedding + log-scale encoding
+    - Other features (yr, mt, mag, depth) share remaining space equally
+
+    This captures:
+    - Spherical geometry of Earth (spherical harmonics)
     - Multi-scale spatial patterns (faults to plates)
     - Tectonic zone relationships
     - Relative positions between earthquakes
+    - Log-normal distribution of inter-event times
     """
     def __init__(self, sizes, embed_dim, use_gpe=True):
         super().__init__()
@@ -760,24 +938,50 @@ class CustomComplexEmbedding(nn.Module):
         self.use_gpe = use_gpe
 
         if use_gpe:
-            # With GPE: 5 features + GPE location encoding
-            # year, month, magnitude, depth, time_diff = 5 features
-            self.feature_dim = embed_dim // 6  # 5 features + 1 for GPE
-            self.gpe_dim = embed_dim - 5 * self.feature_dim
+            # LOCATION-PRIORITY ALLOCATION:
+            # GPE (lat/lon): 40% of embedding space → location is most important for eq prediction
+            # dt: 14% (standard embed + log-scale encoding combined)
+            # yr, mt, mag, depth: ~11.5% each
+            #
+            # For n_embed=1176:
+            #   gpe_dim    = 472  (40.1%)
+            #   dt_dim     = 168  (14.3%) - split: 84 standard + 84 log-scale
+            #   other_dim  = 134  each (11.4%)
+            #   Total: 472 + 168 + 134*4 = 472 + 168 + 536 = 1176 ✓
+
+            self.gpe_dim = embed_dim * 2 // 5          # 40% for location
+            self.dt_dim = embed_dim // 7               # 14% for dt (total)
+            remaining = embed_dim - self.gpe_dim - self.dt_dim
+            self.feature_dim = remaining // 4          # yr, mt, mag, depth
+            # Absorb any rounding remainder into GPE
+            self.gpe_dim = embed_dim - self.dt_dim - 4 * self.feature_dim
+
+            # dt split: half for standard embedding, half for log-scale encoding
+            self.dt_embed_dim = self.dt_dim // 2
+            self.dt_log_dim = self.dt_dim - self.dt_embed_dim
 
             # Complex embeddings for non-location features
             self.yr_embed = ComplexEmbedding(self.yr_size, self.feature_dim)
             self.mt_embed = ComplexEmbedding(self.mt_size, self.feature_dim)
             self.m_embed = ComplexEmbedding(self.m_size, self.feature_dim)
             self.d_embed = ComplexEmbedding(self.d_size, self.feature_dim)
-            self.t_embed = ComplexEmbedding(self.t_size, self.feature_dim)
 
-            # Geographic Positional Encoding for lat/lon
+            # dt: standard discrete embedding
+            self.t_embed = ComplexEmbedding(self.t_size, self.dt_embed_dim)
+
+            # dt: log-scale continuous encoding (captures log-normal distribution)
+            self.t_log_embed = LogScaleDtEncoding(
+                embed_dim=self.dt_log_dim,
+                max_dt=sizes['t_size'],  # 480
+                num_scales=8
+            )
+
+            # Geographic Positional Encoding for lat/lon (with MORE capacity)
             self.gpe = GeographicPositionalEncoding(
                 embed_dim=self.gpe_dim,
-                spherical_degree=6,
-                num_frequencies=12,
-                num_zones=24
+                spherical_degree=8,      # increased from 6 for finer spatial detail
+                num_frequencies=16,      # increased from 12 for more scales
+                num_zones=32             # increased from 24 for better zone coverage
             )
         else:
             # Original behavior: simple embeddings for all features
@@ -791,6 +995,7 @@ class CustomComplexEmbedding(nn.Module):
             self.d_embed = ComplexEmbedding(self.d_size, self.feature_dim)
             self.t_embed = ComplexEmbedding(self.t_size, self.feature_dim)
             self.gpe = None
+            self.t_log_embed = None
 
     def forward(self, data):
         """
@@ -812,7 +1017,11 @@ class CustomComplexEmbedding(nn.Module):
             lon_encoded = data[:, :, 3]
             loc_emb = self.gpe(lat_encoded, lon_encoded)
 
-            emb = torch.cat((yr_emb, mt_emb, loc_emb, m_emb, d_emb, t_emb), dim=-1)
+            # Log-scale dt encoding (captures log-normal distribution)
+            t_log_emb = self.t_log_embed(data[:, :, 6])
+
+            # Concatenate: location first (most important), then dt, then others
+            emb = torch.cat((loc_emb, yr_emb, mt_emb, m_emb, d_emb, t_emb, t_log_emb), dim=-1)
         else:
             # Original: separate embeddings for lat/lon
             x_emb = self.x_embed(data[:, :, 2])
@@ -861,7 +1070,7 @@ class EqModelComplex(nn.Module):
 
     Uses features from complex_transformer_complete.py:
     - Rotary Position Embeddings (RoPE)
-    - ModReLU activation (phase-preserving)
+    - PhaseGatedSiLU activation (smooth gradients + phase-aware gating)
     - Hermitian attention scores
     - Pre-norm architecture
     - Complex dropout
@@ -896,9 +1105,9 @@ class EqModelComplex(nn.Module):
         # Embedding dropout
         self.embed_dropout = ComplexDropout(dropout)
 
-        # Complex transformer blocks
+        # Complex transformer blocks with spatial attention bias
         self.blocks = nn.ModuleList([
-            ComplexTransformerBlock(n_embed, n_heads, T, dropout, use_rope)
+            ComplexTransformerBlock(n_embed, n_heads, T, dropout, use_rope, use_spatial_bias=use_gpe)
             for _ in range(n_layer)
         ])
 
@@ -939,6 +1148,10 @@ class EqModelComplex(nn.Module):
         """
         B_actual, T_actual = idx.shape[0], idx.shape[1]
 
+        # Extract lat/lon for spatial attention bias
+        lat = idx[:, :, 2] if self.use_gpe else None
+        lon = idx[:, :, 3] if self.use_gpe else None
+
         # Complex embedding
         x = self.embed(idx)
 
@@ -949,9 +1162,9 @@ class EqModelComplex(nn.Module):
         # Embedding dropout
         x = self.embed_dropout(x)
 
-        # Pass through transformer blocks
+        # Pass through transformer blocks with spatial attention bias
         for block in self.blocks:
-            x = block(x)
+            x = block(x, lat=lat, lon=lon)
 
         # Final layer norm
         x = self.ln_f(x)
@@ -1004,6 +1217,10 @@ class EqModelComplex(nn.Module):
         Returns:
             dict with 'lat', 'lon', 'dt', 'mag' encoded values
         """
+        # Extract lat/lon for spatial attention bias
+        lat = x_test[:, :, 2] if self.use_gpe else None
+        lon = x_test[:, :, 3] if self.use_gpe else None
+
         # Complex embedding
         x = self.embed(x_test)
 
@@ -1011,9 +1228,9 @@ class EqModelComplex(nn.Module):
         if self.pos_enc is not None:
             x = self.pos_enc(x)
 
-        # Pass through transformer blocks
+        # Pass through transformer blocks with spatial attention bias
         for block in self.blocks:
-            x = block(x)
+            x = block(x, lat=lat, lon=lon)
 
         # Final layer norm
         x = self.ln_f(x)
