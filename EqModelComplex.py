@@ -22,52 +22,137 @@ import math
 # =============================================================================
 
 class ComplexLinear(nn.Module):
-    """Complex-valued linear layer using native PyTorch complex tensors."""
-    def __init__(self, in_features, out_features, bias=True, init_std=None):
+    """
+    Complex-valued linear layer with magnitude-phase parameterization.
+
+    Key insight: Complex weights W = |W| * exp(i*θ) can be parameterized as:
+    - magnitude: |W| (always positive, learned in log-space)
+    - phase: θ (learnable rotation angle in [-π, π])
+
+    Why this is better than (real, imag) parameterization:
+    1. Rotations (phase changes) are learned DIRECTLY - natural for complex space
+    2. Magnitude scaling is DECOUPLED from rotation
+    3. Better gradient flow for phase-based patterns
+    4. Initialization can use uniform random phases for diverse rotations
+
+    Complex multiplication is TRUE complex: (a+bi)(c+di) = (ac-bd) + (ad+bc)i
+    This keeps real/imaginary parts naturally coupled.
+    """
+    def __init__(self, in_features, out_features, bias=True, init_std=None, phase_init='uniform'):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
 
-        # Complex Glorot initialization
-        if init_std is None:
-            std = 1.0 / math.sqrt(2 * (in_features + out_features))
-        else:
-            std = init_std / math.sqrt(2)
+        # Magnitude: log-magnitude for unconstrained optimization
+        # Initialized around 1.0 (log(1) ≈ 0) with small variance
+        # Using Glorot-like scaling: std = 1/sqrt(fan_in + fan_out)
+        mag_std = 0.1  # Small variance around magnitude=1
+        mag_init = torch.randn(out_features, in_features) * mag_std
+        self.log_magnitude = nn.Parameter(mag_init)
 
-        self.real_weight = nn.Parameter(torch.randn(out_features, in_features) * std)
-        self.imag_weight = nn.Parameter(torch.randn(out_features, in_features) * std)
+        # Phase: learnable rotation angles
+        # Uniform initialization gives diverse rotations at start
+        if phase_init == 'uniform':
+            phase_init_val = torch.rand(out_features, in_features) * 2 * math.pi - math.pi
+        elif phase_init == 'zero':
+            phase_init_val = torch.zeros(out_features, in_features)
+        else:  # 'small'
+            phase_init_val = torch.randn(out_features, in_features) * 0.1
+        self.phase = nn.Parameter(phase_init_val)
 
         if bias:
-            self.real_bias = nn.Parameter(torch.zeros(out_features))
-            self.imag_bias = nn.Parameter(torch.zeros(out_features))
+            # Bias as magnitude + phase
+            self.bias_mag = nn.Parameter(torch.zeros(out_features))
+            self.bias_phase = nn.Parameter(torch.zeros(out_features))
         else:
-            self.register_parameter('real_bias', None)
-            self.register_parameter('imag_bias', None)
+            self.register_parameter('bias_mag', None)
+            self.register_parameter('bias_phase', None)
+
+    def get_complex_weight(self):
+        """Convert magnitude-phase to (real, imag) weight matrices."""
+        # W = |W| * exp(i*θ) = |W| * (cos(θ) + i*sin(θ))
+        magnitude = torch.exp(self.log_magnitude)
+        real_weight = magnitude * torch.cos(self.phase)
+        imag_weight = magnitude * torch.sin(self.phase)
+        return real_weight, imag_weight
 
     def forward(self, x):
         """Complex multiplication: (a + bi)(c + di) = (ac - bd) + (ad + bc)i"""
-        real = x.real @ self.real_weight.T - x.imag @ self.imag_weight.T
-        imag = x.real @ self.imag_weight.T + x.imag @ self.real_weight.T
+        real_weight, imag_weight = self.get_complex_weight()
 
-        if self.real_bias is not None:
-            real = real + self.real_bias
-            imag = imag + self.imag_bias
+        # TRUE complex matrix multiplication
+        real = x.real @ real_weight.T - x.imag @ imag_weight.T
+        imag = x.real @ imag_weight.T + x.imag @ real_weight.T
+
+        if self.bias_mag is not None:
+            # Complex bias: b = |b| * exp(i*θ_b)
+            bias_real = self.bias_mag * torch.cos(self.bias_phase)
+            bias_imag = self.bias_mag * torch.sin(self.bias_phase)
+            real = real + bias_real
+            imag = imag + bias_imag
 
         return torch.complex(real, imag)
 
+    def orthogonality_loss(self):
+        """
+        Compute soft unitary regularization loss: ||W^H W - I||_F
+
+        Encourages weight matrix to be close to unitary (preserves norms).
+        Complex unitary matrices preserve the geometry of complex space,
+        which helps with gradient flow and representation learning.
+
+        Returns scalar loss to add to total loss.
+        """
+        real_weight, imag_weight = self.get_complex_weight()
+
+        # W^H W where W^H is conjugate transpose
+        # (W^H W)_ij = sum_k (W_ki^* W_kj) = sum_k (W_ki_r - i*W_ki_i)(W_kj_r + i*W_kj_i)
+        # Real part: sum_k (W_ki_r * W_kj_r + W_ki_i * W_kj_i)
+        # Imag part: sum_k (W_ki_r * W_kj_i - W_ki_i * W_kj_r)
+
+        WH_W_real = real_weight.T @ real_weight + imag_weight.T @ imag_weight
+        WH_W_imag = real_weight.T @ imag_weight - imag_weight.T @ real_weight
+
+        # Want WH_W ≈ I (identity)
+        # ||WH_W - I||_F^2 = ||WH_W_real - I||_F^2 + ||WH_W_imag||_F^2
+        n = min(self.in_features, self.out_features)
+        identity = torch.eye(self.in_features, device=real_weight.device)
+
+        loss_real = ((WH_W_real - identity) ** 2).sum()
+        loss_imag = (WH_W_imag ** 2).sum()
+
+        return (loss_real + loss_imag) / (self.in_features * self.out_features)
+
 
 class ComplexEmbedding(nn.Module):
-    """Complex-valued embedding layer."""
+    """
+    Complex-valued embedding layer with magnitude-phase parameterization.
+
+    Each embedding vector is: e = |e| * exp(i*θ)
+
+    This is natural for features like:
+    - Month (θ can represent position in yearly cycle)
+    - Geographic coordinates (θ encodes angular position)
+    - Time intervals (magnitude = intensity, phase = periodicity)
+
+    Magnitude is learned in log-space (always positive).
+    Phase is learned directly (full rotation freedom).
+    """
     def __init__(self, num_embeddings, embedding_dim, init_std=0.02):
         super().__init__()
-        std = init_std / math.sqrt(2)
-        self.real = nn.Embedding(num_embeddings, embedding_dim)
-        self.imag = nn.Embedding(num_embeddings, embedding_dim)
-        nn.init.normal_(self.real.weight, mean=0.0, std=std)
-        nn.init.normal_(self.imag.weight, mean=0.0, std=std)
+
+        # Magnitude embedding (log-scale)
+        self.log_magnitude = nn.Embedding(num_embeddings, embedding_dim)
+        nn.init.normal_(self.log_magnitude.weight, mean=0.0, std=0.1)
+
+        # Phase embedding (full circle [-π, π])
+        self.phase = nn.Embedding(num_embeddings, embedding_dim)
+        nn.init.uniform_(self.phase.weight, -math.pi, math.pi)
 
     def forward(self, x):
-        return torch.complex(self.real(x), self.imag(x))
+        magnitude = torch.exp(self.log_magnitude(x))
+        phase = self.phase(x)
+        return torch.complex(magnitude * torch.cos(phase), magnitude * torch.sin(phase))
 
 
 class ComplexLayerNorm(nn.Module):
