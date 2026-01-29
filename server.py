@@ -105,7 +105,7 @@ DISTANCE_RADIUS = 15  # degrees - circular distance for matching
 DT_TOLERANCE = 30     # minutes
 MAG_TOLERANCE = 1.0   # magnitude
 MIN_MAG_DISPLAY = 4.0 # Only show predictions with mag >= 4.0
-DATA_DELAY_BUFFER = 60  # minutes - extra time to wait for delayed earthquake reports
+DATA_DELAY_BUFFER = 30  # minutes - extra time to wait for delayed earthquake reports
 
 
 def get_latest_checkpoint():
@@ -670,6 +670,13 @@ def get_live_data():
         matched_earthquake = None
         prediction_status = None  # Will hold computed status info for frontend
         now = datetime.now(timezone.utc).replace(tzinfo=None)  # Use UTC for consistency
+
+        # If the latest prediction is already verified, we need to create a new one
+        if latest_prediction and latest_prediction.get('verified'):
+            print(f"[{now}] Latest prediction #{latest_prediction.get('id')} already verified, creating new prediction...")
+            make_prediction()
+            latest_prediction = dataC.get_latest_prediction()
+            stats = dataC.get_prediction_stats()
 
         if latest_prediction and not latest_prediction.get('verified'):
             pr_id = latest_prediction.get('id')

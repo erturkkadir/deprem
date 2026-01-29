@@ -107,46 +107,67 @@ class ComplexLayerNorm(nn.Module):
         return torch.complex(out_real, out_imag)
 
 
-class PhaseGatedSiLU(nn.Module):
+class ComplexSiLU(nn.Module):
     """
-    Phase-Gated SiLU activation for complex tensors.
+    Complex SiLU (Swish): z * sigmoid(|z|)
 
-    Three improvements over ModReLU:
-    1. SiLU (Swish) replaces ReLU: smooth gradient everywhere, no dead neurons
-    2. Learnable phase gate: sigmoid(s * cos(phase - phi)) selectively
-       amplifies or suppresses based on phase angle
-    3. Learnable phase rotation: small phase shift adds expressivity
+    The KEY insight: operates on z as a whole, not splitting real/imag.
+    Uses magnitude for gating while preserving the full complex number.
+    This maintains the coupling between real and imaginary parts.
+    """
+    def forward(self, z):
+        gate = torch.sigmoid(z.abs())
+        return z * gate
 
-    Formula:
-        mag = |z|, phase = angle(z)
-        activated_mag = SiLU(mag + b_mag)
-        gate = sigmoid(s * cos(phase - phi))
-        output = activated_mag * gate * e^(i * (phase + delta))
 
-    Where b_mag, s, phi, delta are learnable per feature.
+class Cardioid(nn.Module):
+    """
+    Cardioid activation: smooth, bounded, phase-dependent gating.
+    cardioid(z) = 0.5 * (1 + cos(angle(z))) * z
+
+    This keeps z intact as a complex unit while smoothly gating based on phase.
+    Values with phase near 0 (positive real) are preserved,
+    values with phase near ±π (negative real) are suppressed.
+
+    Add learnable phase offset for flexibility.
+    """
+    def __init__(self, num_features):
+        super().__init__()
+        self.phase_offset = nn.Parameter(torch.zeros(num_features))
+
+    def forward(self, z):
+        phase = z.angle()
+        # Smooth phase-dependent scaling (keeps z as a unit)
+        scale = 0.5 * (1 + torch.cos(phase - self.phase_offset))
+        return scale * z
+
+
+class ComplexGatedActivation(nn.Module):
+    """
+    Combined activation: Cardioid + learnable magnitude bias.
+
+    This is the best of both worlds:
+    - Cardioid provides smooth phase-dependent gating (z stays coupled)
+    - Magnitude bias allows learning activation thresholds
+    - No dead neurons (unlike ModReLU)
+
+    Formula: scale(phase) * z * sigmoid(|z| + bias)
     """
     def __init__(self, num_features):
         super().__init__()
         self.mag_bias = nn.Parameter(torch.zeros(num_features))
-        self.phase_scale = nn.Parameter(torch.ones(num_features) * 2.0)
         self.phase_offset = nn.Parameter(torch.zeros(num_features))
-        self.phase_shift = nn.Parameter(torch.zeros(num_features))
 
     def forward(self, z):
-        magnitude = z.abs()
+        # Magnitude-based gating (smooth, no dead neurons)
+        mag_gate = torch.sigmoid(z.abs() + self.mag_bias)
+
+        # Phase-based gating (cardioid-style, keeps z coupled)
         phase = z.angle()
+        phase_gate = 0.5 * (1 + torch.cos(phase - self.phase_offset))
 
-        # Smooth magnitude activation (SiLU = x * sigmoid(x), no dead neurons)
-        activated_mag = FN.silu(magnitude + self.mag_bias)
-
-        # Phase-dependent gating: learns which phase directions matter
-        # cos(phase - offset) peaks at preferred phase, sigmoid keeps it [0,1]
-        gate = torch.sigmoid(self.phase_scale * torch.cos(phase - self.phase_offset))
-
-        # Small learnable phase rotation for extra expressivity
-        new_phase = phase + self.phase_shift
-
-        return (activated_mag * gate) * torch.exp(1j * new_phase)
+        # Combined: both gates applied to z as a whole
+        return z * mag_gate * phase_gate
 
 
 class ComplexGELU(nn.Module):
@@ -405,14 +426,60 @@ class ComplexMultiHeadAttention(nn.Module):
 # Complex Feed-Forward Network
 # =============================================================================
 
+class ComplexGatedFeedForward(nn.Module):
+    """
+    Gated feed-forward network (SwiGLU-style) for complex transformers.
+
+    GLU(x) = (x @ W_gate * activation) ⊗ (x @ W_up) @ W_down
+
+    The KEY insight: use TRUE complex multiplication (⊗) for gating.
+    This keeps real and imaginary parts coupled together, which is
+    essential for complex networks to learn meaningful representations.
+
+    Complex multiplication: (a+bi)(c+di) = (ac-bd) + (ad+bc)i
+    This naturally couples the components.
+    """
+    def __init__(self, embed_dim, dropout=0.1, expansion=4):
+        super().__init__()
+        hidden_dim = expansion * embed_dim
+
+        # Three projections for gated architecture
+        self.gate_proj = ComplexLinear(embed_dim, hidden_dim, bias=False)
+        self.up_proj = ComplexLinear(embed_dim, hidden_dim, bias=False)
+        self.down_proj = ComplexLinear(hidden_dim, embed_dim, bias=False)
+
+        self.dropout = ComplexDropout(dropout)
+
+    def forward(self, x):
+        # Gate projection with ComplexSiLU activation
+        gate = self.gate_proj(x)
+        gate_activated = gate * torch.sigmoid(gate.abs())  # ComplexSiLU
+
+        # Up projection (no activation)
+        up = self.up_proj(x)
+
+        # TRUE complex multiplication: (a+bi)(c+di) = (ac-bd) + (ad+bc)i
+        # This is the key - keeps real/imag coupled!
+        hidden_real = gate_activated.real * up.real - gate_activated.imag * up.imag
+        hidden_imag = gate_activated.real * up.imag + gate_activated.imag * up.real
+        hidden = torch.complex(hidden_real, hidden_imag)
+
+        # Down projection
+        output = self.down_proj(hidden)
+        return self.dropout(output)
+
+
 class ComplexFeedForward(nn.Module):
-    """Feed-forward network with PhaseGatedSiLU activation for smooth gradients and phase awareness."""
+    """
+    Standard feed-forward with ComplexGatedActivation.
+    Simpler than gated version but still uses true complex operations.
+    """
     def __init__(self, embed_dim, dropout=0.1, expansion=4):
         super().__init__()
         hidden_dim = expansion * embed_dim
         self.fc1 = ComplexLinear(embed_dim, hidden_dim)
         self.fc2 = ComplexLinear(hidden_dim, embed_dim)
-        self.activation = PhaseGatedSiLU(hidden_dim)
+        self.activation = ComplexGatedActivation(hidden_dim)
         self.dropout = ComplexDropout(dropout)
 
     def forward(self, x):
@@ -428,13 +495,19 @@ class ComplexFeedForward(nn.Module):
 # =============================================================================
 
 class ComplexTransformerBlock(nn.Module):
-    """Complex transformer block with pre-norm architecture and spatial attention bias."""
+    """
+    Complex transformer block with pre-norm architecture and spatial attention bias.
+
+    Uses ComplexGatedFeedForward (SwiGLU-style) with TRUE complex multiplication
+    to keep real/imaginary parts coupled throughout the forward pass.
+    """
     def __init__(self, embed_dim, num_heads, block_size, dropout=0.1, use_rope=True, use_spatial_bias=True):
         super().__init__()
         self.norm1 = ComplexLayerNorm(embed_dim)
         self.attn = ComplexMultiHeadAttention(embed_dim, num_heads, block_size, dropout, use_rope, use_spatial_bias)
         self.norm2 = ComplexLayerNorm(embed_dim)
-        self.ffwd = ComplexFeedForward(embed_dim, dropout)
+        # Use gated FFN with true complex multiplication
+        self.ffwd = ComplexGatedFeedForward(embed_dim, dropout)
         self.dropout = ComplexDropout(dropout)
 
     def forward(self, x, lat=None, lon=None):
