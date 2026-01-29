@@ -9,3 +9,33 @@ Learning rate: 0.0003
 ============================================================
 [2026-01-29 21:58:16.868924] Loading hybrid data (M2.0+ input, M4.0+ targets)...
 Database connection established
+Loaded 1,488,688 records (M2.0+)
+  Training targets (M4.0+): 520,357 (35.0%)
+  Warning: depth max 651 exceeds model limit 200, will be clamped
+  Warning: dt max 720 exceeds model limit 480, will be clamped
+
+[2026-01-29 21:59:28.666721] Creating model with Geographic Positional Encoding (GPE)...
+Model parameters: 268,899,072
+Starting from scratch with GPE architecture
+
+[2026-01-29 21:59:34.937997] Training started...
+LR schedule: warmup 2000 steps, cosine decay to 500000 steps
+Gradient accumulation: 8 steps (effective batch=16)
+Label smoothing: 0.1
+
+step    200 | train 110.5610 | val 108.4099 | lr 3.00e-05
+  -> New best loss!
+step    400 | train 106.7606 | val 106.8846 | lr 6.00e-05
+  -> New best loss!
+step    600 | train 105.4642 | val 93.3537 | lr 9.00e-05
+  -> New best loss!
+[2026-01-29 22:04:17.129131] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260129_220403.pth (iter=600, loss=105.4642)
+step    800 | train 101.6169 | val 89.1704 | lr 1.20e-04
+  -> New best loss!
+step   1000 | train 96.8862 | val 85.5204 | lr 1.50e-04
+  -> New best loss!
+step   1200 | train 94.0665 | val 77.1854 | lr 1.80e-04
+  -> New best loss!
+[2026-01-29 22:09:00.653909] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260129_220849.pth (iter=1200, loss=94.0665)
+step   1400 | train 89.4724 | val 77.1351 | lr 2.10e-04
+  -> New best loss!
