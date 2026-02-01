@@ -31,7 +31,7 @@ KEEP_CHECKPOINTS = 5       # Keep last N checkpoints
 
 # Model hyperparameters
 B = 2              # Batch size (reduced for memory)
-T = 256            # Sequence length (reduced for memory)
+T = 512            # Sequence length (longer context for better predictions)
 n_embed = 1176     # Embedding size (divisible by 7 features and 8 heads)
 n_heads = 8
 n_layer = 6        # Reduced layers for memory

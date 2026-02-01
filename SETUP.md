@@ -260,7 +260,14 @@ sudo kill <PID>
 
 ### Database connection error:
 - Check config.py credentials
-- Ensure MySQL is running
+- Ensure MySQL is running on 192.168.1.166
+
+### Database Stored Procedures
+The following stored procedures are used:
+- `calc_dt2(id)`: Calculate location-aware time difference for a record
+- `get_data_fast(min_mag)`: Fast data retrieval with us_t2
+- `get_data_hybrid(input_mag, target_mag)`: Hybrid training data (M2.0+ input, M4.0+ targets)
+- `ins_quakes()`: Merge staging data into main table
 
 ### No predictions being made:
 ```bash

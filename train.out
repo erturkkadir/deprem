@@ -4,29 +4,36 @@ EARTHQUAKE PREDICTION - HYBRID TRAINING
 ============================================================
 Device: cuda
 Input: M2.0+  |  Targets: M4.0+
-Batch: 2  |  Seq len: 256  |  Embed: 1176
+Batch: 2  |  Seq len: 512  |  Embed: 1176
 Print every: 200  |  Save every: 600
 Learning rate: 0.0003
 ============================================================
-[2026-02-01 19:36:26.599646] Loading hybrid data (M2.0+ input, M4.0+ targets)...
+[2026-02-01 19:54:55.293430] Loading hybrid data (M2.0+ input, M4.0+ targets)...
 Database connection established
 Loaded 1,489,150 records (M2.0+)
   Training targets (M4.0+): 520,421 (34.9%)
   Warning: depth max 651 exceeds model limit 200, will be clamped
 
-[2026-02-01 19:36:51.929850] Creating model with Geographic Positional Encoding (GPE)...
+[2026-02-01 19:55:21.916324] Creating model with Geographic Positional Encoding (GPE)...
 Model parameters: 269,505,212
 Starting from scratch with GPE architecture
 
-[2026-02-01 19:36:58.148947] Training started...
+[2026-02-01 19:55:28.409687] Training started...
 LR schedule: warmup 2000 steps, cosine decay to 500000 steps
 Gradient accumulation: 8 steps (effective batch=16)
 Label smoothing: 0.1
 
-step    200 | train 112.0784 | val 106.0108 | lr 3.00e-05
+step    200 | train 107.7779 | val 102.9594 | lr 3.00e-05
   -> New best loss!
-step    400 | train 104.9742 | val 87.6003 | lr 6.00e-05
+step    400 | train 102.6181 | val 90.6832 | lr 6.00e-05
   -> New best loss!
-step    600 | train 95.7088 | val 80.8197 | lr 9.00e-05
+step    600 | train 95.0575 | val 91.6959 | lr 9.00e-05
   -> New best loss!
-[2026-02-01 19:41:34.544478] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260201_194131.pth (iter=600, loss=95.7088)
+[2026-02-01 20:02:58.859131] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260201_200255.pth (iter=600, loss=95.0575)
+step    800 | train 87.4242 | val 87.0153 | lr 1.20e-04
+  -> New best loss!
+step   1000 | train 83.0185 | val 75.2836 | lr 1.50e-04
+  -> New best loss!
+step   1200 | train 79.1074 | val 76.8698 | lr 1.80e-04
+  -> New best loss!
+[2026-02-01 20:10:37.858084] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260201_201024.pth (iter=1200, loss=79.1074)
