@@ -1,3 +1,4 @@
+nohup: ignoring input
 ============================================================
 EARTHQUAKE PREDICTION SERVER
 ============================================================
@@ -7,23 +8,21 @@ Hybrid: M2.0+ input, M4.0+ targets
 
 Loading hybrid data...
 Database connection established
-Loaded 1,488,688 records (M2.0+)
-  Training targets (M4.0+): 520,357 (35.0%)
+Loaded 1,489,150 records (M2.0+)
+  Training targets (M4.0+): 520,421 (34.9%)
   Warning: depth max 651 exceeds model limit 200, will be clamped
-  Warning: dt max 720 exceeds model limit 480, will be clamped
 
 Loading model...
-[2026-01-29 21:59:34.425674] Loading model...
+[2026-02-01 19:37:17.938079] Loading model...
 Database connection established
-Loaded 1,488,688 records (M2.0+)
-  Training targets (M4.0+): 520,357 (35.0%)
+Loaded 1,489,150 records (M2.0+)
+  Training targets (M4.0+): 520,421 (34.9%)
   Warning: depth max 651 exceeds model limit 200, will be clamped
-  Warning: dt max 720 exceeds model limit 480, will be clamped
-Missing keys: ['embed.yr_embed.log_magnitude.weight', 'embed.yr_embed.phase.weight', 'embed.mt_embed.log_magnitude.weight', 'embed.mt_embed.phase.weight', 'embed.m_embed.log_magnitude.weight', 'embed.m_embed.phase.weight', 'embed.d_embed.log_magnitude.weight', 'embed.d_embed.phase.weight', 'embed.t_embed.log_magnitude.weight', 'embed.t_embed.phase.weight', 'embed.gpe.out_proj.log_magnitude', 'embed.gpe.out_proj.phase', 'embed.gpe.out_proj.bias_mag', 'embed.gpe.out_proj.bias_phase', 'blocks.0.attn.q_proj.log_magnitude', 'blocks.0.attn.q_proj.phase', 'blocks.0.attn.k_proj.log_magnitude', 'blocks.0.attn.k_proj.phase', 'blocks.0.attn.v_proj.log_magnitude', 'blocks.0.attn.v_proj.phase', 'blocks.0.attn.out_proj.log_magnitude', 'blocks.0.attn.out_proj.phase', 'blocks.0.attn.out_proj.bias_mag', 'blocks.0.attn.out_proj.bias_phase', 'blocks.0.ffwd.gate_proj.log_magnitude', 'blocks.0.ffwd.gate_proj.phase', 'blocks.0.ffwd.up_proj.log_magnitude', 'blocks.0.ffwd.up_proj.phase', 'blocks.0.ffwd.down_proj.log_magnitude', 'blocks.0.ffwd.down_proj.phase', 'blocks.1.attn.q_proj.log_magnitude', 'blocks.1.attn.q_proj.phase', 'blocks.1.attn.k_proj.log_magnitude', 'blocks.1.attn.k_proj.phase', 'blocks.1.attn.v_proj.log_magnitude', 'blocks.1.attn.v_proj.phase', 'blocks.1.attn.out_proj.log_magnitude', 'blocks.1.attn.out_proj.phase', 'blocks.1.attn.out_proj.bias_mag', 'blocks.1.attn.out_proj.bias_phase', 'blocks.1.ffwd.gate_proj.log_magnitude', 'blocks.1.ffwd.gate_proj.phase', 'blocks.1.ffwd.up_proj.log_magnitude', 'blocks.1.ffwd.up_proj.phase', 'blocks.1.ffwd.down_proj.log_magnitude', 'blocks.1.ffwd.down_proj.phase', 'blocks.2.attn.q_proj.log_magnitude', 'blocks.2.attn.q_proj.phase', 'blocks.2.attn.k_proj.log_magnitude', 'blocks.2.attn.k_proj.phase', 'blocks.2.attn.v_proj.log_magnitude', 'blocks.2.attn.v_proj.phase', 'blocks.2.attn.out_proj.log_magnitude', 'blocks.2.attn.out_proj.phase', 'blocks.2.attn.out_proj.bias_mag', 'blocks.2.attn.out_proj.bias_phase', 'blocks.2.ffwd.gate_proj.log_magnitude', 'blocks.2.ffwd.gate_proj.phase', 'blocks.2.ffwd.up_proj.log_magnitude', 'blocks.2.ffwd.up_proj.phase', 'blocks.2.ffwd.down_proj.log_magnitude', 'blocks.2.ffwd.down_proj.phase', 'blocks.3.attn.q_proj.log_magnitude', 'blocks.3.attn.q_proj.phase', 'blocks.3.attn.k_proj.log_magnitude', 'blocks.3.attn.k_proj.phase', 'blocks.3.attn.v_proj.log_magnitude', 'blocks.3.attn.v_proj.phase', 'blocks.3.attn.out_proj.log_magnitude', 'blocks.3.attn.out_proj.phase', 'blocks.3.attn.out_proj.bias_mag', 'blocks.3.attn.out_proj.bias_phase', 'blocks.3.ffwd.gate_proj.log_magnitude', 'blocks.3.ffwd.gate_proj.phase', 'blocks.3.ffwd.up_proj.log_magnitude', 'blocks.3.ffwd.up_proj.phase', 'blocks.3.ffwd.down_proj.log_magnitude', 'blocks.3.ffwd.down_proj.phase', 'blocks.4.attn.q_proj.log_magnitude', 'blocks.4.attn.q_proj.phase', 'blocks.4.attn.k_proj.log_magnitude', 'blocks.4.attn.k_proj.phase', 'blocks.4.attn.v_proj.log_magnitude', 'blocks.4.attn.v_proj.phase', 'blocks.4.attn.out_proj.log_magnitude', 'blocks.4.attn.out_proj.phase', 'blocks.4.attn.out_proj.bias_mag', 'blocks.4.attn.out_proj.bias_phase', 'blocks.4.ffwd.gate_proj.log_magnitude', 'blocks.4.ffwd.gate_proj.phase', 'blocks.4.ffwd.up_proj.log_magnitude', 'blocks.4.ffwd.up_proj.phase', 'blocks.4.ffwd.down_proj.log_magnitude', 'blocks.4.ffwd.down_proj.phase', 'blocks.5.attn.q_proj.log_magnitude', 'blocks.5.attn.q_proj.phase', 'blocks.5.attn.k_proj.log_magnitude', 'blocks.5.attn.k_proj.phase', 'blocks.5.attn.v_proj.log_magnitude', 'blocks.5.attn.v_proj.phase', 'blocks.5.attn.out_proj.log_magnitude', 'blocks.5.attn.out_proj.phase', 'blocks.5.attn.out_proj.bias_mag', 'blocks.5.attn.out_proj.bias_phase', 'blocks.5.ffwd.gate_proj.log_magnitude', 'blocks.5.ffwd.gate_proj.phase', 'blocks.5.ffwd.up_proj.log_magnitude', 'blocks.5.ffwd.up_proj.phase', 'blocks.5.ffwd.down_proj.log_magnitude', 'blocks.5.ffwd.down_proj.phase']
-[2026-01-29 22:00:45.741637] Loaded checkpoint: eqModel_complex.pth
+No checkpoint found, using random weights
 
 Checking for active prediction...
-Active prediction found: #1082 (302.8 minutes remaining)
+Active prediction #1112 has expired, creating new prediction...
+[2026-02-01 19:37:52.715187] Prediction: lat=-81, lon=-151, dt=128min, mag=3.9 (id=1113)
 
 Starting scheduler...
 Scheduler started: monitoring every 120 seconds
@@ -38,139 +37,85 @@ Server starting on http://0.0.0.0:3000
  * Running on http://127.0.0.1:3000
  * Running on http://192.168.1.177:3000
 [33mPress CTRL+C to quit[0m
-45.43.154.230 - - [29/Jan/2026 22:00:47] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:00:57] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:00:57] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:01:07] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:01:17] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:01:27] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:01:27] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:01:37] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:01:47] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:01:57] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:01:57] "GET /api/stats HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:01:57] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:01:57] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:02:04] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:02:04] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:02:04] "GET /api/stats HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:02:04] "GET /api/model/status HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:02:04] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:02:04] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:02:14] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:02:24] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:02:34] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:02:34] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:02:44] "GET /api/live HTTP/1.1" 200 -
-[EMSC] Fetched 255 earthquakes for last 1 day(s)
-Batch inserted 255 earthquakes
-Executed ins_quakes()
-Calculating dt for 2 new records...
-Done calculating dt
-[2026-01-29 22:02:48.331528] Status: waiting - {'action': 'waiting', 'prediction_id': 1082, 'remaining_minutes': 300.8}
-45.43.154.230 - - [29/Jan/2026 22:02:54] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:03:04] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:03:04] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:03:14] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:03:24] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:03:34] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:03:34] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:03:44] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:03:54] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:04:04] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:04:04] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:04:04] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:04:04] "GET /api/stats HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:04:14] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:04:24] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:04:34] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:04:34] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:04:44] "GET /api/live HTTP/1.1" 200 -
-[2026-01-29 22:04:45.798942] New checkpoint detected: eqModel_complex_20260129_220403.pth
-[2026-01-29 22:04:48.858623] Reloaded weights: eqModel_complex_20260129_220403.pth
-[EMSC] Fetched 255 earthquakes for last 1 day(s)
-Batch inserted 255 earthquakes
-Executed ins_quakes()
-[2026-01-29 22:04:51.227764] Status: waiting - {'action': 'waiting', 'prediction_id': 1082, 'remaining_minutes': 298.7}
-45.43.154.230 - - [29/Jan/2026 22:04:54] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:05:04] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:05:04] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:05:14] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:05:24] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:05:34] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:05:34] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:05:44] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:05:54] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:06:04] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:06:04] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:06:04] "GET /api/stats HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:06:04] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:06:14] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:06:24] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:06:34] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:06:34] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:06:44] "GET /api/live HTTP/1.1" 200 -
-[EMSC] Fetched 255 earthquakes for last 1 day(s)
-Batch inserted 255 earthquakes
-Executed ins_quakes()
-[2026-01-29 22:06:48.176748] Status: waiting - {'action': 'waiting', 'prediction_id': 1082, 'remaining_minutes': 296.8}
-45.43.154.230 - - [29/Jan/2026 22:06:54] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:07:04] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:07:04] "GET /api/model/status HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:07:04] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:07:14] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:07:24] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:07:34] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:07:34] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:07:44] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:07:54] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:08:04] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:08:04] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:08:04] "GET /api/stats HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:08:04] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:08:14] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:08:24] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:08:34] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:08:34] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:08:44] "GET /api/live HTTP/1.1" 200 -
-[EMSC] Fetched 254 earthquakes for last 1 day(s)
-144.172.114.199 - - [29/Jan/2026 22:08:46] "[31m[1mPOST / HTTP/1.1[0m" 405 -
-144.172.114.199 - - [29/Jan/2026 22:08:46] "[31m[1mPOST /_next HTTP/1.1[0m" 405 -
-144.172.114.199 - - [29/Jan/2026 22:08:47] "[31m[1mPOST /api HTTP/1.1[0m" 405 -
-Batch inserted 254 earthquakes
-Executed ins_quakes()
-144.172.114.199 - - [29/Jan/2026 22:08:47] "[31m[1mPOST /_next/server HTTP/1.1[0m" 405 -
-144.172.114.199 - - [29/Jan/2026 22:08:47] "[31m[1mPOST /app HTTP/1.1[0m" 405 -
-144.172.114.199 - - [29/Jan/2026 22:08:47] "[31m[1mPOST /api/route HTTP/1.1[0m" 405 -
-Calculating dt for 2 new records...
-Done calculating dt
-[2026-01-29 22:08:48.087285] Status: waiting - {'action': 'waiting', 'prediction_id': 1082, 'remaining_minutes': 294.8}
-45.43.154.230 - - [29/Jan/2026 22:08:54] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:09:04] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:09:04] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:09:14] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:09:24] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:09:34] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:09:34] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:09:44] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:09:54] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:10:04] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:10:04] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:10:04] "GET /api/stats HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:10:04] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:10:14] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:10:24] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:10:34] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:10:34] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:10:44] "GET /api/live HTTP/1.1" 200 -
-[2026-01-29 22:10:45.798889] New checkpoint detected: eqModel_complex_20260129_220849.pth
-[2026-01-29 22:10:48.527376] Reloaded weights: eqModel_complex_20260129_220849.pth
-[EMSC] Fetched 253 earthquakes for last 1 day(s)
-Batch inserted 253 earthquakes
-Executed ins_quakes()
-[2026-01-29 22:10:50.921055] Status: waiting - {'action': 'waiting', 'prediction_id': 1082, 'remaining_minutes': 292.7}
-45.43.154.230 - - [29/Jan/2026 22:10:54] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:11:04] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:11:04] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:11:14] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [29/Jan/2026 22:11:24] "GET /api/live HTTP/1.1" 200 -
+[2026-02-01 19:37:58.657594] Prediction #1112 EXPIRED + BUFFER (30min) passed, marking as MISSED...
+[2026-02-01 19:37:58.657594] Creating new prediction...
+45.43.154.230 - - [01/Feb/2026 19:38:00] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:00] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:00] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:00] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+[2026-02-01 19:38:00.807951] Latest prediction #1112 already verified, creating new prediction...
+45.43.154.230 - - [01/Feb/2026 19:38:01] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+[2026-02-01 19:38:02.867993] Prediction: lat=80, lon=-151, dt=128min, mag=5.9 (id=1114)
+45.43.154.230 - - [01/Feb/2026 19:38:02] "GET /api/live HTTP/1.1" 200 -
+[2026-02-01 19:38:04.918622] Prediction: lat=65, lon=-151 near Alaska, United States, dt=682min, mag=3.9 (id=1115)
+45.43.154.230 - - [01/Feb/2026 19:38:04] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:11] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:21] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:30] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:30] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:36] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:36] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:36] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:36] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:36] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:37] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:46] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:49] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:49] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:49] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:49] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:49] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:50] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:38:59] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:39:09] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:39:19] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:39:19] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:39:22] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:39:22] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:39:22] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:39:22] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:39:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:39:22] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:39:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:39:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:39:52] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:39:52] "GET /api/live HTTP/1.1" 200 -
+[EMSC] Fetched 249 earthquakes for last 1 day(s)
+Batch inserted 249 earthquakes
+Error ins_quakes: 1054 (42S22): Unknown column 'us_t' in 'field list'
+[2026-02-01 19:39:55.174600] No active prediction, creating new one...
+[2026-02-01 19:39:58.908156] Prediction: lat=80, lon=-70 near ᓄᓇᕗᑦ Nunavut, Canada, dt=128min, mag=3.9 (id=1116)
+[2026-02-01 19:39:58.908235] Status: new_prediction - {'action': 'new_prediction', 'reason': 'no_prediction'}
+45.43.154.230 - - [01/Feb/2026 19:40:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:40:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:40:22] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:40:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:40:32] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:40:42] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:40:52] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:40:52] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:41:02] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:41:12] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:41:22] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:41:22] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:41:22] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:41:22] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:41:24] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:41:24] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:41:24] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:41:24] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:41:24] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:41:24] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:41:34] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:41:44] "GET /api/live HTTP/1.1" 200 -
+[2026-02-01 19:41:52.752705] New checkpoint detected: eqModel_complex_20260201_194131.pth
+45.43.154.230 - - [01/Feb/2026 19:41:54] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [01/Feb/2026 19:41:54] "GET /api/live HTTP/1.1" 200 -
+[2026-02-01 19:41:55.565056] Reloaded weights: eqModel_complex_20260201_194131.pth
+[EMSC] Fetched 249 earthquakes for last 1 day(s)
+Batch inserted 249 earthquakes
+Error ins_quakes: 1054 (42S22): Unknown column 'us_t' in 'field list'
+[2026-02-01 19:41:57.824103] No active prediction, creating new one...
+[2026-02-01 19:42:01.565921] Prediction: lat=-74, lon=-115, dt=720min, mag=5.6 (id=1117)
+[2026-02-01 19:42:01.566001] Status: new_prediction - {'action': 'new_prediction', 'reason': 'no_prediction'}
+45.43.154.230 - - [01/Feb/2026 19:42:04] "GET /api/live HTTP/1.1" 200 -

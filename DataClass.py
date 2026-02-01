@@ -18,13 +18,13 @@ class DataC():
     def __init__(self):
         # Embedding size constants (max index value, NOT count)
         # Embedding layer needs size = max_index + 1
-        self.yr_max = 55       # Years 0-55 (1970-2025+) → 56 embeddings
+        self.yr_max = 60       # Years 0-60 (1970-2030) → 61 embeddings
         self.mt_max = 11       # Months 0-11 (converted from 1-12) → 12 embeddings
         self.x_max = 180       # Latitude 0-180 (encoded: lat+90) → 181 embeddings
         self.y_max = 360       # Longitude 0-360 (encoded: lon+180) → 361 embeddings
         self.m_max = 91        # Magnitude 0-91 (encoded: mag*10) → 92 embeddings
         self.d_max = 200       # Depth 0-200 km → 201 embeddings (captures subduction zones)
-        self.t_max = 480       # Time diff 0-480 minutes (8 hours) → 481 embeddings
+        self.t_max = 720       # Time diff 0-720 minutes (12 hours) → 721 embeddings
         self.data = []
         self.train = []
         self.valid = []
@@ -806,17 +806,17 @@ class DataC():
         except Exception as e:
             print(f"Error ins_quakes: {e}")
 
-        # Calculate time differences for new records
-        rows = self._safe_fetch("SELECT us_id FROM usgs WHERE us_t is null")
+        # Calculate location-aware time differences for new records
+        rows = self._safe_fetch("SELECT us_id FROM usgs WHERE us_t2 = 0 OR us_t2 IS NULL")
         if rows:
-            print(f"Calculating dt for {len(rows)} new records...")
+            print(f"Calculating dt2 for {len(rows)} new records...")
             for row in rows:
                 try:
-                    self._safe_execute(f"call calc_dt({row[0]})")
+                    self._safe_execute(f"call calc_dt2({row[0]})")
                 except Exception as e:
-                    print(f"Error calc_dt for {row[0]}: {e}")
+                    print(f"Error calc_dt2 for {row[0]}: {e}")
             self.mydb.commit()
-            print("Done calculating dt")
+            print("Done calculating dt2")
         
     def getData(self, from_db=True, min_mag=3.9):
         """Load training data from database or CSV.
@@ -1114,13 +1114,13 @@ class DataC():
 
         # CRITICAL: Clamp input data to model embedding ranges
         # Column indices: 0=year, 1=month, 2=lat, 3=lon, 4=mag, 5=depth, 6=dt
-        x[:, :, 0] = torch.clamp(x[:, :, 0], 0, self.yr_max)      # year: 0-55
+        x[:, :, 0] = torch.clamp(x[:, :, 0], 0, self.yr_max)      # year: 0-60
         x[:, :, 1] = torch.clamp(x[:, :, 1] - 1, 0, 11)           # month: convert 1-12 to 0-11 for embedding
         x[:, :, 2] = torch.clamp(x[:, :, 2], 0, self.x_max)       # lat: 0-180
         x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)       # lon: 0-360
         x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)       # mag: 0-91
-        x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-75
-        x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-480
+        x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-200
+        x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-720
 
         # Get target values from the M4+ positions
         next_pos = torch.stack([data_tensor[int(pos)] for pos in target_positions])
@@ -1164,13 +1164,13 @@ class DataC():
 
         # CRITICAL: Clamp input data to model embedding ranges
         # Column indices: 0=year, 1=month, 2=lat, 3=lon, 4=mag, 5=depth, 6=dt
-        x[:, :, 0] = torch.clamp(x[:, :, 0], 0, self.yr_max)      # year: 0-55
+        x[:, :, 0] = torch.clamp(x[:, :, 0], 0, self.yr_max)      # year: 0-60
         x[:, :, 1] = torch.clamp(x[:, :, 1] - 1, 0, 11)           # month: convert 1-12 to 0-11 for embedding
         x[:, :, 2] = torch.clamp(x[:, :, 2], 0, self.x_max)       # lat: 0-180
         x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)       # lon: 0-360
         x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)       # mag: 0-91
-        x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-75
-        x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-150
+        x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-200
+        x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-720
 
         # For y, return the last record's target column (used for reference only)
         y = data_[-1, col].unsqueeze(0)  # [1]
@@ -1196,8 +1196,7 @@ class DataC():
         """
         try:
             # Query the database for the last T earthquakes
-            # Calculate dt dynamically using LAG() - MUST match get_data_hybrid() exactly!
-            # Fetch T+1 records so we can calculate dt for all T records (first one needs prior)
+            # Use pre-computed location-aware dt (us_t2)
             sql = """
             SELECT year, month, us_x, us_y, us_m, us_d, us_t FROM (
                 SELECT
@@ -1208,37 +1207,22 @@ class DataC():
                     us_m,
                     GREATEST(us_d, 0) as us_d,
                     CASE
-                        WHEN dt IS NULL THEN 0
-                        WHEN dt > 720 THEN 720
-                        ELSE dt
+                        WHEN us_t2 IS NULL OR us_t2 = 0 THEN 720
+                        WHEN us_t2 > 720 THEN 720
+                        ELSE us_t2
                     END as us_t,
-                    us_datetime,
-                    ROW_NUMBER() OVER (ORDER BY us_datetime DESC) as rn
-                FROM (
-                    SELECT
-                        us_datetime,
-                        us_x,
-                        us_y,
-                        us_m,
-                        us_d,
-                        CAST(
-                            -TIMESTAMPDIFF(MINUTE, us_datetime, LAG(us_datetime) OVER (ORDER BY us_datetime))
-                            AS SIGNED
-                        ) as dt
-                    FROM usgs
-                    WHERE us_mag >= %s
-                      AND us_type = 'earthquake'
-                      AND us_magtype LIKE 'm%%'
-                    ORDER BY us_datetime DESC
-                    LIMIT %s
-                ) inner_sub
+                    us_datetime
+                FROM usgs
+                WHERE us_mag >= %s
+                  AND us_type = 'earthquake'
+                  AND us_magtype LIKE 'm%%'
+                ORDER BY us_datetime DESC
+                LIMIT %s
             ) sub
-            WHERE rn <= %s
             ORDER BY us_datetime ASC
             """
 
-            # Pass T+1 to inner query (for dt calculation), then filter to T records
-            rows = self._safe_fetch(sql, (input_mag, T + 1, T))
+            rows = self._safe_fetch(sql, (input_mag, T))
 
             if not rows or len(rows) < T:
                 print(f"Warning: Only got {len(rows) if rows else 0} earthquakes, need {T}")
@@ -1256,13 +1240,13 @@ class DataC():
 
             # CRITICAL: Clamp input data to model embedding ranges
             # Column indices: 0=year, 1=month, 2=lat, 3=lon, 4=mag, 5=depth, 6=dt
-            x[:, :, 0] = torch.clamp(x[:, :, 0], 0, self.yr_max)      # year: 0-55
+            x[:, :, 0] = torch.clamp(x[:, :, 0], 0, self.yr_max)      # year: 0-60
             x[:, :, 1] = torch.clamp(x[:, :, 1] - 1, 0, 11)           # month: convert 1-12 to 0-11 for embedding
             x[:, :, 2] = torch.clamp(x[:, :, 2], 0, self.x_max)       # lat: 0-180
             x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)       # lon: 0-360
             x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)       # mag: 0-91
-            x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-75
-            x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-150
+            x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-200
+            x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-720
 
             return x.long()
 

@@ -15,6 +15,19 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as FN
 import math
+from typing import Optional, Tuple, List, Dict
+from enum import Enum
+
+
+# =============================================================================
+# Configuration Enums
+# =============================================================================
+
+class AttentionType(Enum):
+    """Attention computation variants for complex-valued attention."""
+    HERMITIAN = "hermitian"      # Uses conjugate: Re(Q @ K*) = Re(Q)@Re(K)^T + Im(Q)@Im(K)^T
+    REAL_PART = "real_part"      # Uses Re(Q) @ Re(K)^T - Im(Q) @ Im(K)^T
+    MAGNITUDE = "magnitude"      # Uses |Q @ K*|
 
 
 # =============================================================================
@@ -192,6 +205,41 @@ class ComplexLayerNorm(nn.Module):
         return torch.complex(out_real, out_imag)
 
 
+class ComplexRMSNorm(nn.Module):
+    """
+    RMS Normalization for complex tensors.
+
+    Simpler than LayerNorm - only normalizes by RMS, no centering.
+    RMS(z) = sqrt(mean(|z|²))
+
+    Full Complex: Uses magnitude for normalization while applying
+    complex affine transformation that preserves the coupling.
+    """
+    def __init__(self, normalized_shape: int, eps: float = 1e-6):
+        super().__init__()
+        self.normalized_shape = normalized_shape
+        self.eps = eps
+
+        # Complex scale parameter (magnitude-phase style)
+        self.gamma_real = nn.Parameter(torch.ones(normalized_shape))
+        self.gamma_imag = nn.Parameter(torch.zeros(normalized_shape))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # RMS of complex magnitude: sqrt(mean(|z|²))
+        rms = torch.sqrt((x.real ** 2 + x.imag ** 2).mean(dim=-1, keepdim=True) + self.eps)
+
+        # Normalize by RMS (no centering)
+        norm_real = x.real / rms
+        norm_imag = x.imag / rms
+
+        # Apply complex scale: (norm_r + i*norm_i) * (γ_r + i*γ_i)
+        # = (norm_r*γ_r - norm_i*γ_i) + i*(norm_r*γ_i + norm_i*γ_r)
+        out_real = norm_real * self.gamma_real - norm_imag * self.gamma_imag
+        out_imag = norm_real * self.gamma_imag + norm_imag * self.gamma_real
+
+        return torch.complex(out_real, out_imag)
+
+
 class ComplexSiLU(nn.Module):
     """
     Complex SiLU (Swish): z * sigmoid(|z|)
@@ -259,6 +307,61 @@ class ComplexGELU(nn.Module):
     """Complex GELU: applies GELU separately to real and imaginary parts."""
     def forward(self, z):
         return torch.complex(FN.gelu(z.real), FN.gelu(z.imag))
+
+
+class ModReLU(nn.Module):
+    """
+    Modulus ReLU: applies ReLU to magnitude, preserves phase.
+    modReLU(z) = ReLU(|z| + b) * e^(i * angle(z))
+
+    KEY for Full Complex: This is phase-preserving - the direction in complex plane
+    is maintained while only the magnitude is gated. The learnable bias b allows
+    the network to learn appropriate activation thresholds.
+
+    Better gradient flow than CReLU because:
+    1. Phase information flows through unchanged
+    2. Magnitude gets smooth ReLU treatment
+    3. No discontinuities in phase
+    """
+    def __init__(self, num_features: int):
+        super().__init__()
+        self.bias = nn.Parameter(torch.zeros(num_features))
+
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
+        magnitude = z.abs()
+        phase = z.angle()
+
+        # ReLU on (magnitude + bias) - allows network to learn threshold
+        activated_magnitude = FN.relu(magnitude + self.bias)
+
+        # Reconstruct with ORIGINAL phase - this is the key!
+        # Using exp(1j * phase) is true complex reconstruction
+        return activated_magnitude * torch.exp(1j * phase)
+
+
+class ZReLU(nn.Module):
+    """
+    Z-ReLU: keeps values only in the first quadrant (positive real and imag).
+    ZReLU(z) = z if Re(z) > 0 and Im(z) > 0, else 0
+
+    More restrictive but maintains holomorphic-like properties in active region.
+    The complex number is kept as a WHOLE - either passed through or zeroed.
+    """
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
+        mask = (z.real > 0) & (z.imag > 0)
+        return z * mask
+
+
+class CReLU(nn.Module):
+    """
+    Complex ReLU: applies ReLU separately to real and imaginary parts.
+    CReLU(z) = ReLU(Re(z)) + i * ReLU(Im(z))
+
+    WARNING: This DOES split real/imag - use ModReLU for true complex behavior.
+    Included for completeness but ModReLU is preferred for Full Complex.
+    """
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
+        return torch.complex(FN.relu(z.real), FN.relu(z.imag))
 
 
 class ComplexDropout(nn.Module):
@@ -432,12 +535,19 @@ class ComplexMultiHeadAttention(nn.Module):
     Multi-head attention with complex Q, K, V, Rotary Position Embeddings,
     and Spatial Attention Bias for geographic distance awareness.
 
-    Uses Hermitian inner product: Re(Q @ K*) = Re(Q)@Re(K)^T + Im(Q)@Im(K)^T
+    Supports three attention score computation methods:
+    - HERMITIAN: Re(Q @ K*) = Re(Q)@Re(K)^T + Im(Q)@Im(K)^T (standard complex inner product)
+    - REAL_PART: Re(Q @ K^T) = Re(Q)@Re(K)^T - Im(Q)@Im(K)^T
+    - MAGNITUDE: |Q @ K*| (magnitude of complex product)
+
+    HERMITIAN is recommended as it's the proper complex inner product that
+    respects the complex structure (preserves coupling between real/imag).
 
     The Spatial Attention Bias adds a learnable distance-dependent term to
     attention scores, making nearby earthquakes attend more strongly to each other.
     """
-    def __init__(self, embed_dim, num_heads, block_size, dropout=0.1, use_rope=True, use_spatial_bias=True):
+    def __init__(self, embed_dim, num_heads, block_size, dropout=0.1, use_rope=True,
+                 use_spatial_bias=True, attention_type: AttentionType = AttentionType.HERMITIAN):
         super().__init__()
         assert embed_dim % num_heads == 0
 
@@ -447,6 +557,7 @@ class ComplexMultiHeadAttention(nn.Module):
         self.embed_dim = embed_dim
         self.use_rope = use_rope
         self.use_spatial_bias = use_spatial_bias
+        self.attention_type = attention_type
 
         self.q_proj = ComplexLinear(embed_dim, embed_dim, bias=False)
         self.k_proj = ComplexLinear(embed_dim, embed_dim, bias=False)
@@ -480,9 +591,71 @@ class ComplexMultiHeadAttention(nn.Module):
             cos, sin = self.rotary_emb(L, Q.device)
             Q, K = apply_complex_rotary_embedding(Q, K, cos, sin)
 
-        # Hermitian attention: Re(Q @ K*)
-        attn_scores = (Q.real @ K.real.transpose(-2, -1)) + (Q.imag @ K.imag.transpose(-2, -1))
-        attn_scores = attn_scores * self.scale
+        # Compute attention scores based on attention type
+        attn_scores = self._compute_attention_scores(Q, K)
+
+    def _compute_attention_scores(self, Q: torch.Tensor, K: torch.Tensor) -> torch.Tensor:
+        """
+        Compute attention scores based on configured attention type.
+
+        Full Complex: All three methods preserve the coupling between real and
+        imaginary parts - they just define different similarity measures.
+
+        Args:
+            Q: [batch, heads, seq_len, head_dim] complex
+            K: [batch, heads, seq_len, head_dim] complex
+        Returns:
+            Real-valued attention scores [batch, heads, seq_len, seq_len]
+        """
+        if self.attention_type == AttentionType.HERMITIAN:
+            # Hermitian inner product: <q, k> = sum(q * conj(k))
+            # Re(<q,k>) = Re(q)@Re(k)^T + Im(q)@Im(k)^T
+            # This is the STANDARD complex inner product - recommended!
+            scores = (
+                torch.matmul(Q.real, K.real.transpose(-2, -1)) +
+                torch.matmul(Q.imag, K.imag.transpose(-2, -1))
+            )
+
+        elif self.attention_type == AttentionType.REAL_PART:
+            # Real part of regular product (non-conjugate)
+            # Re(q @ k^T) = Re(q)@Re(k)^T - Im(q)@Im(k)^T
+            scores = (
+                torch.matmul(Q.real, K.real.transpose(-2, -1)) -
+                torch.matmul(Q.imag, K.imag.transpose(-2, -1))
+            )
+
+        elif self.attention_type == AttentionType.MAGNITUDE:
+            # Magnitude of complex product |Q @ K*|
+            # More expensive but captures full complex relationship
+            real_part = (
+                torch.matmul(Q.real, K.real.transpose(-2, -1)) +
+                torch.matmul(Q.imag, K.imag.transpose(-2, -1))
+            )
+            imag_part = (
+                torch.matmul(Q.imag, K.real.transpose(-2, -1)) -
+                torch.matmul(Q.real, K.imag.transpose(-2, -1))
+            )
+            scores = torch.sqrt(real_part ** 2 + imag_part ** 2 + 1e-8)
+
+        else:
+            raise ValueError(f"Unknown attention type: {self.attention_type}")
+
+        return scores * self.scale
+
+    def forward(self, x, lat=None, lon=None):
+        B, L, D = x.shape
+
+        Q = self.q_proj(x).view(B, L, self.num_heads, self.head_dim).transpose(1, 2)
+        K = self.k_proj(x).view(B, L, self.num_heads, self.head_dim).transpose(1, 2)
+        V = self.v_proj(x).view(B, L, self.num_heads, self.head_dim).transpose(1, 2)
+
+        # Apply RoPE if enabled
+        if self.rotary_emb is not None:
+            cos, sin = self.rotary_emb(L, Q.device)
+            Q, K = apply_complex_rotary_embedding(Q, K, cos, sin)
+
+        # Compute attention scores based on attention type
+        attn_scores = self._compute_attention_scores(Q, K)
 
         # Add spatial attention bias (geographic distance awareness)
         if self.spatial_bias is not None and lat is not None and lon is not None:
@@ -1014,7 +1187,7 @@ class LogScaleDtEncoding(nn.Module):
     This encoding creates multi-resolution features in log-space,
     giving fine resolution for short intervals and coarse for long ones.
     """
-    def __init__(self, embed_dim, max_dt=480, num_scales=8):
+    def __init__(self, embed_dim, max_dt=720, num_scales=8):
         super().__init__()
         self.embed_dim = embed_dim
         self.max_dt = max_dt
@@ -1130,7 +1303,7 @@ class CustomComplexEmbedding(nn.Module):
             # dt: log-scale continuous encoding (captures log-normal distribution)
             self.t_log_embed = LogScaleDtEncoding(
                 embed_dim=self.dt_log_dim,
-                max_dt=sizes['t_size'],  # 480
+                max_dt=sizes['t_size'],  # 720
                 num_scales=8
             )
 
@@ -1276,7 +1449,7 @@ class EqModelComplex(nn.Module):
         # Input is concatenation of real and imaginary parts
         self.lat_head = nn.Linear(n_embed * 2, 181, bias=False)   # Latitude: 0-180
         self.lon_head = nn.Linear(n_embed * 2, 361, bias=False)   # Longitude: 0-360
-        self.dt_head = nn.Linear(n_embed * 2, 481, bias=False)    # Time diff: 0-480 minutes (8 hours)
+        self.dt_head = nn.Linear(n_embed * 2, 721, bias=False)    # Time diff: 0-720 minutes (12 hours)
         self.mag_head = nn.Linear(n_embed * 2, 92, bias=False)    # Magnitude: 0-91
 
         self.apply(self._init_weights)
@@ -1422,7 +1595,7 @@ class EqModelComplex(nn.Module):
         # Clamp to valid ranges (no artificial minimum on magnitude)
         lat_val = min(max(lat_pred.item(), 0), 180)
         lon_val = min(max(lon_pred.item(), 0), 360)
-        dt_val = min(max(dt_pred.item(), 1), 480)    # Min 1 minute, max 8 hours between events
+        dt_val = min(max(dt_pred.item(), 1), 720)    # Min 1 minute, max 12 hours between events
         mag_val = min(max(mag_pred.item(), 0), 91)   # Full magnitude range 0-91 (0.0-9.1)
 
         return {
@@ -1455,6 +1628,255 @@ def count_parameters(model):
     }
 
 
+# =============================================================================
+# Complex-Aware Optimizer
+# =============================================================================
+
+class ComplexAdamW(torch.optim.Optimizer):
+    """
+    AdamW optimizer adapted for complex parameters.
+
+    KEY for Full Complex: Handles complex gradients by treating them as 2D real vectors,
+    which is the standard approach in complex optimization. The complex number stays
+    as a unit - we optimize both real and imaginary parts together.
+
+    For complex z = a + bi, we view optimization as jointly optimizing (a, b) in R².
+    This maintains the coupling between real and imaginary parts throughout training.
+    """
+
+    def __init__(
+        self,
+        params,
+        lr: float = 1e-4,
+        betas: Tuple[float, float] = (0.9, 0.999),
+        eps: float = 1e-8,
+        weight_decay: float = 0.01,
+        amsgrad: bool = False
+    ):
+        if lr < 0.0:
+            raise ValueError(f"Invalid learning rate: {lr}")
+        if not 0.0 <= betas[0] < 1.0:
+            raise ValueError(f"Invalid beta[0]: {betas[0]}")
+        if not 0.0 <= betas[1] < 1.0:
+            raise ValueError(f"Invalid beta[1]: {betas[1]}")
+        if eps < 0.0:
+            raise ValueError(f"Invalid epsilon: {eps}")
+        if weight_decay < 0.0:
+            raise ValueError(f"Invalid weight_decay: {weight_decay}")
+
+        defaults = dict(
+            lr=lr, betas=betas, eps=eps,
+            weight_decay=weight_decay, amsgrad=amsgrad
+        )
+        super().__init__(params, defaults)
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        """Perform a single optimization step."""
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+
+        for group in self.param_groups:
+            beta1, beta2 = group['betas']
+
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+
+                grad = p.grad
+
+                if p.is_complex():
+                    # Convert to real view for optimization - keeps real/imag coupled!
+                    p_real = torch.view_as_real(p)
+                    grad_real = torch.view_as_real(grad)
+
+                    state = self.state[p]
+
+                    # Initialize state
+                    if len(state) == 0:
+                        state['step'] = 0
+                        state['exp_avg'] = torch.zeros_like(p_real)
+                        state['exp_avg_sq'] = torch.zeros_like(p_real)
+                        if group['amsgrad']:
+                            state['max_exp_avg_sq'] = torch.zeros_like(p_real)
+
+                    exp_avg = state['exp_avg']
+                    exp_avg_sq = state['exp_avg_sq']
+
+                    state['step'] += 1
+
+                    # Decoupled weight decay
+                    if group['weight_decay'] != 0:
+                        p_real.mul_(1 - group['lr'] * group['weight_decay'])
+
+                    # Update biased first moment estimate
+                    exp_avg.mul_(beta1).add_(grad_real, alpha=1 - beta1)
+
+                    # Update biased second raw moment estimate
+                    exp_avg_sq.mul_(beta2).addcmul_(grad_real, grad_real, value=1 - beta2)
+
+                    # Bias correction
+                    bias_correction1 = 1 - beta1 ** state['step']
+                    bias_correction2 = 1 - beta2 ** state['step']
+
+                    step_size = group['lr'] / bias_correction1
+
+                    if group['amsgrad']:
+                        max_exp_avg_sq = state['max_exp_avg_sq']
+                        torch.maximum(max_exp_avg_sq, exp_avg_sq, out=max_exp_avg_sq)
+                        denom = (max_exp_avg_sq.sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
+                    else:
+                        denom = (exp_avg_sq.sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
+
+                    # Update parameters
+                    p_real.addcdiv_(exp_avg, denom, value=-step_size)
+
+                else:
+                    # Standard AdamW for real parameters
+                    state = self.state[p]
+
+                    if len(state) == 0:
+                        state['step'] = 0
+                        state['exp_avg'] = torch.zeros_like(p)
+                        state['exp_avg_sq'] = torch.zeros_like(p)
+                        if group['amsgrad']:
+                            state['max_exp_avg_sq'] = torch.zeros_like(p)
+
+                    exp_avg = state['exp_avg']
+                    exp_avg_sq = state['exp_avg_sq']
+
+                    state['step'] += 1
+
+                    if group['weight_decay'] != 0:
+                        p.mul_(1 - group['lr'] * group['weight_decay'])
+
+                    exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
+                    exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+
+                    bias_correction1 = 1 - beta1 ** state['step']
+                    bias_correction2 = 1 - beta2 ** state['step']
+
+                    step_size = group['lr'] / bias_correction1
+
+                    if group['amsgrad']:
+                        max_exp_avg_sq = state['max_exp_avg_sq']
+                        torch.maximum(max_exp_avg_sq, exp_avg_sq, out=max_exp_avg_sq)
+                        denom = (max_exp_avg_sq.sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
+                    else:
+                        denom = (exp_avg_sq.sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
+
+                    p.addcdiv_(exp_avg, denom, value=-step_size)
+
+        return loss
+
+
+class GradientClipper:
+    """
+    Gradient clipping for complex parameters.
+
+    Full Complex: Uses magnitude of complex gradient for norm computation,
+    treating real and imaginary parts as a coupled unit.
+    """
+
+    def __init__(self, max_norm: float = 1.0):
+        self.max_norm = max_norm
+
+    def __call__(self, parameters):
+        """Clip gradients by global norm."""
+        parameters = list(filter(lambda p: p.grad is not None, parameters))
+
+        total_norm = 0.0
+        for p in parameters:
+            if p.is_complex():
+                # Use magnitude of complex gradient - treats real/imag as unit
+                param_norm = torch.view_as_real(p.grad).norm() ** 2
+            else:
+                param_norm = p.grad.norm() ** 2
+            total_norm += param_norm
+
+        total_norm = total_norm ** 0.5
+
+        clip_coef = self.max_norm / (total_norm + 1e-6)
+        if clip_coef < 1:
+            for p in parameters:
+                p.grad.mul_(clip_coef)
+
+        return total_norm
+
+
+class CosineWarmupScheduler:
+    """
+    Learning rate scheduler with linear warmup and cosine decay.
+    Common schedule for transformer training.
+    """
+
+    def __init__(
+        self,
+        optimizer: torch.optim.Optimizer,
+        warmup_steps: int,
+        total_steps: int,
+        min_lr: float = 0.0
+    ):
+        self.optimizer = optimizer
+        self.warmup_steps = warmup_steps
+        self.total_steps = total_steps
+        self.min_lr = min_lr
+        self.base_lrs = [group['lr'] for group in optimizer.param_groups]
+        self.current_step = 0
+
+    def step(self):
+        """Update learning rate."""
+        self.current_step += 1
+        lr = self._compute_lr()
+
+        for param_group, base_lr in zip(self.optimizer.param_groups, self.base_lrs):
+            param_group['lr'] = lr * base_lr / self.base_lrs[0]
+
+    def _compute_lr(self) -> float:
+        if self.current_step < self.warmup_steps:
+            # Linear warmup
+            return self.base_lrs[0] * self.current_step / self.warmup_steps
+        else:
+            # Cosine decay
+            progress = (self.current_step - self.warmup_steps) / (self.total_steps - self.warmup_steps)
+            progress = min(1.0, progress)
+            cosine_decay = 0.5 * (1.0 + math.cos(math.pi * progress))
+            return self.min_lr + (self.base_lrs[0] - self.min_lr) * cosine_decay
+
+
+def get_parameter_groups(
+    model: nn.Module,
+    weight_decay: float = 0.01,
+    no_decay_patterns: List[str] = None
+) -> List[Dict]:
+    """
+    Create parameter groups with proper weight decay.
+
+    Biases, LayerNorm parameters, and embeddings typically shouldn't have weight decay.
+    """
+    if no_decay_patterns is None:
+        no_decay_patterns = ['bias', 'norm', 'embedding']
+
+    decay_params = []
+    no_decay_params = []
+
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+
+        if any(pattern in name.lower() for pattern in no_decay_patterns):
+            no_decay_params.append(param)
+        else:
+            decay_params.append(param)
+
+    return [
+        {'params': decay_params, 'weight_decay': weight_decay},
+        {'params': no_decay_params, 'weight_decay': 0.0}
+    ]
+
+
 if __name__ == "__main__":
     print("=" * 70)
     print("EqModelComplex - Advanced Complex-Valued Earthquake Prediction Model")
@@ -1462,13 +1884,13 @@ if __name__ == "__main__":
 
     # Test configuration
     sizes = {
-        'yr_size': 55,
-        'mt_size': 11,
-        'x_size': 180,
-        'y_size': 360,
-        'm_size': 91,
-        'd_size': 200,
-        't_size': 480
+        'yr_size': 60,      # Years 0-60 (1970-2030)
+        'mt_size': 11,      # Months 0-11
+        'x_size': 180,      # Latitude 0-180
+        'y_size': 360,      # Longitude 0-360
+        'm_size': 91,       # Magnitude 0-91 (0.0-9.1)
+        'd_size': 200,      # Depth 0-200 km
+        't_size': 720       # Time diff 0-720 minutes (12 hours)
     }
 
     B = 4       # Batch size
@@ -1517,7 +1939,7 @@ if __name__ == "__main__":
         targets = {
             'lat': torch.randint(0, 181, (B,)).to(device),
             'lon': torch.randint(0, 361, (B,)).to(device),
-            'dt': torch.randint(0, 481, (B,)).to(device),  # 0-480 minutes (8 hours)
+            'dt': torch.randint(0, 721, (B,)).to(device),  # 0-720 minutes (12 hours)
             'mag': torch.randint(0, 92, (B,)).to(device)
         }
         logits, loss = model(sample_input, targets)

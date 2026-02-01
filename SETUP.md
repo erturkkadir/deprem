@@ -2,7 +2,34 @@
 
 ## Server: vanc.syshuman.com (192.168.1.177)
 
-This server runs the AI training and prediction backend.
+This server runs the AI training and prediction backend using a **Full Complex-Valued Transformer**.
+
+---
+
+## Architecture Overview
+
+### Full Complex Neural Network
+The model uses true complex-valued operations throughout, maintaining coupling between real and imaginary parts:
+
+- **ComplexLinear**: Magnitude-phase parameterization `W = |W| * exp(i*θ)`
+- **ComplexEmbedding**: Complex embeddings for earthquake features
+- **ComplexLayerNorm/RMSNorm**: Normalization using complex variance
+- **ComplexMultiHeadAttention**: Hermitian inner product with RoPE
+- **ComplexGatedFeedForward**: SwiGLU-style with true complex multiplication
+
+### Embedding Sizes
+| Feature | Range | Size | Description |
+|---------|-------|------|-------------|
+| Year | 0-60 | 61 | Years since 1970 (1970-2030) |
+| Month | 0-11 | 12 | Calendar month (0-indexed) |
+| Latitude | 0-180 | 181 | Encoded: lat + 90 |
+| Longitude | 0-360 | 361 | Encoded: lon + 180 |
+| Magnitude | 0-91 | 92 | Encoded: mag * 10 |
+| Depth | 0-200 | 201 | Depth in km |
+| Time Diff | 0-720 | 721 | Minutes since nearby earthquake (12 hours max) |
+
+### Location-Aware Time Difference (us_t2)
+The `us_t2` field calculates time difference to the nearest earthquake within 100km radius, capturing aftershock patterns and fault propagation.
 
 ---
 
@@ -24,19 +51,24 @@ gunicorn --workers 1 --threads 1 --timeout 120 --bind 0.0.0.0:3000 server:app
 ## Components
 
 ### 1. Training Script (`train.py`)
-- Runs continuously, never stops
-- Saves checkpoint every 2000 iterations
-- Uses GPU (CUDA) for training
-- Reloads data from database every 1000 iterations
+- **Hybrid Training**: Uses M2.0+ earthquakes as input, predicts M4.0+ events
+- Runs continuously with gradient accumulation (effective batch=16)
+- Uses GPU (CUDA) with mixed precision training
+- Cosine LR schedule with 2000-step warmup
+- Saves checkpoint every 600 steps, prints every 200 steps
+- Label smoothing: 0.1
 
 ```bash
 # Start training
 python train.py
 
+# Or with nohup for background
+nohup python train.py > train.out 2>&1 &
+
 # Output example:
-# [2025-12-23 10:00:00] Iter 50: loss = 4.2341
-# [2025-12-23 10:05:00] Iter 2000: loss = 2.1234
-# [2025-12-23 10:05:00] Checkpoint saved: eqModel_complex_20251223_100500.pth
+# step    200 | train 112.0784 | val 106.0108 | lr 3.00e-05
+# step    400 | train 104.9742 | val 87.6003 | lr 6.00e-05
+#   -> New best loss!
 ```
 
 ### 2. API Server (`server.py`)
@@ -153,18 +185,39 @@ screen -r server
 
 ```
 /var/www/syshuman/quake/
-├── train.py              # Training script (GPU)
-├── server.py             # API server (CPU)
-├── EqModel.py            # Neural network model
-├── DataClass.py          # Data loading & database
-├── config.py             # Database credentials
-├── eqModel_complex.pth   # Latest checkpoint (symlink)
-├── eqModel_complex_*.pth # Timestamped checkpoints
+├── train.py                        # Training script (GPU)
+├── server.py                       # API server (CPU)
+├── EqModelComplex.py               # Full Complex neural network model
+├── complex_transformer_complete.py # Reference implementation
+├── DataClass.py                    # Data loading & database
+├── config.py                       # Database credentials
+├── eqModel_complex.pth             # Latest checkpoint (symlink)
+├── eqModel_complex_*.pth           # Timestamped checkpoints
+├── DT.md                           # Prediction matching criteria
+├── CLAUDE.md                       # AI assistant instructions
 ├── data/
-│   └── latest.csv        # Exported earthquake data
+│   └── latest.csv                  # Exported earthquake data
 └── web/
-    └── dist/             # Frontend build (copy to web server)
+    └── dist/                       # Frontend build (copy to web server)
 ```
+
+### Key Model Components (EqModelComplex.py)
+
+**Activations (Phase-Preserving)**
+- `ModReLU`: `ReLU(|z| + b) * e^(i*angle(z))` - Preserves phase, learnable bias
+- `ZReLU`: First quadrant only - maintains holomorphic properties
+- `ComplexSiLU`: `z * sigmoid(|z|)` - Smooth gating
+- `Cardioid`: Phase-dependent gating with learnable offset
+
+**Attention Types**
+- `HERMITIAN`: `Re(Q)@Re(K)^T + Im(Q)@Im(K)^T` (default, recommended)
+- `REAL_PART`: `Re(Q)@Re(K)^T - Im(Q)@Im(K)^T`
+- `MAGNITUDE`: `|Q @ K*|`
+
+**Training Utilities**
+- `ComplexAdamW`: Optimizer treating complex params as 2D real vectors
+- `GradientClipper`: Clips gradients using complex magnitude
+- `CosineWarmupScheduler`: LR warmup + cosine decay
 
 ---
 
