@@ -24,7 +24,7 @@ class DataC():
         self.y_max = 360       # Longitude 0-360 (encoded: lon+180) → 361 embeddings
         self.m_max = 91        # Magnitude 0-91 (encoded: mag*10) → 92 embeddings
         self.d_max = 200       # Depth 0-200 km → 201 embeddings (captures subduction zones)
-        self.t_max = 720       # Time diff 0-720 minutes (12 hours) → 721 embeddings
+        self.t_max = 1440      # Time diff 0-1440 minutes (24 hours) → 1441 embeddings
         self.data = []
         self.train = []
         self.valid = []
@@ -806,17 +806,41 @@ class DataC():
         except Exception as e:
             print(f"Error ins_quakes: {e}")
 
-        # Calculate location-aware time differences for new records
-        rows = self._safe_fetch("SELECT us_id FROM usgs WHERE us_t2 = 0 OR us_t2 IS NULL")
-        if rows:
-            print(f"Calculating dt2 for {len(rows)} new records...")
-            for row in rows:
-                try:
-                    self._safe_execute(f"call calc_dt2({row[0]})")
-                except Exception as e:
-                    print(f"Error calc_dt2 for {row[0]}: {e}")
-            self.mydb.commit()
-            print("Done calculating dt2")
+        # Calculate location-aware time differences for new records (batch update)
+        # Instead of calling stored procedure per record, use a single batch update
+        try:
+            # Count records needing dt2
+            count_result = self._safe_fetch("SELECT COUNT(*) FROM usgs WHERE us_t2 = 0 OR us_t2 IS NULL", fetch_one=True)
+            count = count_result[0] if count_result else 0
+
+            if count > 0:
+                print(f"Calculating dt2 for {count} new records (batch)...")
+
+                # Batch update: find nearest earthquake within 500km for each new record
+                # Use a single UPDATE with correlated subquery
+                self._safe_execute("""
+                    UPDATE usgs u
+                    SET us_t2 = COALESCE(
+                        (SELECT LEAST(TIMESTAMPDIFF(MINUTE, p.us_datetime, u.us_datetime), 43200)
+                         FROM usgs p
+                         WHERE p.us_datetime < u.us_datetime
+                           AND p.us_lat BETWEEN u.us_lat - 4.5 AND u.us_lat + 4.5
+                           AND p.us_lon BETWEEN u.us_lon - 6.0 AND u.us_lon + 6.0
+                           AND (6371 * 2 * ASIN(SQRT(
+                               POWER(SIN(RADIANS(p.us_lat - u.us_lat) / 2), 2) +
+                               COS(RADIANS(u.us_lat)) * COS(RADIANS(p.us_lat)) *
+                               POWER(SIN(RADIANS(p.us_lon - u.us_lon) / 2), 2)
+                           ))) <= 500
+                         ORDER BY p.us_datetime DESC
+                         LIMIT 1),
+                        43200
+                    )
+                    WHERE u.us_t2 = 0 OR u.us_t2 IS NULL
+                """)
+                self.mydb.commit()
+                print("Done calculating dt2 (batch)")
+        except Exception as e:
+            print(f"Error batch calc_dt2: {e}")
         
     def getData(self, from_db=True, min_mag=3.9):
         """Load training data from database or CSV.
@@ -1120,7 +1144,7 @@ class DataC():
         x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)       # lon: 0-360
         x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)       # mag: 0-91
         x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-200
-        x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-720
+        x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-1440
 
         # Get target values from the M4+ positions
         next_pos = torch.stack([data_tensor[int(pos)] for pos in target_positions])
@@ -1170,7 +1194,7 @@ class DataC():
         x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)       # lon: 0-360
         x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)       # mag: 0-91
         x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-200
-        x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-720
+        x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-1440
 
         # For y, return the last record's target column (used for reference only)
         y = data_[-1, col].unsqueeze(0)  # [1]
@@ -1246,7 +1270,7 @@ class DataC():
             x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)       # lon: 0-360
             x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)       # mag: 0-91
             x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-200
-            x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-720
+            x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-1440
 
             return x.long()
 

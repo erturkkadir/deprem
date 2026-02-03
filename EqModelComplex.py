@@ -1423,6 +1423,7 @@ class EqModelComplex(nn.Module):
         self.device = device
         self.use_rope = use_rope
         self.use_gpe = use_gpe
+        self.t_size = sizes['t_size'] + 1  # Time diff output size (e.g., 1441 for 0-1440 minutes)
 
         # Complex embedding for earthquake features with Geographic Positional Encoding
         self.embed = CustomComplexEmbedding(sizes, n_embed, use_gpe=use_gpe)
@@ -1449,7 +1450,7 @@ class EqModelComplex(nn.Module):
         # Input is concatenation of real and imaginary parts
         self.lat_head = nn.Linear(n_embed * 2, 181, bias=False)   # Latitude: 0-180
         self.lon_head = nn.Linear(n_embed * 2, 361, bias=False)   # Longitude: 0-360
-        self.dt_head = nn.Linear(n_embed * 2, 721, bias=False)    # Time diff: 0-720 minutes (12 hours)
+        self.dt_head = nn.Linear(n_embed * 2, self.t_size, bias=False)  # Time diff uses t_size from DataClass
         self.mag_head = nn.Linear(n_embed * 2, 92, bias=False)    # Magnitude: 0-91
 
         self.apply(self._init_weights)
