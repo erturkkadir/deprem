@@ -12,12 +12,18 @@ import glob
 import math
 import torch
 import atexit
+import re
+import smtplib
+import threading
 import requests
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from torch.nn import functional as F
+import config
 
 from DataClass import DataC
 from EqModelComplex import EqModelComplex
@@ -114,6 +120,117 @@ def haversine_km(lat1, lon1, lat2, lon2):
     dlon = math.radians(lon2 - lon1)
     a = math.sin(dlat/2)**2 + math.cos(lat1_r) * math.cos(lat2_r) * math.sin(dlon/2)**2
     return EARTH_RADIUS_KM * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+
+
+def send_alert_email(to_email, prediction, unsubscribe_token):
+    """Send earthquake prediction alert email to a subscriber."""
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = f"Earthquake Alert: M{prediction['mag']:.1f} predicted near you"
+        msg['From'] = f"{config.SMTP_FROM_NAME} <{config.SMTP_FROM}>"
+        msg['To'] = to_email
+
+        base_url = config.APP_URL
+        prediction_url = f"{base_url}/prediction/{prediction['id']}"
+        unsubscribe_url = f"{base_url}/api/alerts/unsubscribe/{unsubscribe_token}"
+        map_url = f"https://www.google.com/maps?q={prediction['lat']},{prediction['lon']}&z=5"
+
+        html = f"""<html>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #18181b; color: #fff; padding: 20px; margin: 0;">
+  <div style="max-width: 500px; margin: 0 auto; background: #27272a; border-radius: 12px; border: 1px solid #f97316; padding: 24px;">
+    <h2 style="color: #f97316; margin-top: 0;">Earthquake Prediction Alert</h2>
+    <p style="color: #d4d4d8;">A prediction has been made near your monitored location:</p>
+    <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+      <tr><td style="color: #a1a1aa; padding: 6px 8px;">Location</td><td style="color: #fff; font-weight: bold;">{prediction.get('place') or 'Unknown'}</td></tr>
+      <tr><td style="color: #a1a1aa; padding: 6px 8px;">Magnitude</td><td style="color: #f97316; font-weight: bold; font-size: 18px;">M{prediction['mag']:.1f}</td></tr>
+      <tr><td style="color: #a1a1aa; padding: 6px 8px;">Expected within</td><td style="color: #fff;">{prediction['dt']} minutes</td></tr>
+      <tr><td style="color: #a1a1aa; padding: 6px 8px;">Coordinates</td><td style="color: #fff;">{prediction['lat']:.2f}, {prediction['lon']:.2f}</td></tr>
+      <tr><td style="color: #a1a1aa; padding: 6px 8px;">Distance from you</td><td style="color: #fff;">{prediction.get('distance_km', '?')} km</td></tr>
+    </table>
+    <div style="margin: 20px 0;">
+      <a href="{prediction_url}" style="display: inline-block; background: #f97316; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">View Prediction</a>
+      <a href="{map_url}" style="display: inline-block; background: #3f3f46; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-left: 8px;">View on Map</a>
+    </div>
+    <hr style="border: none; border-top: 1px solid #3f3f46; margin: 20px 0;">
+    <p style="color: #71717a; font-size: 12px; margin-bottom: 0;">
+      <a href="{unsubscribe_url}" style="color: #71717a;">Unsubscribe</a> from these alerts.
+    </p>
+  </div>
+</body>
+</html>"""
+
+        msg.attach(MIMEText(html, 'html'))
+
+        with smtplib.SMTP_SSL(config.SMTP_HOST, config.SMTP_PORT) as server:
+            server.login(config.SMTP_USER, config.SMTP_PASS)
+            server.sendmail(config.SMTP_FROM, to_email, msg.as_string())
+
+        print(f"[{datetime.now()}] Alert email sent to {to_email}")
+        return True
+    except Exception as e:
+        print(f"[{datetime.now()}] Error sending alert email to {to_email}: {e}")
+        return False
+
+
+def notify_subscribers(pr_id, lat, lon, mag, dt_minutes, place):
+    """Check for subscribers near prediction location and send emails in background thread."""
+    global dataC
+
+    def _send_emails():
+        try:
+            if dataC is None:
+                return
+
+            # Bounding box: ~500km in degrees (rough: 1 deg lat ≈ 111km)
+            max_radius_deg = 500 / 111.0
+            lat_min = lat - max_radius_deg
+            lat_max = lat + max_radius_deg
+            cos_lat = math.cos(math.radians(lat)) or 0.01
+            lon_delta = max_radius_deg / cos_lat
+            lon_min = lon - lon_delta
+            lon_max = lon + lon_delta
+
+            candidates = dataC.get_active_alerts_in_bbox(lat_min, lat_max, lon_min, lon_max)
+            if not candidates:
+                return
+
+            cooldown_minutes = getattr(config, 'ALERT_COOLDOWN_MINUTES', 60)
+            now = datetime.now()
+            sent_count = 0
+
+            prediction_info = {
+                'id': pr_id,
+                'lat': lat,
+                'lon': lon,
+                'mag': mag,
+                'dt': dt_minutes,
+                'place': place or 'Unknown Region',
+            }
+
+            for ea_id, email, sub_lat, sub_lon, radius_km, last_notified, token in candidates:
+                # Check cooldown
+                if last_notified and (now - last_notified).total_seconds() < cooldown_minutes * 60:
+                    continue
+
+                # Haversine refinement
+                dist_km = haversine_km(lat, lon, float(sub_lat), float(sub_lon))
+                if dist_km > radius_km:
+                    continue
+
+                prediction_info['distance_km'] = round(dist_km)
+
+                if send_alert_email(email, prediction_info, token):
+                    dataC.update_last_notified(ea_id)
+                    sent_count += 1
+
+            if sent_count > 0:
+                print(f"[{datetime.now()}] Sent {sent_count} alert email(s) for prediction #{pr_id}")
+
+        except Exception as e:
+            print(f"[{datetime.now()}] Error in notify_subscribers: {e}")
+
+    # Run in background thread so prediction flow is not blocked
+    threading.Thread(target=_send_emails, daemon=True).start()
 
 
 def get_latest_checkpoint():
@@ -299,6 +416,11 @@ def make_prediction():
 
         place_str = f" near {place}" if place else ""
         print(f"[{datetime.now()}] Prediction: lat={lat_actual}, lon={lon_actual}{place_str}, dt={dt_minutes}min, mag={mag_actual} (id={pr_id})")
+
+        # Notify email subscribers near prediction location
+        if pr_id:
+            notify_subscribers(pr_id, lat_actual, lon_actual, mag_actual, dt_minutes, place)
+
         return pr_id
 
     except Exception as e:
@@ -1417,6 +1539,131 @@ def record_match():
 
     except Exception as e:
         print(f"Error recording match: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ============= ALERT SUBSCRIPTION ENDPOINTS =============
+
+@app.route('/api/alerts/subscribe', methods=['POST'])
+def subscribe_alert():
+    """Subscribe an email to earthquake prediction alerts for a location"""
+    global dataC
+
+    if dataC is None:
+        return jsonify({'error': 'Data not loaded'}), 500
+
+    try:
+        data = request.get_json()
+        email = (data.get('email') or '').strip().lower()
+        lat = data.get('lat')
+        lon = data.get('lon')
+        radius_km = data.get('radius_km', 500)
+
+        # Validate email
+        if not email or not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
+            return jsonify({'error': 'Invalid email address'}), 400
+
+        # Validate coordinates
+        if lat is None or lon is None:
+            return jsonify({'error': 'Missing lat/lon coordinates'}), 400
+        if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+            return jsonify({'error': 'Invalid coordinates'}), 400
+
+        # Validate radius
+        radius_km = max(100, min(int(radius_km), 2000))
+
+        result = dataC.add_email_alert(email, lat, lon, radius_km)
+
+        if result is None:
+            return jsonify({'error': 'You already have an alert for this location'}), 409
+
+        # Get location name for confirmation
+        place = reverse_geocode(lat, lon)
+
+        return jsonify({
+            'success': True,
+            'message': f'Subscribed to alerts near {place or f"{lat:.2f}, {lon:.2f}"}',
+            'alert_id': result['ea_id'],
+            'place': place
+        })
+
+    except Exception as e:
+        print(f"Error subscribing alert: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/alerts/unsubscribe/<token>', methods=['GET'])
+def unsubscribe_alert_by_token(token):
+    """Unsubscribe from alerts via email link. Returns HTML page."""
+    global dataC
+
+    if dataC is None:
+        return "<h1>Service unavailable</h1>", 500
+
+    success = dataC.deactivate_alert_by_token(token)
+
+    # Return styled HTML confirmation page
+    if success:
+        message = "You have been unsubscribed from earthquake prediction alerts."
+        color = "#4ade80"
+    else:
+        message = "This unsubscribe link is invalid or has already been used."
+        color = "#f87171"
+
+    return f"""<!DOCTYPE html>
+<html>
+<head><title>Earthquake Alerts</title></head>
+<body style="font-family: -apple-system, sans-serif; background: #18181b; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0;">
+  <div style="text-align: center; max-width: 400px; padding: 40px; background: #27272a; border-radius: 12px; border: 1px solid #3f3f46;">
+    <h2 style="color: {color};">{'Unsubscribed' if success else 'Error'}</h2>
+    <p style="color: #d4d4d8;">{message}</p>
+    <a href="{config.APP_URL}" style="display: inline-block; margin-top: 16px; background: #f97316; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">Back to App</a>
+  </div>
+</body>
+</html>"""
+
+
+@app.route('/api/alerts/status', methods=['GET'])
+def alert_status():
+    """Get active alert subscriptions for an email address"""
+    global dataC
+
+    if dataC is None:
+        return jsonify({'error': 'Data not loaded'}), 500
+
+    email = (request.args.get('email') or '').strip().lower()
+    if not email:
+        return jsonify({'error': 'Email required'}), 400
+
+    try:
+        alerts = dataC.get_alerts_by_email(email)
+        return jsonify({'success': True, 'alerts': alerts})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/alerts/unsubscribe', methods=['POST'])
+def unsubscribe_alert():
+    """Unsubscribe from alerts via frontend (by token)"""
+    global dataC
+
+    if dataC is None:
+        return jsonify({'error': 'Data not loaded'}), 500
+
+    try:
+        data = request.get_json()
+        token = data.get('token')
+
+        if not token:
+            return jsonify({'error': 'Token required'}), 400
+
+        success = dataC.deactivate_alert_by_token(token)
+        if success:
+            return jsonify({'success': True, 'message': 'Unsubscribed successfully'})
+        else:
+            return jsonify({'error': 'Alert not found or already unsubscribed'}), 404
+
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 

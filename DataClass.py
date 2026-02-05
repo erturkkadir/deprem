@@ -3,6 +3,7 @@ import pandas as pd
 import mysql.connector
 import datetime
 import csv
+import uuid
 import numpy as np
 import torch
 import threading
@@ -43,8 +44,9 @@ class DataC():
         self._connect_db()
         self.fname =  "./data/latest.csv"
 
-        # Ensure predictions table exists
+        # Ensure tables exist
         self._create_predictions_table()
+        self._create_email_alerts_table()
 
     @staticmethod
     def _log_bin_tensor(t, n_bins=10):
@@ -298,6 +300,150 @@ class DataC():
             except Exception as e:
                 # Column likely already exists
                 pass
+
+    def _create_email_alerts_table(self):
+        """Create email_alerts table if it doesn't exist"""
+        sql = """
+        CREATE TABLE IF NOT EXISTS email_alerts (
+            ea_id INT AUTO_INCREMENT PRIMARY KEY,
+            ea_email VARCHAR(255) NOT NULL,
+            ea_lat DECIMAL(7,4) NOT NULL,
+            ea_lon DECIMAL(7,4) NOT NULL,
+            ea_radius_km INT NOT NULL DEFAULT 500,
+            ea_active BOOLEAN NOT NULL DEFAULT TRUE,
+            ea_unsubscribe_token VARCHAR(36) NOT NULL,
+            ea_last_notified DATETIME DEFAULT NULL,
+            ea_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY idx_email_location (ea_email, ea_lat, ea_lon),
+            INDEX idx_active (ea_active),
+            INDEX idx_token (ea_unsubscribe_token)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """
+        try:
+            self._safe_execute(sql)
+            self.mydb.commit()
+        except Exception as e:
+            print(f"Error creating email_alerts table: {e}")
+
+    def add_email_alert(self, email, lat, lon, radius_km=500):
+        """Subscribe an email to earthquake alerts for a location.
+
+        If a deactivated subscription exists for the same email+location,
+        it is reactivated with a new token.
+
+        Args:
+            email: Subscriber email address
+            lat: Actual latitude (-90 to 90)
+            lon: Actual longitude (-180 to 180)
+            radius_km: Alert radius in km (default 500)
+
+        Returns:
+            dict with ea_id and token on success, None on active duplicate
+        """
+        token = str(uuid.uuid4())
+        try:
+            with self._lock:
+                # Check for existing (active or inactive) entry
+                existing = self._safe_fetch(
+                    "SELECT ea_id, ea_active FROM email_alerts WHERE ea_email = %s AND ea_lat = %s AND ea_lon = %s",
+                    (email, lat, lon), fetch_one=True
+                )
+                if existing:
+                    ea_id, ea_active = existing
+                    if ea_active:
+                        return None  # Already subscribed
+                    # Reactivate with new token
+                    self._safe_execute(
+                        "UPDATE email_alerts SET ea_active = TRUE, ea_unsubscribe_token = %s, ea_radius_km = %s, ea_last_notified = NULL WHERE ea_id = %s",
+                        (token, radius_km, ea_id)
+                    )
+                    self.mydb.commit()
+                    return {'ea_id': ea_id, 'token': token}
+
+                # New subscription
+                self._safe_execute(
+                    "INSERT INTO email_alerts (ea_email, ea_lat, ea_lon, ea_radius_km, ea_unsubscribe_token) VALUES (%s, %s, %s, %s, %s)",
+                    (email, lat, lon, radius_km, token)
+                )
+                self.mydb.commit()
+                return {'ea_id': self.mycursor.lastrowid, 'token': token}
+        except Exception as e:
+            print(f"Error adding email alert: {e}")
+            return None
+
+    def get_active_alerts_in_bbox(self, lat_min, lat_max, lon_min, lon_max):
+        """Get active alert subscriptions within a bounding box.
+
+        Args:
+            lat_min, lat_max: Latitude range (-90 to 90)
+            lon_min, lon_max: Longitude range (-180 to 180)
+
+        Returns:
+            List of tuples: (ea_id, ea_email, ea_lat, ea_lon, ea_radius_km, ea_last_notified, ea_unsubscribe_token)
+        """
+        sql = """
+        SELECT ea_id, ea_email, ea_lat, ea_lon, ea_radius_km, ea_last_notified, ea_unsubscribe_token
+        FROM email_alerts
+        WHERE ea_active = TRUE
+          AND ea_lat BETWEEN %s AND %s
+          AND ea_lon BETWEEN %s AND %s
+        """
+        try:
+            return self._safe_fetch(sql, (lat_min, lat_max, lon_min, lon_max))
+        except Exception as e:
+            print(f"Error getting alerts in bbox: {e}")
+            return []
+
+    def update_last_notified(self, ea_id):
+        """Update the last notified timestamp for an alert subscription."""
+        try:
+            self._safe_execute("UPDATE email_alerts SET ea_last_notified = NOW() WHERE ea_id = %s", (ea_id,))
+            self.mydb.commit()
+        except Exception as e:
+            print(f"Error updating last_notified: {e}")
+
+    def deactivate_alert_by_token(self, token):
+        """Deactivate an alert subscription by its unsubscribe token.
+
+        Returns:
+            True if a subscription was deactivated, False otherwise
+        """
+        try:
+            self._safe_execute(
+                "UPDATE email_alerts SET ea_active = FALSE WHERE ea_unsubscribe_token = %s AND ea_active = TRUE",
+                (token,)
+            )
+            self.mydb.commit()
+            return self.mycursor.rowcount > 0
+        except Exception as e:
+            print(f"Error deactivating alert: {e}")
+            return False
+
+    def get_alerts_by_email(self, email):
+        """Get all active alert subscriptions for an email address.
+
+        Returns:
+            List of dicts with subscription details
+        """
+        sql = """
+        SELECT ea_id, ea_lat, ea_lon, ea_radius_km, ea_unsubscribe_token, ea_created_at
+        FROM email_alerts
+        WHERE ea_email = %s AND ea_active = TRUE
+        ORDER BY ea_created_at DESC
+        """
+        try:
+            rows = self._safe_fetch(sql, (email,))
+            return [{
+                'id': r[0],
+                'lat': float(r[1]),
+                'lon': float(r[2]),
+                'radius_km': r[3],
+                'token': r[4],
+                'created_at': r[5].isoformat() if r[5] else None
+            } for r in rows]
+        except Exception as e:
+            print(f"Error getting alerts by email: {e}")
+            return []
 
     def save_prediction(self, lat_predicted, lon_predicted=None, dt_predicted=None, mag_predicted=None, place=None):
         """Save a new prediction to database

@@ -9,6 +9,7 @@ import PredictionsTable from './components/PredictionsTable';
 import PredictionDetail from './components/PredictionDetail';
 import About from './components/About';
 import RealtimeMap from './components/RealtimeMap';
+import AlertSubscription from './components/AlertSubscription';
 import TrainingLossChart from './components/TrainingLossChart';
 
 function App() {
@@ -105,6 +106,7 @@ function App() {
           </section>
 
           <LiveDashboard />
+          <AlertSubscription />
           <PredictionsTable />
           <About />
 
