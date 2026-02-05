@@ -127,7 +127,7 @@ export default function PredictionMap({ prediction, onClose }) {
               <>
                 <Circle
                   center={[predLat, predLon]}
-                  radius={1500000}
+                  radius={250000}
                   pathOptions={{
                     color: '#f97316',
                     fillColor: '#f97316',
@@ -195,7 +195,7 @@ export default function PredictionMap({ prediction, onClose }) {
               )}
               <div className="flex items-center gap-1.5">
                 <div className="w-4 h-0.5 border-t-2 border-dashed border-orange-500"></div>
-                <span className="text-zinc-400">15° radius</span>
+                <span className="text-zinc-400">250km radius</span>
               </div>
             </div>
 
@@ -204,12 +204,8 @@ export default function PredictionMap({ prediction, onClose }) {
               <div className="text-xs text-zinc-400">
                 <span className="text-zinc-500">Distance error: </span>
                 <span className={isMatched ? 'text-green-400' : 'text-red-400'}>
-                  {Math.sqrt(
-                    Math.pow(prediction.diff_lat || 0, 2) +
-                    Math.pow(prediction.diff_lon || 0, 2)
-                  ).toFixed(1)}°
+                  {prediction.diff_lat}° lat, {prediction.diff_lon}° lon
                 </span>
-                <span className="text-zinc-600 ml-1">(Lat: {prediction.diff_lat}°, Lon: {prediction.diff_lon}°)</span>
               </div>
             )}
           </div>

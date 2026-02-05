@@ -1539,7 +1539,7 @@ class EqModelComplex(nn.Module):
         return logits, loss
 
     @torch.no_grad()
-    def generate(self, x_test, temperature=2.0):
+    def generate(self, x_test, temperature=0.8):
         """Generate predictions for latitude, longitude, time difference, and magnitude.
 
         Args:
@@ -1596,7 +1596,7 @@ class EqModelComplex(nn.Module):
         # Clamp to valid ranges (no artificial minimum on magnitude)
         lat_val = min(max(lat_pred.item(), 0), 180)
         lon_val = min(max(lon_pred.item(), 0), 360)
-        dt_val = min(max(dt_pred.item(), 1), 720)    # Min 1 minute, max 12 hours between events
+        dt_val = min(max(dt_pred.item(), 1), 360)    # Min 1 minute, max 6 hours between events
         mag_val = min(max(mag_pred.item(), 0), 91)   # Full magnitude range 0-91 (0.0-9.1)
 
         return {

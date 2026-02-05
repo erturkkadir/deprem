@@ -24,7 +24,7 @@ class DataC():
         self.y_max = 360       # Longitude 0-360 (encoded: lon+180) → 361 embeddings
         self.m_max = 91        # Magnitude 0-91 (encoded: mag*10) → 92 embeddings
         self.d_max = 200       # Depth 0-200 km → 201 embeddings (captures subduction zones)
-        self.t_max = 1440      # Time diff 0-1440 minutes (24 hours) → 1441 embeddings
+        self.t_max = 360       # Time diff 0-360 minutes (6 hours) → 361 embeddings
         self.data = []
         self.train = []
         self.valid = []
@@ -573,8 +573,8 @@ class DataC():
 
             diff_mag = abs((pr_mag_predicted / 10.0) - earthquake_mag) if pr_mag_predicted else None
 
-            # A match within 15 degrees is considered correct
-            correct = distance <= 15
+            # Match is correct if within 250km
+            correct = distance <= 250
 
             sql = """
             UPDATE predictions SET
@@ -806,41 +806,45 @@ class DataC():
         except Exception as e:
             print(f"Error ins_quakes: {e}")
 
-        # Calculate location-aware time differences for new records (batch update)
-        # Instead of calling stored procedure per record, use a single batch update
+        # Calculate us_t = time since last global M4+ earthquake for new records
+        # Uses temp table to work around MySQL "can't update table used in FROM clause"
         try:
-            # Count records needing dt2
-            count_result = self._safe_fetch("SELECT COUNT(*) FROM usgs WHERE us_t2 = 0 OR us_t2 IS NULL", fetch_one=True)
+            count_result = self._safe_fetch("SELECT COUNT(*) FROM usgs WHERE us_t = 0 OR us_t IS NULL", fetch_one=True)
             count = count_result[0] if count_result else 0
 
             if count > 0:
-                print(f"Calculating dt2 for {count} new records (batch)...")
+                print(f"Calculating global M4+ dt for {count} new records...")
 
-                # Batch update: find nearest earthquake within 500km for each new record
-                # Use a single UPDATE with correlated subquery
+                # Step 1: Compute dt values into a temp table
+                self._safe_execute("DROP TABLE IF EXISTS _tmp_dt")
                 self._safe_execute("""
-                    UPDATE usgs u
-                    SET us_t2 = COALESCE(
-                        (SELECT LEAST(TIMESTAMPDIFF(MINUTE, p.us_datetime, u.us_datetime), 43200)
-                         FROM usgs p
-                         WHERE p.us_datetime < u.us_datetime
-                           AND p.us_lat BETWEEN u.us_lat - 4.5 AND u.us_lat + 4.5
-                           AND p.us_lon BETWEEN u.us_lon - 6.0 AND u.us_lon + 6.0
-                           AND (6371 * 2 * ASIN(SQRT(
-                               POWER(SIN(RADIANS(p.us_lat - u.us_lat) / 2), 2) +
-                               COS(RADIANS(u.us_lat)) * COS(RADIANS(p.us_lat)) *
-                               POWER(SIN(RADIANS(p.us_lon - u.us_lon) / 2), 2)
-                           ))) <= 500
-                         ORDER BY p.us_datetime DESC
-                         LIMIT 1),
-                        43200
-                    )
-                    WHERE u.us_t2 = 0 OR u.us_t2 IS NULL
+                    CREATE TABLE _tmp_dt AS
+                    SELECT u.us_id,
+                        GREATEST(1, COALESCE(
+                            (SELECT LEAST(TIMESTAMPDIFF(MINUTE, p.us_datetime, u.us_datetime), 360)
+                             FROM usgs p
+                             WHERE p.us_datetime < u.us_datetime
+                               AND p.us_mag >= 4.0
+                             ORDER BY p.us_datetime DESC
+                             LIMIT 1),
+                            360
+                        )) as dt_val
+                    FROM usgs u
+                    WHERE u.us_t = 0 OR u.us_t IS NULL
                 """)
                 self.mydb.commit()
-                print("Done calculating dt2 (batch)")
+
+                # Step 2: Join-update from temp table
+                self._safe_execute("UPDATE usgs u JOIN _tmp_dt t ON u.us_id = t.us_id SET u.us_t = t.dt_val")
+                self.mydb.commit()
+
+                self._safe_execute("DROP TABLE IF EXISTS _tmp_dt")
+                self.mydb.commit()
+                print(f"Done calculating global M4+ dt for {count} records")
         except Exception as e:
-            print(f"Error batch calc_dt2: {e}")
+            print(f"Error batch calc_dt: {e}")
+            import traceback
+            traceback.print_exc()
         
     def getData(self, from_db=True, min_mag=3.9):
         """Load training data from database or CSV.
@@ -1220,7 +1224,7 @@ class DataC():
         """
         try:
             # Query the database for the last T earthquakes
-            # Use pre-computed location-aware dt (us_t2)
+            # Use pre-computed location-aware dt (us_t)
             sql = """
             SELECT year, month, us_x, us_y, us_m, us_d, us_t FROM (
                 SELECT
@@ -1231,9 +1235,9 @@ class DataC():
                     us_m,
                     GREATEST(us_d, 0) as us_d,
                     CASE
-                        WHEN us_t2 IS NULL OR us_t2 = 0 THEN 720
-                        WHEN us_t2 > 720 THEN 720
-                        ELSE us_t2
+                        WHEN us_t IS NULL OR us_t = 0 THEN 360
+                        WHEN us_t > 360 THEN 360
+                        ELSE us_t
                     END as us_t,
                     us_datetime
                 FROM usgs

@@ -372,7 +372,7 @@ export default function PredictionDetail() {
                         </span>
                       </td>
                       <td className="py-2 pr-4 font-mono text-zinc-400">
-                        {eq.distance !== null ? `${eq.distance}°` : '—'}
+                        {eq.distance !== null ? `${eq.distance}km` : '—'}
                       </td>
                       <td className="py-2">
                         {eq.is_match ? (

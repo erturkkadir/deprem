@@ -100,12 +100,22 @@ current_checkpoint = None  # Track which checkpoint is loaded
 MODEL_DIR = '/var/www/syshuman/quake'
 MODEL_PREFIX = 'eqModel_complex'
 
-# Verification tolerances
-DISTANCE_RADIUS = 15  # degrees - circular distance for matching
-DT_TOLERANCE = 30     # minutes
-MAG_TOLERANCE = 1.0   # magnitude
-MIN_MAG_DISPLAY = 4.0 # Only show predictions with mag >= 4.0
-DATA_DELAY_BUFFER = 30  # minutes - extra time to wait for delayed earthquake reports
+# Matching criteria (from README.md)
+MATCH_RADIUS_KM = 250       # Haversine distance for matching (km)
+MAGNITUDE_TOLERANCE = 0.75  # ±0.75 magnitude
+MIN_MAG_DISPLAY = 4.0       # Only show predictions with mag >= 4.0
+MIN_PREDICTION_WINDOW = 10  # minutes - reject predictions with window < 10 min
+LATE_SEARCH_HOURS = 72      # hours - continue searching after MISSED before closing
+EARTH_RADIUS_KM = 6371      # km
+
+
+def haversine_km(lat1, lon1, lat2, lon2):
+    """Calculate great-circle distance in km between two points."""
+    lat1_r, lat2_r = math.radians(lat1), math.radians(lat2)
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat/2)**2 + math.cos(lat1_r) * math.cos(lat2_r) * math.sin(dlon/2)**2
+    return EARTH_RADIUS_KM * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
 
 
 def get_latest_checkpoint():
@@ -237,14 +247,12 @@ def make_prediction():
         return None
 
     try:
-        # RACE CONDITION PREVENTION: Check if there's already a pending prediction
-        # This prevents multiple predictions from being created simultaneously
+        # RACE CONDITION PREVENTION: Don't create duplicate predictions within 30 seconds
         existing = dataC.get_latest_prediction(min_mag=4.0)
         if existing and not existing.get('verified'):
             pr_timestamp = datetime.fromisoformat(existing['timestamp'])
-            # If existing prediction was created in last 60 seconds, skip creating new one
-            if (datetime.now() - pr_timestamp).total_seconds() < 60:
-                print(f"[{datetime.now()}] Skipping - recent pending prediction #{existing['id']} exists")
+            if (datetime.now() - pr_timestamp).total_seconds() < 30:
+                print(f"[{datetime.now()}] Skipping - prediction #{existing['id']} created {(datetime.now() - pr_timestamp).total_seconds():.0f}s ago")
                 return existing['id']
 
         # IMPORTANT: Use getLastFromDB() to get FRESH data directly from database
@@ -286,88 +294,74 @@ def make_prediction():
 
 
 def auto_verify_predictions():
-    """Verify old predictions against actual earthquakes"""
+    """72h late search: check missed predictions for late matches.
+
+    Predictions marked as missed (verified=True, correct=False, no actual_id)
+    are re-checked for up to 72 hours after their predicted event time.
+    If a match is found → LATE CATCH. If 72h passes → MISSED FINAL (stays closed).
+    """
     global dataC
 
     if dataC is None:
         return
 
     try:
-        unverified = dataC.get_unverified_predictions(older_than_hours=24)
+        # Get predictions that are missed but might still get a late catch
+        # These are: verified=True, correct=False, actual_id IS NULL, within 72h of predicted event
+        sql = """
+            SELECT pr_id, pr_timestamp, pr_lat_predicted, pr_lon_predicted,
+                   pr_dt_predicted, pr_mag_predicted
+            FROM predictions
+            WHERE pr_verified = 1 AND pr_correct = 0 AND pr_actual_id IS NULL
+              AND pr_timestamp > DATE_SUB(NOW(), INTERVAL %s HOUR)
+        """
+        missed_preds = dataC._safe_fetch(sql, (LATE_SEARCH_HOURS + 24,))
 
-        for pred in unverified:
-            pr_id, pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted = pred
+        for pred in missed_preds:
+            pr_id, pr_timestamp, pr_lat, pr_lon, pr_dt, pr_mag = pred
 
-            start_time = pr_timestamp
-            end_time = pr_timestamp + timedelta(hours=24)
+            pred_lat_actual = (pr_lat - 90) if pr_lat else None
+            pred_lon_actual = (pr_lon - 180) if pr_lon else None
+            pred_mag_actual = (pr_mag / 10.0) if pr_mag else 4.0
 
-            actuals = dataC.get_earthquakes_in_window(start_time, end_time, min_mag=4.0)
+            # Search window: from prediction time to prediction_time + dt + 72h
+            expected_event_time = pr_timestamp + timedelta(minutes=pr_dt or 60)
+            late_search_end = expected_event_time + timedelta(hours=LATE_SEARCH_HOURS)
 
-            if actuals:
-                # Find closest match by circular distance
-                best_match = None
-                min_distance = float('inf')
+            # Only search if we're still within the 72h window
+            now = datetime.now()
+            if now > late_search_end:
+                continue  # Already past 72h - stays as MISSED FINAL
 
-                for actual in actuals:
-                    us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = actual
-                    lat_diff = abs(pr_lat_predicted - us_x) if pr_lat_predicted else 180
-                    lon_diff = abs(pr_lon_predicted - us_y) if pr_lon_predicted else 360
-                    lon_diff = min(lon_diff, 360 - lon_diff)
+            # Match = M4+ earthquake within 250km of predicted location
+            actuals = dataC.get_earthquakes_in_window(pr_timestamp, now, min_mag=4.0)
 
-                    distance = math.sqrt(lat_diff ** 2 + lon_diff ** 2)
-                    if distance < min_distance:
-                        min_distance = distance
-                        best_match = actual
+            for actual in (actuals or []):
+                us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = actual
 
-                if best_match:
-                    us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = best_match
+                eq_lat = us_x - 90
+                eq_lon = us_y - 180
+                dist_km = haversine_km(pred_lat_actual, pred_lon_actual, eq_lat, eq_lon) if pred_lat_actual is not None else None
 
-                    diff_lat = abs(pr_lat_predicted - us_x) if pr_lat_predicted else None
-                    diff_lon = abs(pr_lon_predicted - us_y) if pr_lon_predicted else None
-                    if diff_lon:
-                        diff_lon = min(diff_lon, 360 - diff_lon)
+                if dist_km is not None and dist_km <= MATCH_RADIUS_KM:
+                    actual_dt = int((us_datetime - pr_timestamp).total_seconds() / 60)
+                    diff_dt = abs((pr_dt or 60) - actual_dt)
+                    diff_mag = abs(pred_mag_actual - us_mag) if us_mag else None
 
-                    actual_dt = int((us_datetime - pr_timestamp).total_seconds() / 60) if us_datetime else None
-                    diff_dt = abs(pr_dt_predicted - actual_dt) if (pr_dt_predicted and actual_dt) else None
-
-                    actual_mag_encoded = int(us_mag * 10) if us_mag else None
-                    diff_mag = abs((pr_mag_predicted / 10.0) - us_mag) if (pr_mag_predicted and us_mag) else None
-
-                    circular_distance = math.sqrt((diff_lat or 0) ** 2 + (diff_lon or 0) ** 2)
-                    correct = circular_distance <= DISTANCE_RADIUS
+                    print(f"[{now}] LATE CATCH for prediction #{pr_id}: M{us_mag} at {dist_km:.0f}km - {us_place}")
 
                     dataC.verify_prediction(
-                        pr_id=pr_id,
-                        actual_id=us_id,
-                        actual_lat=us_x,
-                        actual_lon=us_y,
+                        pr_id=pr_id, actual_id=us_id,
+                        actual_lat=us_x, actual_lon=us_y,
                         actual_dt=actual_dt,
-                        actual_mag=actual_mag_encoded,
+                        actual_mag=int(us_mag * 10) if us_mag else None,
                         actual_time=us_datetime,
-                        diff_lat=int(diff_lat) if diff_lat else None,
-                        diff_lon=int(diff_lon) if diff_lon else None,
-                        diff_dt=int(diff_dt) if diff_dt else None,
-                        diff_mag=diff_mag,
-                        correct=correct
+                        diff_lat=int(abs(pr_lat - us_x)) if pr_lat else None,
+                        diff_lon=int(abs(pr_lon - us_y)) if pr_lon else None,
+                        diff_dt=int(diff_dt),
+                        diff_mag=diff_mag, correct=True
                     )
-                    print(f"[{datetime.now()}] Verified prediction {pr_id}: distance={circular_distance:.1f}, correct={correct}")
-            else:
-                # No earthquakes found in window - mark as missed
-                dataC.verify_prediction(
-                    pr_id=pr_id,
-                    actual_id=None,
-                    actual_lat=None,
-                    actual_lon=None,
-                    actual_dt=None,
-                    actual_mag=None,
-                    actual_time=None,
-                    diff_lat=None,
-                    diff_lon=None,
-                    diff_dt=None,
-                    diff_mag=None,
-                    correct=False
-                )
-                print(f"[{datetime.now()}] Prediction {pr_id} marked as missed (no M4.0+ earthquakes in 24h window)")
+                    break  # First match wins
 
     except Exception as e:
         print(f"Error in auto-verification: {e}")
@@ -377,12 +371,13 @@ def auto_verify_predictions():
 
 def check_and_handle_prediction():
     """
-    Main prediction cycle logic:
-    1. Check if current prediction has a match -> verify & new prediction
-    2. Check if current prediction expired -> new prediction
-    3. If no active prediction -> new prediction
+    Prediction cycle following README.md spec:
 
-    Returns: dict with status info or None
+    Status flow: PENDING → MATCHED (green, closed)
+                        → MISSED (yellow) → search 72h → LATE CATCH (orange) or MISSED FINAL (red)
+
+    When window expires (MISSED), immediately create a NEW prediction.
+    The old prediction continues its 72h late search in the background via auto_verify_predictions().
     """
     global dataC
 
@@ -390,130 +385,104 @@ def check_and_handle_prediction():
         return None
 
     try:
-        # Get the latest prediction
+        now = datetime.now()
         latest = dataC.get_latest_prediction(min_mag=4.0)
 
         # No prediction exists - make one
         if not latest:
-            print(f"[{datetime.now()}] No active prediction, creating new one...")
+            print(f"[{now}] No active prediction, creating new one...")
             make_prediction()
             return {'action': 'new_prediction', 'reason': 'no_prediction'}
 
-        # Prediction already verified - make new one
+        # Prediction already verified/closed - make new one
         if latest.get('verified'):
-            print(f"[{datetime.now()}] Previous prediction verified, creating new one...")
+            print(f"[{now}] Previous prediction closed, creating new one...")
             make_prediction()
-            return {'action': 'new_prediction', 'reason': 'previous_verified'}
+            return {'action': 'new_prediction', 'reason': 'previous_closed'}
 
-        # Active unverified prediction - check for match or expiry
+        # Active PENDING prediction
         pr_id = latest['id']
         pr_timestamp = datetime.fromisoformat(latest['timestamp'])
-        pr_lat = latest.get('predicted_lat')
-        pr_lon = latest.get('predicted_lon')
-        pr_mag = latest.get('predicted_mag')
-        pr_dt = latest.get('predicted_dt') or 60  # Default 60 min if not set
+        pred_lat_actual = latest.get('predicted_lat')   # already decoded by get_latest_prediction()
+        pred_lon_actual = latest.get('predicted_lon')   # already decoded
+        pred_mag_actual = latest.get('predicted_mag') or 4.0  # already decoded
+        pr_dt = latest.get('predicted_dt') or 60
 
-        if pr_lat is None or pr_lon is None:
+        if pred_lat_actual is None or pred_lon_actual is None:
             return None
 
-        # Get recent earthquakes since prediction was made
-        end_time = datetime.now()
-        recent_quakes = dataC.get_earthquakes_in_window(pr_timestamp, end_time, min_mag=4.0)
+        # Prediction window
+        expected_event_time = pr_timestamp + timedelta(minutes=pr_dt)
 
-        # Check for match
+        # Match = first M4+ earthquake that occurred since the prediction
+        # Match = M4+ earthquake within 250km of predicted location AND within dt window
+        recent_quakes = dataC.get_earthquakes_in_window(pr_timestamp, now, min_mag=4.0)
+
         if recent_quakes:
-            for quake in recent_quakes:
-                us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = quake
+            for us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place in recent_quakes:
+                eq_lat = us_x - 90
+                eq_lon = us_y - 180
+                dist_km = haversine_km(pred_lat_actual, pred_lon_actual, eq_lat, eq_lon)
 
-                # Calculate circular distance
-                # pr_lat/lon are actual coords (-90 to 90, -180 to 180)
-                # us_x/y are encoded (0-180, 0-360), so convert pr to encoded
-                lat_diff = abs((pr_lat + 90) - us_x)
-                lon_diff = abs((pr_lon + 180) - us_y)
-                lon_diff = min(lon_diff, 360 - lon_diff)
-                distance = math.sqrt(lat_diff ** 2 + lon_diff ** 2)
-
-                if distance <= DISTANCE_RADIUS:
-                    # MATCH FOUND!
-                    print(f"\n{'='*60}")
-                    print(f"[{datetime.now()}] MATCH FOUND!")
-                    print(f"  Prediction #{pr_id}: {pr_lat:.1f}°, {pr_lon:.1f}°")
-                    print(f"  Actual: {us_x-90:.1f}°, {us_y-180:.1f}° - M{us_mag} - {us_place}")
-                    print(f"  Distance: {distance:.1f}° (threshold: {DISTANCE_RADIUS}°)")
-                    print(f"{'='*60}\n")
-
-                    # Calculate differences
+                if dist_km <= MATCH_RADIUS_KM:
                     actual_dt = int((us_datetime - pr_timestamp).total_seconds() / 60)
                     diff_dt = abs(pr_dt - actual_dt) if pr_dt else None
-                    diff_mag = abs(pr_mag - us_mag) if pr_mag and us_mag else None
+                    diff_mag = abs(pred_mag_actual - us_mag) if us_mag else None
 
-                    # Update prediction as verified and correct
+                    print(f"\n{'='*60}")
+                    print(f"[{now}] MATCHED! M{us_mag} within {dist_km:.0f}km")
+                    print(f"  Prediction #{pr_id}: {pred_lat_actual:.1f}°, {pred_lon_actual:.1f}°, M{pred_mag_actual:.1f}, dt={pr_dt}min")
+                    print(f"  Actual: {eq_lat:.1f}°, {eq_lon:.1f}° - M{us_mag} - {us_place}")
+                    print(f"{'='*60}\n")
+
                     dataC.verify_prediction(
-                        pr_id=pr_id,
-                        actual_id=us_id,
-                        actual_lat=us_x,
-                        actual_lon=us_y,
+                        pr_id=pr_id, actual_id=us_id,
+                        actual_lat=us_x, actual_lon=us_y,
                         actual_dt=actual_dt,
                         actual_mag=int(us_mag * 10) if us_mag else None,
                         actual_time=us_datetime,
-                        diff_lat=int(lat_diff),
-                        diff_lon=int(lon_diff),
+                        diff_lat=int(abs(pred_lat_actual - eq_lat)),
+                        diff_lon=int(abs(pred_lon_actual - eq_lon)),
                         diff_dt=int(diff_dt) if diff_dt else None,
-                        diff_mag=diff_mag,
-                        correct=True
+                        diff_mag=diff_mag, correct=True
                     )
 
-                    # Make new prediction
-                    print(f"[{datetime.now()}] Starting new prediction after match...")
+                    # Make new prediction immediately
+                    print(f"[{now}] Creating new prediction...")
                     make_prediction()
-
                     return {
-                        'action': 'match_found',
+                        'action': 'matched',
                         'prediction_id': pr_id,
                         'earthquake_id': us_id,
-                        'distance': distance,
+                        'distance_km': round(dist_km),
                         'place': us_place,
                         'mag': us_mag
                     }
 
-        # Check if prediction window has expired (with buffer for delayed data)
-        expected_event_time = pr_timestamp + timedelta(minutes=pr_dt)
-        buffer_end_time = expected_event_time + timedelta(minutes=DATA_DELAY_BUFFER)
-        now = datetime.now()
+        # No match found - check if window expired
+        if now > expected_event_time:
+            # Window expired → MISSED status
+            # Mark as missed and immediately create new prediction
+            # The 72h late search continues via auto_verify_predictions()
+            print(f"[{now}] Prediction #{pr_id} window expired (dt={pr_dt}min), status: MISSED")
+            print(f"  Late search continues for {LATE_SEARCH_HOURS}h via auto_verify")
 
-        if now > buffer_end_time:
-            # Buffer period passed - mark as missed
-            print(f"[{now}] Prediction #{pr_id} expired + buffer ({DATA_DELAY_BUFFER}min) passed, marking as MISSED...")
-
-            # Mark the expired prediction as missed (verified=true, correct=false)
             dataC.verify_prediction(
-                pr_id=pr_id,
-                actual_id=None,
-                actual_lat=None,
-                actual_lon=None,
-                actual_dt=None,
-                actual_mag=None,
-                actual_time=None,
-                diff_lat=None,
-                diff_lon=None,
-                diff_dt=None,
-                diff_mag=None,
-                correct=False
+                pr_id=pr_id, actual_id=None,
+                actual_lat=None, actual_lon=None, actual_dt=None,
+                actual_mag=None, actual_time=None,
+                diff_lat=None, diff_lon=None, diff_dt=None,
+                diff_mag=None, correct=False
             )
 
-            # Create new prediction
+            # Create new prediction right away
             print(f"[{now}] Creating new prediction...")
             make_prediction()
-            return {'action': 'expired_marked_missed', 'prediction_id': pr_id}
+            return {'action': 'missed_new_prediction', 'prediction_id': pr_id}
 
-        elif now > expected_event_time:
-            # In buffer period - still checking for delayed earthquake reports
-            buffer_remaining = (buffer_end_time - now).total_seconds() / 60
-            return {'action': 'in_buffer', 'prediction_id': pr_id, 'buffer_remaining_minutes': round(buffer_remaining, 1)}
-
-        # Still waiting - no action needed
+        # Still PENDING - show countdown
         remaining = (expected_event_time - now).total_seconds() / 60
-        return {'action': 'waiting', 'prediction_id': pr_id, 'remaining_minutes': round(remaining, 1)}
+        return {'action': 'pending', 'prediction_id': pr_id, 'remaining_minutes': round(remaining, 1)}
 
     except Exception as e:
         print(f"Error in check_and_handle_prediction: {e}")
@@ -688,70 +657,97 @@ def get_live_data():
 
             # Calculate time window
             expected_event_time = pr_timestamp + timedelta(minutes=pr_dt)
-            buffer_end_time = expected_event_time + timedelta(minutes=DATA_DELAY_BUFFER)
             is_expired = now > expected_event_time
-            is_buffer_expired = now > buffer_end_time  # True only after buffer period
 
             # Calculate remaining/elapsed time
             if is_expired:
                 elapsed_seconds = int((now - expected_event_time).total_seconds())
-                time_remaining_seconds = -elapsed_seconds  # Negative means expired
+                time_remaining_seconds = -elapsed_seconds
             else:
                 time_remaining_seconds = int((expected_event_time - now).total_seconds())
 
-            # Build prediction status for frontend (UTC times with Z suffix)
+            # Build prediction status for frontend
             prediction_status = {
                 'is_expired': is_expired,
-                'is_in_buffer': is_expired and not is_buffer_expired,  # Expired but still checking for delayed data
-                'buffer_minutes': DATA_DELAY_BUFFER,
                 'time_remaining_seconds': time_remaining_seconds,
                 'start_time': pr_timestamp.isoformat() + 'Z',
                 'end_time': expected_event_time.isoformat() + 'Z',
-                'buffer_end_time': buffer_end_time.isoformat() + 'Z',
                 'current_time': now.isoformat() + 'Z'
             }
 
-            # Calculate distance for each earthquake
-            if pr_lat is not None and pr_lon is not None:
-                min_distance = float('inf')
+            # Values from get_latest_prediction() are already decoded
+            pred_lat_actual = pr_lat  # already actual lat
+            pred_lon_actual = pr_lon  # already actual lon
+            pred_mag_actual = pr_mag or 4.0  # already actual mag
 
+            # Calculate distance for each earthquake using haversine (km)
+            if pred_lat_actual is not None and pred_lon_actual is not None:
+                min_distance_km = float('inf')
+
+                # Calculate distance and check match for each earthquake
                 for eq in recent_earthquakes:
-                    eq_lat = eq.get('lat')
-                    eq_lon = eq.get('lon')
+                    eq_lat = eq.get('lat')  # already decoded
+                    eq_lon = eq.get('lon')  # already decoded
                     eq_mag = eq.get('mag') or 0
 
                     if eq_lat is not None and eq_lon is not None:
-                        lat_diff = abs(pr_lat - eq_lat)
-                        lon_diff = abs(pr_lon - eq_lon)
-                        lon_diff = min(lon_diff, 360 - lon_diff)
-                        distance = math.sqrt(lat_diff ** 2 + lon_diff ** 2)
+                        dist_km = haversine_km(pred_lat_actual, pred_lon_actual, eq_lat, eq_lon)
+                        eq['distance_km'] = round(dist_km)
+                        eq['distance'] = round(dist_km)
 
-                        eq['distance'] = round(distance, 1)
-                        is_match = distance <= DISTANCE_RADIUS and eq_mag >= MIN_MAG_DISPLAY
-                        eq['is_match'] = is_match
+                        if dist_km < min_distance_km:
+                            min_distance_km = dist_km
 
-                        if eq_mag >= MIN_MAG_DISPLAY and distance < min_distance:
-                            min_distance = distance
-                            closest_match = {
-                                'earthquake_id': eq.get('id'),
-                                'distance': round(distance, 1),
-                                'is_match': is_match,
-                                'place': eq.get('place'),
-                                'mag': eq_mag
-                            }
-                            if is_match:
+                    # Match = M4+ within 250km and after prediction time
+                    eq_time_str = eq.get('time', '')
+                    if eq_time_str and eq_mag >= MIN_MAG_DISPLAY and eq.get('distance_km') is not None:
+                        eq_time = datetime.fromisoformat(eq_time_str.replace('Z', '+00:00')).replace(tzinfo=None)
+                        if eq_time >= pr_timestamp and eq['distance_km'] <= MATCH_RADIUS_KM:
+                            eq['is_match'] = True
+                            if not matched_earthquake:
                                 matched_earthquake = eq
+                        else:
+                            eq['is_match'] = False
+                    else:
+                        eq['is_match'] = False
 
-                if closest_match and closest_match['is_match']:
+                # Build closest_match info (closest M4+ earthquake regardless of match)
+                closest_m4 = None
+                for eq in recent_earthquakes:
+                    if (eq.get('mag') or 0) >= MIN_MAG_DISPLAY and eq.get('distance_km') is not None:
+                        if closest_m4 is None or eq['distance_km'] < closest_m4.get('distance_km', float('inf')):
+                            closest_m4 = eq
+
+                if matched_earthquake:
+                    match_dist = matched_earthquake.get('distance_km', 0)
+                    closest_match = {
+                        'earthquake_id': matched_earthquake.get('id'),
+                        'distance_km': match_dist,
+                        'distance': match_dist,
+                        'is_match': True,
+                        'place': matched_earthquake.get('place'),
+                        'mag': matched_earthquake.get('mag')
+                    }
                     match_info = closest_match
+                elif closest_m4:
+                    closest_match = {
+                        'earthquake_id': closest_m4.get('id'),
+                        'distance_km': closest_m4.get('distance_km'),
+                        'distance': closest_m4.get('distance_km'),
+                        'is_match': False,
+                        'place': closest_m4.get('place'),
+                        'mag': closest_m4.get('mag')
+                    }
 
-            # AUTO-HANDLE: If match found, verify prediction and create new one
+            # AUTO-HANDLE: match found → verify and new prediction
             if matched_earthquake:
+                eq_mag = matched_earthquake.get('mag')
+                eq_dist = matched_earthquake.get('distance_km', 0)
+
                 print(f"\n{'='*60}")
-                print(f"[{now}] MATCH DETECTED via /api/live!")
-                print(f"  Prediction #{pr_id}: {pr_lat:.1f}°, {pr_lon:.1f}°")
-                print(f"  Matched: M{matched_earthquake.get('mag')} - {matched_earthquake.get('place')}")
-                print(f"  Distance: {matched_earthquake.get('distance')}°")
+                print(f"[{now}] MATCHED via /api/live!")
+                print(f"  Prediction #{pr_id}: {pred_lat_actual:.1f}°, {pred_lon_actual:.1f}°, M{pred_mag_actual:.1f}, dt={pr_dt}min")
+                print(f"  Actual: M{eq_mag} - {matched_earthquake.get('place')} ({eq_dist}km away)")
                 print(f"{'='*60}\n")
 
                 dataC.update_prediction_match(
@@ -761,38 +757,26 @@ def get_live_data():
                     earthquake_lon=matched_earthquake.get('lon'),
                     earthquake_mag=matched_earthquake.get('mag'),
                     earthquake_time=matched_earthquake.get('time'),
-                    distance=matched_earthquake.get('distance')
+                    distance=eq_dist
                 )
 
-                print(f"[{now}] Starting new prediction after match...")
+                print(f"[{now}] Creating new prediction...")
                 make_prediction()
 
                 latest_prediction = dataC.get_latest_prediction()
                 recent_earthquakes = dataC.get_recent_earthquakes(limit=50, min_mag=2.0)
                 stats = dataC.get_prediction_stats()
-                if match_info:
-                    match_info['verified_match'] = True
 
-            # AUTO-HANDLE: If expired AND buffer period passed without match, mark as missed
-            # Buffer allows time for delayed earthquake reports from data sources
-            elif is_buffer_expired:
-                buffer_elapsed = int((now - buffer_end_time).total_seconds())
-                print(f"[{now}] Prediction #{pr_id} EXPIRED + BUFFER ({DATA_DELAY_BUFFER}min) passed, marking as MISSED...")
+            # AUTO-HANDLE: window expired, no M4+ eq yet → MISSED
+            elif is_expired:
+                print(f"[{now}] Prediction #{pr_id} window expired (dt={pr_dt}min), marking MISSED...")
 
-                # Mark expired prediction as missed
                 dataC.verify_prediction(
-                    pr_id=pr_id,
-                    actual_id=None,
-                    actual_lat=None,
-                    actual_lon=None,
-                    actual_dt=None,
-                    actual_mag=None,
-                    actual_time=None,
-                    diff_lat=None,
-                    diff_lon=None,
-                    diff_dt=None,
-                    diff_mag=None,
-                    correct=False
+                    pr_id=pr_id, actual_id=None,
+                    actual_lat=None, actual_lon=None, actual_dt=None,
+                    actual_mag=None, actual_time=None,
+                    diff_lat=None, diff_lon=None, diff_dt=None,
+                    diff_mag=None, correct=False
                 )
 
                 print(f"[{now}] Creating new prediction...")
@@ -803,7 +787,7 @@ def get_live_data():
                 stats = dataC.get_prediction_stats()
 
                 # Recalculate status for new prediction
-                if latest_prediction:
+                if latest_prediction and not latest_prediction.get('verified'):
                     new_pr_dt = latest_prediction.get('predicted_dt') or 60
                     new_pr_timestamp = datetime.fromisoformat(latest_prediction.get('timestamp'))
                     new_expected_time = new_pr_timestamp + timedelta(minutes=new_pr_dt)
@@ -1142,7 +1126,7 @@ def get_prediction_detail(prediction_id):
             # Check if this earthquake is within the prediction window
             in_window = minutes_after_prediction is not None and 0 <= minutes_after_prediction <= pr_dt
 
-            # Check if it matches the prediction location (within 15 degrees)
+            # Match = M4+ earthquake within 250km and within prediction time window
             pr_lat_encoded = row[2]  # Still encoded
             pr_lon_encoded = row[3]
             eq_lat_encoded = eq[2]
@@ -1151,11 +1135,10 @@ def get_prediction_detail(prediction_id):
             is_match = False
             distance = None
             if pr_lat_encoded and pr_lon_encoded and eq_lat_encoded and eq_lon_encoded:
-                lat_diff = abs(pr_lat_encoded - eq_lat_encoded)
-                lon_diff = abs(pr_lon_encoded - eq_lon_encoded)
-                lon_diff = min(lon_diff, 360 - lon_diff)
-                distance = math.sqrt(lat_diff ** 2 + lon_diff ** 2)
-                is_match = distance <= DISTANCE_RADIUS and eq[4] >= MIN_MAG_DISPLAY
+                dist_km = haversine_km(pr_lat_encoded - 90, pr_lon_encoded - 180,
+                                       eq_lat_encoded - 90, eq_lon_encoded - 180)
+                distance = round(dist_km)
+                is_match = in_window and (eq[4] or 0) >= MIN_MAG_DISPLAY and dist_km <= MATCH_RADIUS_KM
 
             earthquakes.append({
                 'id': eq[0],
@@ -1290,7 +1273,7 @@ def model_status():
             'embedding_size': n_embed,
             'num_heads': n_heads,
             'num_layers': n_layer,
-            'distance_radius': DISTANCE_RADIUS,
+            'match_radius_km': MATCH_RADIUS_KM,
             'min_mag_display': MIN_MAG_DISPLAY
         },
         'scheduler_running': scheduler is not None and scheduler.running if scheduler else False
@@ -1473,7 +1456,7 @@ def init_app():
     start_scheduler()
 
     print("=" * 60)
-    print("Server ready! Monitoring every 30 seconds.")
+    print("Server ready! Monitoring every 120 seconds.")
     print("=" * 60)
 
 

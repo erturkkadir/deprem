@@ -38,8 +38,8 @@ n_layer = 6        # Reduced layers for memory
 dropout = 0.1      # Increased from 0.01 - prevents overfitting
 
 # Training hyperparameters
-LEARNING_RATE = 3e-4
-ACCUMULATION_STEPS = 8  # Effective batch size = B * ACCUMULATION_STEPS = 16
+LEARNING_RATE = 1e-4
+ACCUMULATION_STEPS = 16  # Effective batch size = B * ACCUMULATION_STEPS = 32
 LABEL_SMOOTHING = 0.1   # Reduces overconfidence
 INPUT_MAG = 2.0    # Min magnitude for input context
 TARGET_MAG = 4.0   # Min magnitude for targets
@@ -311,7 +311,7 @@ def train():
 
             # Only update weights every ACCUMULATION_STEPS
             if iteration % ACCUMULATION_STEPS == 0:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
                 optimizer.step()
                 optimizer.zero_grad(set_to_none=True)
 

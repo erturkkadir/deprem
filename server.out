@@ -7,25 +7,29 @@ Hybrid: M2.0+ input, M4.0+ targets
 
 Loading hybrid data...
 Database connection established
-Loaded 1,489,150 records (M2.0+)
-  Training targets (M4.0+): 520,421 (34.9%)
+Loaded 1,489,993 records (M2.0+)
+  Training targets (M4.0+): 520,576 (34.9%)
   Warning: depth max 651 exceeds model limit 200, will be clamped
 
 Loading model...
-[2026-02-02 23:59:20.718853] Loading model...
+[2026-02-05 16:09:25.841958] Loading model...
 Database connection established
-Loaded 1,489,150 records (M2.0+)
-  Training targets (M4.0+): 520,421 (34.9%)
+Loaded 1,489,993 records (M2.0+)
+  Training targets (M4.0+): 520,576 (34.9%)
   Warning: depth max 651 exceeds model limit 200, will be clamped
-[2026-02-02 23:59:51.844829] Loaded checkpoint: eqModel_complex_20260202_235615.pth
+[2026-02-05 16:09:56.871479] Checkpoint incompatible, using random weights
+  Error: Error(s) in loading state_dict for EqModelComplex:
+	size mismatch for embed.t_embed.log_magnitude.weight: copying a param with shape torch.Size([1441, 84]) from checkpoint, the shape in current model is torch.Size([361, 84]).
+	size mismatch for embed.t_embed.phase.weight: copying a param with shape torch.Size([1441, 84]) from checkpoint, the shape in current model is torch.Size([361, 84]).
+	size mismatch for dt_head.weight: copying a param with shape torch.Size([1441, 2352]) from checkpoint, the shape in current model is torch.Size([361, 2352]).
 
 Checking for active prediction...
-Active prediction found: #1119 (538.0 minutes remaining)
+Active prediction found: #1189 (45.7 minutes remaining)
 
 Starting scheduler...
 Scheduler started: monitoring every 120 seconds
 ============================================================
-Server ready! Monitoring every 30 seconds.
+Server ready! Monitoring every 120 seconds.
 ============================================================
 Server starting on http://0.0.0.0:3000
  * Serving Flask app 'server'
@@ -35,67 +39,80 @@ Server starting on http://0.0.0.0:3000
  * Running on http://127.0.0.1:3000
  * Running on http://192.168.1.177:3000
 [33mPress CTRL+C to quit[0m
-45.43.154.230 - - [02/Feb/2026 23:59:56] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [02/Feb/2026 23:59:59] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
-45.43.154.230 - - [02/Feb/2026 23:59:59] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [02/Feb/2026 23:59:59] "GET /api/stats HTTP/1.1" 200 -
-45.43.154.230 - - [02/Feb/2026 23:59:59] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [02/Feb/2026 23:59:59] "GET /api/model/status HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:00:00] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:00:09] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:00:19] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:00:29] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:00:29] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:00:39] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:00:49] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:00:59] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:00:59] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:01:09] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:01:19] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:01:29] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-[EMSC] Fetched 272 earthquakes for last 1 day(s)
-Batch inserted 272 earthquakes
-Error ins_quakes: 1048 (23000): Column 'us_t' cannot be null
-Calculating dt2 for 43936 new records (batch)...
-Error batch calc_dt2: 1093 (HY000): You can't specify target table 'u' for update in FROM clause
-[2026-02-03 00:01:54.138250] Status: waiting - {'action': 'waiting', 'prediction_id': 1119, 'remaining_minutes': 536.0}
-45.43.154.230 - - [03/Feb/2026 00:01:59] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:01:59] "GET /api/stats HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:01:59] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:02:27] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:02:29] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:02:41] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:02:49] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:02:59] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:02:59] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:03:09] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:03:19] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:03:29] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:03:29] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:03:39] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:03:49] "GET /api/live HTTP/1.1" 200 -
-[EMSC] Fetched 272 earthquakes for last 1 day(s)
-Batch inserted 272 earthquakes
-Error ins_quakes: 1048 (23000): Column 'us_t' cannot be null
-Calculating dt2 for 43936 new records (batch)...
-Error batch calc_dt2: 1093 (HY000): You can't specify target table 'u' for update in FROM clause
-[2026-02-03 00:03:54.225267] Status: waiting - {'action': 'waiting', 'prediction_id': 1119, 'remaining_minutes': 534.0}
-45.43.154.230 - - [03/Feb/2026 00:03:59] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:03:59] "GET /api/stats HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:04:27] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:04:27] "GET /api/live HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:04:59] "GET /api/model/status HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:05:27] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:05:27] "GET /api/live HTTP/1.1" 200 -
-[2026-02-03 00:05:51.878507] New checkpoint detected: eqModel_complex_20260203_000353.pth
-[2026-02-03 00:05:54.890384] Reloaded weights: eqModel_complex_20260203_000353.pth
-[EMSC] Fetched 271 earthquakes for last 1 day(s)
-Batch inserted 271 earthquakes
-Error ins_quakes: 1048 (23000): Column 'us_t' cannot be null
-Calculating dt2 for 43936 new records (batch)...
-Error batch calc_dt2: 1093 (HY000): You can't specify target table 'u' for update in FROM clause
-[2026-02-03 00:05:57.003972] Status: waiting - {'action': 'waiting', 'prediction_id': 1119, 'remaining_minutes': 531.9}
-45.43.154.230 - - [03/Feb/2026 00:05:59] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:05:59] "GET /api/stats HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:06:27] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
-45.43.154.230 - - [03/Feb/2026 00:06:27] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:10:01] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:10:11] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:10:21] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:10:21] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:10:21] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:10:21] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:10:21] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:10:31] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:10:41] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:10:51] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:10:51] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:11:01] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:11:11] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:11:35] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:11:35] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+[2026-02-05 16:11:56.944028] New checkpoint detected: eqModel_complex_20260205_160745.pth
+[2026-02-05 16:11:59.858343] Checkpoint incompatible with current model, skipping
+[EMSC] Fetched 244 earthquakes for last 1 day(s)
+Batch inserted 244 earthquakes
+Executed ins_quakes()
+Calculating global M4+ dt for 1 new records...
+Done calculating global M4+ dt for 1 records
+[2026-02-05 16:12:07.145285] Status: pending - {'action': 'pending', 'prediction_id': 1189, 'remaining_minutes': 43.6}
+45.43.154.230 - - [05/Feb/2026 16:12:15] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:12:15] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:12:21] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:12:21] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:12:21] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:12:21] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:12:31] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:12:41] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:12:51] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:12:51] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:13:01] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:13:11] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:13:21] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:13:21] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:13:35] "GET /api/live HTTP/1.1" 200 -
+[2026-02-05 16:13:56.943743] New checkpoint detected: eqModel_complex_20260205_160745.pth
+[2026-02-05 16:13:59.615751] Checkpoint incompatible with current model, skipping
+[EMSC] Fetched 244 earthquakes for last 1 day(s)
+Batch inserted 244 earthquakes
+Executed ins_quakes()
+[2026-02-05 16:14:01.764421] Status: pending - {'action': 'pending', 'prediction_id': 1189, 'remaining_minutes': 41.7}
+45.43.154.230 - - [05/Feb/2026 16:14:35] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:14:35] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:14:35] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:14:35] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:15:21] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:15:35] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:15:35] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+[2026-02-05 16:15:56.943800] New checkpoint detected: eqModel_complex_20260205_160745.pth
+[2026-02-05 16:15:59.606862] Checkpoint incompatible with current model, skipping
+[EMSC] Fetched 246 earthquakes for last 1 day(s)
+Batch inserted 246 earthquakes
+Executed ins_quakes()
+Calculating global M4+ dt for 2 new records...
+Done calculating global M4+ dt for 2 records
+[2026-02-05 16:16:07.648534] Status: pending - {'action': 'pending', 'prediction_id': 1189, 'remaining_minutes': 39.6}
+45.43.154.230 - - [05/Feb/2026 16:16:35] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:16:35] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:16:35] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:16:35] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:17:35] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:17:35] "GET /api/live HTTP/1.1" 200 -
+[2026-02-05 16:17:56.943701] New checkpoint detected: eqModel_complex_20260205_161654.pth
+[2026-02-05 16:17:59.568366] Reloaded weights: eqModel_complex_20260205_161654.pth
+[EMSC] Fetched 246 earthquakes for last 1 day(s)
+Batch inserted 246 earthquakes
+Executed ins_quakes()
+Calculating global M4+ dt for 1 new records...
+Done calculating global M4+ dt for 1 records
+[2026-02-05 16:18:07.628163] Status: pending - {'action': 'pending', 'prediction_id': 1189, 'remaining_minutes': 37.6}
+45.43.154.230 - - [05/Feb/2026 16:18:35] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:18:35] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:18:35] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:18:35] "GET /api/stats HTTP/1.1" 200 -

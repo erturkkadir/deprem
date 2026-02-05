@@ -193,9 +193,9 @@ function LiveDashboard() {
     );
   };
 
-  // Match indicator component
+  // Match indicator component - distance-based (250km radius)
   const MatchIndicator = ({ distance }) => {
-    const matchThreshold = 15;
+    const matchThreshold = 250; // 250km haversine match radius
     const percentage = Math.max(0, Math.min(100, ((matchThreshold - distance) / matchThreshold) * 100));
     const isMatch = distance <= matchThreshold;
 
@@ -204,11 +204,11 @@ function LiveDashboard() {
         <div className="flex-1 h-2 bg-zinc-700 rounded-full overflow-hidden">
           <div
             className={`h-full transition-all duration-500 ${isMatch ? 'bg-green-500' : percentage > 50 ? 'bg-yellow-500' : 'bg-zinc-500'}`}
-            style={{ width: `${percentage}%` }}
+            style={{ width: `${Math.max(percentage, 5)}%` }}
           />
         </div>
         <span className={`text-xs font-mono ${isMatch ? 'text-green-400' : 'text-zinc-400'}`}>
-          {distance.toFixed(1)}°
+          {distance.toFixed(0)}km
         </span>
       </div>
     );
@@ -373,11 +373,11 @@ function LiveDashboard() {
                 {closestEq && !latest_prediction.verified && (
                   <div className="card !p-3">
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-zinc-400 text-xs">Closest Match</span>
+                      <span className="text-zinc-400 text-xs">Closest M4+ Match</span>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded ${
                         closestEq.isMatch ? 'bg-green-500/20 text-green-400' : 'bg-zinc-700 text-zinc-400'
                       }`}>
-                        {closestEq.isMatch ? 'Match!' : `${closestEq.distance.toFixed(1)}° away`}
+                        {closestEq.isMatch ? 'Match!' : `${closestEq.distance?.toFixed(0) ?? '?'}km away`}
                       </span>
                     </div>
                     <MatchIndicator distance={closestEq.distance} />
@@ -513,9 +513,9 @@ function LiveDashboard() {
                       {eq.distance !== null && (
                         <div className={`text-xs font-mono ${
                           eq.isMatch ? 'text-green-400' :
-                          eq.distance < 30 ? 'text-yellow-400' : 'text-zinc-500'
+                          eq.distance < 500 ? 'text-yellow-400' : 'text-zinc-500'
                         }`}>
-                          {eq.distance.toFixed(0)}°
+                          {eq.distance.toFixed(0)}km
                         </div>
                       )}
                     </div>
