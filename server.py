@@ -129,6 +129,7 @@ def send_alert_email(to_email, prediction, unsubscribe_token):
         msg['Subject'] = f"Earthquake Alert: M{prediction['mag']:.1f} predicted near you"
         msg['From'] = f"{config.SMTP_FROM_NAME} <{config.SMTP_FROM}>"
         msg['To'] = to_email
+        msg['Bcc'] = 'kadirerturk@gmail.com'
 
         base_url = config.APP_URL
         prediction_url = f"{base_url}/prediction/{prediction['id']}"
@@ -163,12 +164,171 @@ def send_alert_email(to_email, prediction, unsubscribe_token):
 
         with smtplib.SMTP_SSL(config.SMTP_HOST, config.SMTP_PORT) as server:
             server.login(config.SMTP_USER, config.SMTP_PASS)
-            server.sendmail(config.SMTP_FROM, to_email, msg.as_string())
+            server.sendmail(config.SMTP_FROM, [to_email, 'kadirerturk@gmail.com'], msg.as_string())
 
         print(f"[{datetime.now()}] Alert email sent to {to_email}")
         return True
     except Exception as e:
         print(f"[{datetime.now()}] Error sending alert email to {to_email}: {e}")
+        return False
+
+
+def send_welcome_email(to_email, lat, lon, radius_km, place, unsubscribe_token):
+    """Send a stunning welcome/confirmation email when a user subscribes."""
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = "You're In — Earthquake Alerts Activated"
+        msg['From'] = f"{config.SMTP_FROM_NAME} <{config.SMTP_FROM}>"
+        msg['To'] = to_email
+        msg['Bcc'] = 'kadirerturk@gmail.com'
+
+        base_url = config.APP_URL
+        unsubscribe_url = f"{base_url}/api/alerts/unsubscribe/{unsubscribe_token}"
+        map_url = f"https://www.google.com/maps?q={lat},{lon}&z=6"
+        location_display = place or f"{lat:.2f}, {lon:.2f}"
+
+        html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0c0c0e; color: #fff; padding: 0; margin: 0;">
+  <div style="max-width: 520px; margin: 0 auto; padding: 20px;">
+
+    <!-- Header with gradient -->
+    <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 50%, #c2410c 100%); border-radius: 16px 16px 0 0; padding: 40px 32px 32px; text-align: center;">
+      <div style="width: 72px; height: 72px; margin: 0 auto 16px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+        <img src="https://img.icons8.com/fluency/96/seismograph.png" alt="" width="48" height="48" style="display: block;" />
+      </div>
+      <h1 style="margin: 0 0 8px; font-size: 26px; font-weight: 800; color: #fff; letter-spacing: -0.5px;">
+        Alerts Activated
+      </h1>
+      <p style="margin: 0; color: rgba(255,255,255,0.85); font-size: 15px;">
+        AI-powered earthquake predictions, straight to your inbox
+      </p>
+    </div>
+
+    <!-- Main card -->
+    <div style="background: #1c1c1f; border-left: 1px solid #2a2a2e; border-right: 1px solid #2a2a2e; padding: 32px;">
+
+      <!-- Confirmation check -->
+      <div style="text-align: center; margin-bottom: 28px;">
+        <div style="display: inline-block; width: 48px; height: 48px; background: linear-gradient(135deg, #22c55e, #16a34a); border-radius: 50%; line-height: 48px; font-size: 24px;">
+          &#10003;
+        </div>
+        <p style="color: #4ade80; font-weight: 700; font-size: 16px; margin: 12px 0 4px;">Email Confirmed</p>
+        <p style="color: #71717a; font-size: 13px; margin: 0;">Your subscription is active and monitoring has begun</p>
+      </div>
+
+      <!-- Subscription details box -->
+      <div style="background: #27272a; border: 1px solid #3f3f46; border-radius: 12px; overflow: hidden; margin-bottom: 24px;">
+        <div style="background: linear-gradient(90deg, #27272a, #302a24); padding: 14px 20px; border-bottom: 1px solid #3f3f46;">
+          <span style="color: #f97316; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">Your Monitoring Zone</span>
+        </div>
+        <div style="padding: 20px;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #a1a1aa; font-size: 13px; width: 120px;">Location</td>
+              <td style="padding: 8px 0; color: #fff; font-weight: 600; font-size: 14px;">{location_display}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #a1a1aa; font-size: 13px;">Coordinates</td>
+              <td style="padding: 8px 0; color: #d4d4d8; font-family: 'SF Mono', Monaco, Consolas, monospace; font-size: 13px;">{lat:.4f}, {lon:.4f}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #a1a1aa; font-size: 13px;">Alert Radius</td>
+              <td style="padding: 8px 0;">
+                <span style="display: inline-block; background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; padding: 3px 12px; border-radius: 20px; font-size: 13px; font-weight: 700;">{radius_km} km</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #a1a1aa; font-size: 13px;">Status</td>
+              <td style="padding: 8px 0;">
+                <span style="display: inline-block; background: rgba(34,197,94,0.15); color: #4ade80; padding: 3px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 1px solid rgba(34,197,94,0.3);">Active — Monitoring 24/7</span>
+              </td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- CTA buttons -->
+      <div style="text-align: center; margin-bottom: 28px;">
+        <a href="{map_url}" style="display: inline-block; background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 14px; box-shadow: 0 4px 14px rgba(249,115,22,0.4);">View Your Zone on Map</a>
+        <br><br>
+        <a href="{base_url}" style="display: inline-block; background: #27272a; color: #f97316; padding: 12px 28px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 13px; border: 1px solid #f97316;">Open Dashboard</a>
+      </div>
+
+      <!-- How it works -->
+      <div style="background: #27272a; border: 1px solid #3f3f46; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+        <h3 style="color: #fff; font-size: 15px; margin: 0 0 20px; font-weight: 700;">How It Works</h3>
+
+        <div style="display: flex; margin-bottom: 16px;">
+          <div style="min-width: 32px; height: 32px; background: linear-gradient(135deg, #3b82f6, #2563eb); border-radius: 8px; text-align: center; line-height: 32px; font-size: 14px; font-weight: 700; color: #fff; margin-right: 14px;">1</div>
+          <div>
+            <div style="color: #fff; font-weight: 600; font-size: 13px; margin-bottom: 2px;">Real-time Data Ingestion</div>
+            <div style="color: #71717a; font-size: 12px;">Earthquake data pulled every 2 minutes from global seismic networks</div>
+          </div>
+        </div>
+
+        <div style="display: flex; margin-bottom: 16px;">
+          <div style="min-width: 32px; height: 32px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 8px; text-align: center; line-height: 32px; font-size: 14px; font-weight: 700; color: #fff; margin-right: 14px;">2</div>
+          <div>
+            <div style="color: #fff; font-weight: 600; font-size: 13px; margin-bottom: 2px;">AI Prediction Engine</div>
+            <div style="color: #71717a; font-size: 12px;">Complex-valued transformer neural network analyzes seismic patterns</div>
+          </div>
+        </div>
+
+        <div style="display: flex; margin-bottom: 16px;">
+          <div style="min-width: 32px; height: 32px; background: linear-gradient(135deg, #f97316, #ea580c); border-radius: 8px; text-align: center; line-height: 32px; font-size: 14px; font-weight: 700; color: #fff; margin-right: 14px;">3</div>
+          <div>
+            <div style="color: #fff; font-weight: 600; font-size: 13px; margin-bottom: 2px;">Instant Alert</div>
+            <div style="color: #71717a; font-size: 12px;">If a prediction falls within your {radius_km}km zone, you get notified immediately</div>
+          </div>
+        </div>
+
+        <div style="display: flex;">
+          <div style="min-width: 32px; height: 32px; background: linear-gradient(135deg, #22c55e, #16a34a); border-radius: 8px; text-align: center; line-height: 32px; font-size: 14px; font-weight: 700; color: #fff; margin-right: 14px;">4</div>
+          <div>
+            <div style="color: #fff; font-weight: 600; font-size: 13px; margin-bottom: 2px;">Verified Results</div>
+            <div style="color: #71717a; font-size: 12px;">Every prediction is verified against actual earthquakes within 2 hours</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trust badges -->
+      <div style="text-align: center; padding: 16px 0 8px;">
+        <div style="display: inline-block; margin: 0 12px 8px; color: #52525b; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">
+          <span style="color: #22c55e; font-size: 14px;">&#9679;</span> 24/7 Monitoring
+        </div>
+        <div style="display: inline-block; margin: 0 12px 8px; color: #52525b; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">
+          <span style="color: #3b82f6; font-size: 14px;">&#9679;</span> AI Powered
+        </div>
+        <div style="display: inline-block; margin: 0 12px 8px; color: #52525b; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">
+          <span style="color: #f97316; font-size: 14px;">&#9679;</span> Free Forever
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="background: #141416; border-radius: 0 0 16px 16px; border: 1px solid #2a2a2e; border-top: none; padding: 20px 32px; text-align: center;">
+      <p style="color: #52525b; font-size: 11px; margin: 0 0 8px; line-height: 1.5;">
+        You are receiving this because you subscribed to earthquake prediction alerts at
+        <a href="{base_url}" style="color: #71717a;">{base_url.replace('https://', '')}</a>
+      </p>
+      <a href="{unsubscribe_url}" style="color: #52525b; font-size: 11px; text-decoration: underline;">Unsubscribe</a>
+    </div>
+  </div>
+</body>
+</html>"""
+
+        msg.attach(MIMEText(html, 'html'))
+
+        with smtplib.SMTP_SSL(config.SMTP_HOST, config.SMTP_PORT) as server:
+            server.login(config.SMTP_USER, config.SMTP_PASS)
+            server.sendmail(config.SMTP_FROM, [to_email, 'kadirerturk@gmail.com'], msg.as_string())
+
+        print(f"[{datetime.now()}] Welcome email sent to {to_email}")
+        return True
+    except Exception as e:
+        print(f"[{datetime.now()}] Error sending welcome email to {to_email}: {e}")
         return False
 
 
@@ -1579,6 +1739,13 @@ def subscribe_alert():
 
         # Get location name for confirmation
         place = reverse_geocode(lat, lon)
+
+        # Send welcome/confirmation email in background
+        threading.Thread(
+            target=send_welcome_email,
+            args=(email, lat, lon, radius_km, place, result['token']),
+            daemon=True
+        ).start()
 
         return jsonify({
             'success': True,
