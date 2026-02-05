@@ -116,3 +116,5 @@ Done calculating global M4+ dt for 1 records
 45.43.154.230 - - [05/Feb/2026 16:18:35] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
 45.43.154.230 - - [05/Feb/2026 16:18:35] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
 45.43.154.230 - - [05/Feb/2026 16:18:35] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:19:35] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [05/Feb/2026 16:19:35] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -

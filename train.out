@@ -30,3 +30,5 @@ step    400 | train 42.9215 | val 40.7583 | lr 2.00e-05
 step    600 | train 42.4004 | val 36.7274 | lr 3.00e-05
   -> New best loss!
 [2026-02-05 16:17:05.925366] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260205_161654.pth (iter=600, loss=42.4004)
+step    800 | train 38.9409 | val 35.3319 | lr 4.00e-05
+  -> New best loss!
