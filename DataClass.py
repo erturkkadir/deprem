@@ -15,6 +15,11 @@ class DataC():
     # Class-level lock for thread safety
     _lock = threading.RLock()
 
+    # Log-scale bin midpoints for converting bin index → minutes
+    # Bin 0: 0min, Bin 1: 1min, Bin 2: 2-3min, Bin 3: 4-7min, Bin 4: 8-15min,
+    # Bin 5: 16-31min, Bin 6: 32-63min, Bin 7: 64-127min, Bin 8: 128-255min, Bin 9: 256+min
+    LOG_BIN_MIDPOINTS = [0, 1, 2, 5, 11, 22, 45, 90, 181, 308]
+
     def __init__(self):
         # Embedding size constants (max index value, NOT count)
         # Embedding layer needs size = max_index + 1
@@ -24,7 +29,8 @@ class DataC():
         self.y_max = 360       # Longitude 0-360 (encoded: lon+180) → 361 embeddings
         self.m_max = 91        # Magnitude 0-91 (encoded: mag*10) → 92 embeddings
         self.d_max = 200       # Depth 0-200 km → 201 embeddings (captures subduction zones)
-        self.t_max = 360       # Time diff 0-360 minutes (6 hours) → 361 embeddings
+        self.t_max = 9         # Log-scale bins 0-9 → 10 embeddings
+        self.t_raw_max = 360   # Raw minutes cap before log binning
         self.data = []
         self.train = []
         self.valid = []
@@ -39,6 +45,25 @@ class DataC():
 
         # Ensure predictions table exists
         self._create_predictions_table()
+
+    @staticmethod
+    def _log_bin_tensor(t, n_bins=10):
+        """Convert raw minutes tensor to log-scale bin indices.
+
+        Matches Omori's law (aftershock rate ~ 1/t) — gives equal
+        information density per bin instead of wasting 95% of embeddings
+        on the flat tail.
+
+        Bin 0: 0 min, Bin 1: 1 min, Bin 2: 2-3 min, Bin 3: 4-7 min,
+        Bin 4: 8-15 min, Bin 5: 16-31 min, Bin 6: 32-63 min,
+        Bin 7: 64-127 min, Bin 8: 128-255 min, Bin 9: 256+ min
+        """
+        result = torch.zeros(t.shape, dtype=t.dtype, device=t.device)
+        mask = t > 0
+        if mask.any():
+            log_vals = torch.log2(t[mask].float().clamp(min=1))
+            result[mask] = torch.clamp(log_vals.floor() + 1, max=n_bins - 1).to(t.dtype)
+        return result
 
     def _connect_db(self):
         """Establish database connection. Only called once or after connection dies."""
@@ -289,9 +314,10 @@ class DataC():
         VALUES (NOW(), %s, %s, %s, %s, %s)
         """
         try:
-            self._safe_execute(sql, (lat_predicted, lon_predicted, dt_predicted, mag_predicted, place))
-            self.mydb.commit()
-            return self.mycursor.lastrowid
+            with self._lock:
+                self._safe_execute(sql, (lat_predicted, lon_predicted, dt_predicted, mag_predicted, place))
+                self.mydb.commit()
+                return self.mycursor.lastrowid
         except Exception as e:
             print(f"Error saving prediction: {e}")
             return None
@@ -556,9 +582,9 @@ class DataC():
             eq_mag_encoded = int(earthquake_mag * 10)
 
             # Calculate differences
-            diff_lat = abs(pr_lat_predicted - eq_lat_encoded) if pr_lat_predicted else None
-            diff_lon = abs(pr_lon_predicted - eq_lon_encoded) if pr_lon_predicted else None
-            if diff_lon:
+            diff_lat = abs(pr_lat_predicted - eq_lat_encoded) if pr_lat_predicted is not None else None
+            diff_lon = abs(pr_lon_predicted - eq_lon_encoded) if pr_lon_predicted is not None else None
+            if diff_lon is not None:
                 diff_lon = min(diff_lon, 360 - diff_lon)
 
             # Parse earthquake time and calculate dt
@@ -569,9 +595,9 @@ class DataC():
                 eq_time = earthquake_time
 
             actual_dt = int((eq_time.replace(tzinfo=None) - pr_timestamp).total_seconds() / 60)
-            diff_dt = abs(pr_dt_predicted - actual_dt) if pr_dt_predicted else None
+            diff_dt = abs(pr_dt_predicted - actual_dt) if pr_dt_predicted is not None else None
 
-            diff_mag = abs((pr_mag_predicted / 10.0) - earthquake_mag) if pr_mag_predicted else None
+            diff_mag = abs((pr_mag_predicted / 10.0) - earthquake_mag) if pr_mag_predicted is not None else None
 
             # Match is correct if within 250km
             correct = distance <= 250
@@ -644,8 +670,7 @@ class DataC():
             )
             cursor = db.cursor()
 
-            sql = f"CALL get_data({min_mag})"
-            cursor.execute(sql)
+            cursor.execute("CALL get_data(%s)", (min_mag,))
             rows = cursor.fetchall()
 
             cols = [i[0] for i in cursor.description] if cursor.description else []
@@ -883,7 +908,7 @@ class DataC():
             cursor = db.cursor()
 
             # Call optimized stored procedure (uses pre-computed us_t)
-            cursor.execute(f"CALL get_data_fast({min_mag})")
+            cursor.execute("CALL get_data_fast(%s)", (min_mag,))
             rows = cursor.fetchall()
 
             # Consume any remaining results
@@ -898,6 +923,9 @@ class DataC():
 
             if rows:
                 self.data = np.array(rows, dtype=np.float64)
+                nan_count = np.isnan(self.data).sum()
+                if nan_count > 0:
+                    print(f"  Warning: {nan_count} NaN values replaced with 0 (valid embedding index)")
                 self.data = np.nan_to_num(self.data, 0)
                 print(f"Loaded {len(self.data):,} records from database")
                 self._update_data_splits()
@@ -936,8 +964,8 @@ class DataC():
         # Warn if data exceeds model limits (values will be clamped)
         if actual_d_max > self.d_max:
             print(f"  Warning: depth max {actual_d_max} exceeds model limit {self.d_max}, will be clamped")
-        if actual_t_max > self.t_max:
-            print(f"  Warning: dt max {actual_t_max} exceeds model limit {self.t_max}, will be clamped")
+        if actual_t_max > self.t_raw_max:
+            print(f"  Warning: dt max {actual_t_max} exceeds raw cap {self.t_raw_max}, will be clamped")
 
     def getDataHybrid(self, input_mag=2.0, target_mag=4.0):
         """Load hybrid training data: ALL earthquakes >= input_mag as context,
@@ -961,7 +989,7 @@ class DataC():
             )
             cursor = db.cursor()
 
-            cursor.execute(f"CALL get_data_hybrid({input_mag}, {target_mag})")
+            cursor.execute("CALL get_data_hybrid(%s, %s)", (input_mag, target_mag))
             rows = cursor.fetchall()
 
             try:
@@ -975,6 +1003,9 @@ class DataC():
 
             if rows:
                 self.data = np.array(rows, dtype=np.float64)
+                nan_count = np.isnan(self.data).sum()
+                if nan_count > 0:
+                    print(f"  Warning: {nan_count} NaN values replaced with 0 (valid embedding index)")
                 self.data = np.nan_to_num(self.data, 0)
 
                 # Store target indices for efficient sampling
@@ -1000,8 +1031,7 @@ class DataC():
         
     def getSizes(self):
         if (len(self.data)<1):
-            print("Array size, please call getData first")
-            return "Error " 
+            raise ValueError("No data loaded — call getData/getDataHybrid first")
         # print(f" Yr min:  {self.data[:,0].min()} max : {self.data[:,0].max()}")
         # print(f" Mt min:  {self.data[:,1].min()} max : {self.data[:,1].max()}")
         # print(f" x  min:  {self.data[:,2].min()} max : {self.data[:,2].max()}")
@@ -1091,7 +1121,7 @@ class DataC():
             'lat': torch.clamp(next_pos[:, 2], 0, 180).long(),  # latitude (0-180)
             'lon': torch.clamp(next_pos[:, 3], 0, 360).long(),  # longitude (0-360)
             'mag': torch.clamp(next_pos[:, 4], 0, 91).long(),   # magnitude (0-91)
-            'dt':  torch.clamp(next_pos[:, 6], 0, self.t_max).long(),  # time difference
+            'dt':  self._log_bin_tensor(torch.clamp(next_pos[:, 6], 0, self.t_raw_max)).long(),
         }
 
         return x.long(), targets
@@ -1148,7 +1178,7 @@ class DataC():
         x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)       # lon: 0-360
         x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)       # mag: 0-91
         x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-200
-        x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-1440
+        x[:, :, 6] = self._log_bin_tensor(torch.clamp(x[:, :, 6], 0, self.t_raw_max))  # dt: log-binned 0-9
 
         # Get target values from the M4+ positions
         next_pos = torch.stack([data_tensor[int(pos)] for pos in target_positions])
@@ -1157,7 +1187,7 @@ class DataC():
             'lat': torch.clamp(next_pos[:, 2], 0, 180).long(),
             'lon': torch.clamp(next_pos[:, 3], 0, 360).long(),
             'mag': torch.clamp(next_pos[:, 4], 0, 91).long(),
-            'dt':  torch.clamp(next_pos[:, 6], 0, self.t_max).long(),
+            'dt':  self._log_bin_tensor(torch.clamp(next_pos[:, 6], 0, self.t_raw_max)).long(),
         }
 
         return x.long(), targets
@@ -1198,7 +1228,7 @@ class DataC():
         x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)       # lon: 0-360
         x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)       # mag: 0-91
         x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-200
-        x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-1440
+        x[:, :, 6] = self._log_bin_tensor(torch.clamp(x[:, :, 6], 0, self.t_raw_max))  # dt: log-binned 0-9
 
         # For y, return the last record's target column (used for reference only)
         y = data_[-1, col].unsqueeze(0)  # [1]
@@ -1274,7 +1304,7 @@ class DataC():
             x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)       # lon: 0-360
             x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)       # mag: 0-91
             x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-200
-            x[:, :, 6] = torch.clamp(x[:, :, 6], 0, self.t_max)       # dt: 0-1440
+            x[:, :, 6] = self._log_bin_tensor(torch.clamp(x[:, :, 6], 0, self.t_raw_max))  # dt: log-binned 0-9
 
             return x.long()
 

@@ -11,6 +11,7 @@ import sys
 import glob
 import json
 import math
+import shutil
 import torch
 import mysql.connector
 from datetime import datetime
@@ -88,16 +89,22 @@ def update_training_status(iteration, loss, is_checkpoint=False):
         print(f"Warning: Could not update training status: {e}")
 
 
-def save_checkpoint(model, iteration, loss):
-    """Save model checkpoint with timestamp"""
+def save_checkpoint(model, optimizer, iteration, best_val_loss, loss):
+    """Save full training state with timestamp"""
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     checkpoint_path = f'{MODEL_DIR}/{MODEL_PREFIX}_{timestamp}.pth'
 
-    torch.save(model.state_dict(), checkpoint_path)
+    torch.save({
+        'model': model.state_dict(),
+        'optimizer': optimizer.state_dict(),
+        'iteration': iteration,
+        'best_val_loss': best_val_loss,
+        'loss': loss,
+    }, checkpoint_path)
 
-    # Also save to standard path for server
+    # Copy to standard path for server (atomic via temp file)
     standard_path = f'{MODEL_DIR}/{MODEL_PREFIX}.pth'
-    torch.save(model.state_dict(), standard_path)
+    shutil.copy2(checkpoint_path, standard_path)
 
     print(f"[{datetime.now()}] Checkpoint saved: {checkpoint_path} (iter={iteration}, loss={loss:.4f})")
 
@@ -186,7 +193,7 @@ def compute_val_loss(model, dataC, B, T, num_batches=10, label_smoothing=0.0):
             x, targets = dataC.getBatchHybrid(B, T, 'valid')
             x = x.to(device)
             targets = {k: v.to(device) for k, v in targets.items()}
-            _, loss = model(x, targets, label_smoothing=label_smoothing)
+            _, loss, _ = model(x, targets, label_smoothing=label_smoothing)
             total_loss += loss.item()
             valid_batches += 1
         except Exception as e:
@@ -227,55 +234,73 @@ def train():
     # Create model with Geographic Positional Encoding (GPE) for enhanced location awareness
     # GPE includes: Spherical Harmonics, Fourier Features, Tectonic Zones, Relative Position
     print(f"\n[{datetime.now()}] Creating model with Geographic Positional Encoding (GPE)...")
-    model = EqModelComplex(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max=181, use_rope=True, use_gpe=True)
+    model = EqModelComplex(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, use_rope=True, use_gpe=True)
     model.to(device)
 
     total_params = sum(p.numel() for p in model.parameters())
     print(f"Model parameters: {total_params:,}")
 
-    # Load checkpoint if exists and compatible
-    # NOTE: GPE architecture change requires fresh start - old checkpoints won't be compatible
-    checkpoint_path = get_latest_checkpoint()
-    if checkpoint_path:
-        print(f"Found checkpoint: {checkpoint_path}")
-        try:
-            state_dict = torch.load(checkpoint_path, map_location=device, weights_only=True)
-            model.load_state_dict(state_dict, strict=False)
-            print("Checkpoint loaded successfully")
-        except RuntimeError as e:
-            if "size mismatch" in str(e) or "Missing key" in str(e):
-                print(f"Checkpoint incompatible with new GPE architecture, starting fresh")
-            else:
-                raise e
-    else:
-        print("Starting from scratch with GPE architecture")
-
-    model.train()
-
     # Optimizer with weight decay
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=0.01)
 
-    # Learning rate scheduler: warmup + cosine decay
-    WARMUP_STEPS = 2000
-    MAX_STEPS = 500000  # ~24h of training at current rate
+    # Learning rate scheduler: warmup + cosine decay (counted in optimizer steps)
+    WARMUP_STEPS = 2000   # Optimizer steps (not raw iterations)
+    MAX_STEPS = 500000
 
-    def get_lr(step):
-        """Learning rate with linear warmup and cosine decay."""
-        if step < WARMUP_STEPS:
-            # Linear warmup
-            return LEARNING_RATE * step / WARMUP_STEPS
+    def get_lr(opt_step):
+        """Learning rate with linear warmup and cosine decay (by optimizer step)."""
+        if opt_step < WARMUP_STEPS:
+            return LEARNING_RATE * opt_step / WARMUP_STEPS
         else:
-            # Cosine decay to 10% of max LR
-            progress = (step - WARMUP_STEPS) / (MAX_STEPS - WARMUP_STEPS)
+            progress = (opt_step - WARMUP_STEPS) / (MAX_STEPS - WARMUP_STEPS)
             progress = min(1.0, progress)
             return LEARNING_RATE * (0.1 + 0.9 * (1 + math.cos(math.pi * progress)) / 2)
 
     iteration = 0
+    opt_step = 0
     running_loss = 0.0
-    best_loss = float('inf')
+    running_dim_loss = {'lat': 0.0, 'lon': 0.0, 'dt': 0.0, 'mag': 0.0}
+    best_val_loss = float('inf')
+    last_avg_loss = float('inf')
+
+    # Load checkpoint if exists and compatible
+    checkpoint_path = get_latest_checkpoint()
+    if checkpoint_path:
+        print(f"Found checkpoint: {checkpoint_path}")
+        try:
+            ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
+            if isinstance(ckpt, dict) and 'model' in ckpt:
+                # New format with full state
+                result = model.load_state_dict(ckpt['model'], strict=False)
+                if result.missing_keys:
+                    print(f"  Missing keys (randomly initialized): {len(result.missing_keys)}")
+                if result.unexpected_keys:
+                    print(f"  Unexpected keys (ignored): {len(result.unexpected_keys)}")
+                optimizer.load_state_dict(ckpt['optimizer'])
+                iteration = ckpt.get('iteration', 0)
+                opt_step = iteration // ACCUMULATION_STEPS
+                best_val_loss = ckpt.get('best_val_loss', float('inf'))
+                last_avg_loss = ckpt.get('loss', float('inf'))
+                print(f"Checkpoint loaded: iter={iteration}, best_val={best_val_loss:.4f}")
+            else:
+                # Legacy format (model state dict only)
+                state_dict = ckpt if not isinstance(ckpt, dict) else ckpt
+                result = model.load_state_dict(state_dict, strict=False)
+                if result.missing_keys:
+                    print(f"  Missing keys: {len(result.missing_keys)}")
+                print("Legacy checkpoint loaded (no optimizer state)")
+        except RuntimeError as e:
+            if "size mismatch" in str(e) or "Missing key" in str(e):
+                print(f"Checkpoint incompatible, starting fresh")
+            else:
+                raise e
+    else:
+        print("Starting from scratch")
+
+    model.train()
 
     print(f"\n[{datetime.now()}] Training started...")
-    print(f"LR schedule: warmup {WARMUP_STEPS} steps, cosine decay to {MAX_STEPS} steps")
+    print(f"LR schedule: warmup {WARMUP_STEPS} optimizer steps, cosine decay to {MAX_STEPS}")
     print(f"Gradient accumulation: {ACCUMULATION_STEPS} steps (effective batch={B*ACCUMULATION_STEPS})")
     print(f"Label smoothing: {LABEL_SMOOTHING}\n")
 
@@ -286,8 +311,8 @@ def train():
         while True:
             iteration += 1
 
-            # Update learning rate
-            lr = get_lr(iteration)
+            # Update learning rate (based on optimizer steps)
+            lr = get_lr(opt_step)
             for param_group in optimizer.param_groups:
                 param_group['lr'] = lr
 
@@ -301,7 +326,13 @@ def train():
                 continue
 
             # Forward pass with label smoothing
-            logits, loss = model(x, targets, label_smoothing=LABEL_SMOOTHING)
+            logits, loss, loss_dict = model(x, targets, label_smoothing=LABEL_SMOOTHING)
+
+            # NaN/Inf guard — skip batch to protect model weights
+            if torch.isnan(loss) or torch.isinf(loss):
+                print(f"WARNING: NaN/Inf loss at step {iteration}, skipping")
+                optimizer.zero_grad(set_to_none=True)
+                continue
 
             # Scale loss for gradient accumulation
             scaled_loss = loss / ACCUMULATION_STEPS
@@ -314,39 +345,46 @@ def train():
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
                 optimizer.step()
                 optimizer.zero_grad(set_to_none=True)
+                opt_step += 1
 
             running_loss += loss.item()  # Log unscaled loss
 
+            # Accumulate per-dimension losses
+            if loss_dict:
+                for k in loss_dict:
+                    running_dim_loss[k] += loss_dict[k]
+
             # Print progress
             if iteration % PRINT_INTERVAL == 0:
-                avg_loss = running_loss / PRINT_INTERVAL
+                last_avg_loss = running_loss / PRINT_INTERVAL
+                avg_dim = {k: running_dim_loss[k] / PRINT_INTERVAL for k in running_dim_loss}
 
-                # Compute validation loss every print interval (more batches for stability)
-                val_loss = compute_val_loss(model, dataC, B, T, num_batches=20, label_smoothing=LABEL_SMOOTHING)
+                # Compute validation loss WITHOUT label smoothing for true generalization signal
+                val_loss = compute_val_loss(model, dataC, B, T, num_batches=20, label_smoothing=0.0)
 
-                print(f"step {iteration:6d} | train {avg_loss:.4f} | val {val_loss:.4f} | lr {lr:.2e}")
+                print(f"step {iteration:6d} | train {last_avg_loss:.4f} | val {val_loss:.4f} | lr {lr:.2e} | lat {avg_dim['lat']:.2f} lon {avg_dim['lon']:.2f} dt {avg_dim['dt']:.2f} mag {avg_dim['mag']:.2f}")
 
                 # Update status file for server
-                update_training_status(iteration, avg_loss)
+                update_training_status(iteration, last_avg_loss)
 
                 # Save loss to database for web UI
-                save_loss_to_db(iteration, avg_loss, val_loss)
+                save_loss_to_db(iteration, last_avg_loss, val_loss)
 
-                if avg_loss < best_loss:
-                    best_loss = avg_loss
-                    print(f"  -> New best loss!")
+                # Track best validation loss (not train loss)
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    print(f"  -> New best val loss!")
 
                 running_loss = 0.0
+                running_dim_loss = {'lat': 0.0, 'lon': 0.0, 'dt': 0.0, 'mag': 0.0}
 
             # Save checkpoint
             if iteration % CHECKPOINT_INTERVAL == 0:
-                save_checkpoint(model, iteration, avg_loss)
+                save_checkpoint(model, optimizer, iteration, best_val_loss, last_avg_loss)
 
     except KeyboardInterrupt:
         print(f"\n[{datetime.now()}] Interrupted by user")
-        if running_loss > 0:
-            avg_loss = running_loss / (iteration % PRINT_INTERVAL or 1)
-            save_checkpoint(model, iteration, avg_loss)
+        save_checkpoint(model, optimizer, iteration, best_val_loss, last_avg_loss)
         print("Checkpoint saved. Exiting.")
 
 

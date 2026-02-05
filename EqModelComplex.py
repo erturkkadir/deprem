@@ -75,7 +75,7 @@ class ComplexLinear(nn.Module):
 
         if bias:
             # Bias as magnitude + phase
-            self.bias_mag = nn.Parameter(torch.zeros(out_features))
+            self.bias_mag = nn.Parameter(torch.full((out_features,), 0.01))
             self.bias_phase = nn.Parameter(torch.zeros(out_features))
         else:
             self.register_parameter('bias_mag', None)
@@ -553,7 +553,7 @@ class ComplexMultiHeadAttention(nn.Module):
 
         self.num_heads = num_heads
         self.head_dim = embed_dim // num_heads
-        self.scale = self.head_dim ** -0.5
+        self.scale = (2 * self.head_dim) ** -0.5  # HERMITIAN sums over 2*head_dim terms
         self.embed_dim = embed_dim
         self.use_rope = use_rope
         self.use_spatial_bias = use_spatial_bias
@@ -578,21 +578,6 @@ class ComplexMultiHeadAttention(nn.Module):
         self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
         self.dropout = nn.Dropout(dropout)
         self.resid_dropout = ComplexDropout(dropout)
-
-    def forward(self, x, lat=None, lon=None):
-        B, L, D = x.shape
-
-        Q = self.q_proj(x).view(B, L, self.num_heads, self.head_dim).transpose(1, 2)
-        K = self.k_proj(x).view(B, L, self.num_heads, self.head_dim).transpose(1, 2)
-        V = self.v_proj(x).view(B, L, self.num_heads, self.head_dim).transpose(1, 2)
-
-        # Apply RoPE if enabled
-        if self.rotary_emb is not None:
-            cos, sin = self.rotary_emb(L, Q.device)
-            Q, K = apply_complex_rotary_embedding(Q, K, cos, sin)
-
-        # Compute attention scores based on attention type
-        attn_scores = self._compute_attention_scores(Q, K)
 
     def _compute_attention_scores(self, Q: torch.Tensor, K: torch.Tensor) -> torch.Tensor:
         """
@@ -1366,7 +1351,7 @@ class ComplexPositionalEncoding(nn.Module):
     """Complex-valued positional encoding using Euler's formula."""
     def __init__(self, max_len, embed_dim, dropout=0.1):
         super().__init__()
-        self.dropout = nn.Dropout(p=dropout)
+        self.dropout = ComplexDropout(p=dropout)
 
         position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, embed_dim, 2).float() * (-math.log(10000.0) / embed_dim))
@@ -1384,11 +1369,8 @@ class ComplexPositionalEncoding(nn.Module):
 
     def forward(self, x):
         T = x.size(1)
-        x_real = x.real + self.pe[:, :T].real
-        x_imag = x.imag + self.pe[:, :T].imag
-        x_real = self.dropout(x_real)
-        x_imag = self.dropout(x_imag)
-        return torch.complex(x_real, x_imag)
+        x = x + self.pe[:, :T]
+        return self.dropout(x)
 
 
 # =============================================================================
@@ -1414,7 +1396,7 @@ class EqModelComplex(nn.Module):
     - Magnitude (0-91 encoded, actual 0.0 to 9.1)
     """
 
-    def __init__(self, sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max, use_rope=True, use_gpe=True):
+    def __init__(self, sizes, B, T, n_embed, n_heads, n_layer, dropout, device, use_rope=True, use_gpe=True):
         super().__init__()
         self.n_layer = n_layer
         self.B = B
@@ -1446,16 +1428,35 @@ class EqModelComplex(nn.Module):
         # Final layer norm
         self.ln_f = ComplexLayerNorm(n_embed)
 
-        # Output heads (real-valued for classification)
-        # Input is concatenation of real and imaginary parts
-        self.lat_head = nn.Linear(n_embed * 2, 181, bias=False)   # Latitude: 0-180
-        self.lon_head = nn.Linear(n_embed * 2, 361, bias=False)   # Longitude: 0-360
-        self.dt_head = nn.Linear(n_embed * 2, self.t_size, bias=False)  # Time diff uses t_size from DataClass
-        self.mag_head = nn.Linear(n_embed * 2, 92, bias=False)    # Magnitude: 0-91
+        # Output heads (MLP for better decoding from complex representation)
+        head_hidden = n_embed // 2  # Hidden dim for output MLP
+        self.lat_head = self._make_head(n_embed * 2, 181, head_hidden)
+        self.lon_head = self._make_head(n_embed * 2, 361, head_hidden)
+        self.dt_head = self._make_head(n_embed * 2, self.t_size, head_hidden)
+        self.mag_head = self._make_head(n_embed * 2, 92, head_hidden)
 
         self.apply(self._init_weights)
 
+        # Re-initialize output head final layers with near-zero weights
+        # so logits start near uniform (critical for stable early training)
+        for head in [self.lat_head, self.lon_head, self.dt_head, self.mag_head]:
+            nn.init.normal_(head[-1].weight, mean=0.0, std=0.02)
+            if head[-1].bias is not None:
+                nn.init.zeros_(head[-1].bias)
+
+    def _make_head(self, in_dim, out_dim, hidden_dim):
+        """Create a 2-layer MLP output head for better decoding."""
+        return nn.Sequential(
+            nn.Linear(in_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, out_dim)
+        )
+
     def _init_weights(self, module):
+        # Skip nn.Embedding inside ComplexEmbedding — they have their own init
+        if isinstance(module, ComplexEmbedding):
+            return
         if isinstance(module, nn.Linear):
             std = (2 * self.n_layer) ** -0.5
             nn.init.normal_(module.weight, mean=0.0, std=std)
@@ -1519,24 +1520,26 @@ class EqModelComplex(nn.Module):
 
         if targets is None:
             loss = None
+            loss_dict = None
         else:
-            # Compute cross-entropy loss with label smoothing
-            # Weight losses inversely proportional to number of classes to balance gradients
-            # lat: 181 classes -> weight ~1.0 (reference)
-            # lon: 361 classes -> weight ~0.5 (has 2x classes)
-            # dt:  481 classes -> weight ~1.2 (time diff 0-480 minutes)
-            # mag:  92 classes -> weight ~1.3 (fewest classes, most important)
-
             # Use last position only (standard approach for next-token prediction)
             lat_loss = FN.cross_entropy(lat_logits[:, -1, :], targets['lat'], label_smoothing=label_smoothing)
             lon_loss = FN.cross_entropy(lon_logits[:, -1, :], targets['lon'], label_smoothing=label_smoothing)
             dt_loss = FN.cross_entropy(dt_logits[:, -1, :], targets['dt'], label_smoothing=label_smoothing)
             mag_loss = FN.cross_entropy(mag_logits[:, -1, :], targets['mag'], label_smoothing=label_smoothing)
 
-            # Balanced loss weighting (normalized to sum to 4.0 for comparable total)
-            loss = 1.0 * lat_loss + 0.5 * lon_loss + 1.2 * dt_loss + 1.3 * mag_loss
+            # Equal weights — each dimension contributes equally
+            loss = lat_loss + lon_loss + dt_loss + mag_loss
 
-        return logits, loss
+            # Per-dimension losses for diagnostics
+            loss_dict = {
+                'lat': lat_loss.item(),
+                'lon': lon_loss.item(),
+                'dt': dt_loss.item(),
+                'mag': mag_loss.item()
+            }
+
+        return logits, loss, loss_dict
 
     @torch.no_grad()
     def generate(self, x_test, temperature=0.8):
@@ -1559,6 +1562,9 @@ class EqModelComplex(nn.Module):
         # Add positional encoding if not using RoPE
         if self.pos_enc is not None:
             x = self.pos_enc(x)
+
+        # Embedding dropout (no-op in eval mode)
+        x = self.embed_dropout(x)
 
         # Pass through transformer blocks with spatial attention bias
         for block in self.blocks:
@@ -1841,7 +1847,7 @@ class CosineWarmupScheduler:
             return self.base_lrs[0] * self.current_step / self.warmup_steps
         else:
             # Cosine decay
-            progress = (self.current_step - self.warmup_steps) / (self.total_steps - self.warmup_steps)
+            progress = (self.current_step - self.warmup_steps) / max(1, self.total_steps - self.warmup_steps)
             progress = min(1.0, progress)
             cosine_decay = 0.5 * (1.0 + math.cos(math.pi * progress))
             return self.min_lr + (self.base_lrs[0] - self.min_lr) * cosine_decay
@@ -1912,7 +1918,7 @@ if __name__ == "__main__":
     print(f"  Use RoPE: True")
 
     # Create model
-    model = EqModelComplex(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max=181, use_rope=True)
+    model = EqModelComplex(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, use_rope=True)
     model = model.to(device)
 
     # Count parameters
@@ -1943,7 +1949,7 @@ if __name__ == "__main__":
             'dt': torch.randint(0, 721, (B,)).to(device),  # 0-720 minutes (12 hours)
             'mag': torch.randint(0, 92, (B,)).to(device)
         }
-        logits, loss = model(sample_input, targets)
+        logits, loss, loss_dict = model(sample_input, targets)
 
     print(f"\nOutput shapes:")
     print(f"  lat_logits: {logits['lat'].shape}")

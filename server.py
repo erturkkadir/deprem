@@ -15,7 +15,7 @@ import atexit
 import requests
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from torch.nn import functional as F
 
@@ -80,8 +80,6 @@ CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
 # Model configuration - must match train.py
 # Use CPU for server (training uses GPU)
 device = "cpu"
-col = 2  # Latitude prediction
-p_max = 181
 B = 1
 T = 512           # Sequence length (must match training)
 n_embed = 1176    # Embedding size (must match training, divisible by 8 heads)
@@ -152,11 +150,17 @@ def load_model(force_reload=False):
 
     sizes = dataC.getSizes()
 
-    model = EqModelComplex(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, p_max, use_rope=True, use_gpe=True)
+    model = EqModelComplex(sizes, B, T, n_embed, n_heads, n_layer, dropout, device, use_rope=True, use_gpe=True)
     model.to(device)
 
     if checkpoint_path:
-        state_dict = torch.load(checkpoint_path, map_location=device, weights_only=True)
+        ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
+        # Handle new format (dict with 'model' key) and legacy (raw state_dict)
+        if isinstance(ckpt, dict) and 'model' in ckpt:
+            state_dict = ckpt['model']
+        else:
+            state_dict = ckpt
+
         # Clean keys from torch.compile prefix
         new_state_dict = {}
         for key, value in state_dict.items():
@@ -194,7 +198,15 @@ def reload_checkpoint_weights():
         return False
 
     try:
-        state_dict = torch.load(checkpoint_path, map_location=device, weights_only=True)
+        ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
+
+        # Handle new format (dict with 'model' key) and legacy (raw state_dict)
+        if isinstance(ckpt, dict) and 'model' in ckpt:
+            state_dict = ckpt['model']
+        else:
+            state_dict = ckpt
+
+        # Clean keys from torch.compile prefix
         new_state_dict = {}
         for key, value in state_dict.items():
             new_key = key.replace('_orig_mod.', '')
@@ -268,8 +280,11 @@ def make_prediction():
 
         lat_encoded = predictions['lat']
         lon_encoded = predictions['lon']
-        dt_minutes = predictions['dt']
+        dt_bin = predictions['dt']
         mag_encoded = predictions['mag']
+
+        # Convert dt log-bin back to minutes
+        dt_minutes = DataC.LOG_BIN_MIDPOINTS[min(dt_bin, len(DataC.LOG_BIN_MIDPOINTS) - 1)]
 
         # Convert to actual coordinates
         lat_actual = lat_encoded - 90
@@ -320,9 +335,9 @@ def auto_verify_predictions():
         for pred in missed_preds:
             pr_id, pr_timestamp, pr_lat, pr_lon, pr_dt, pr_mag = pred
 
-            pred_lat_actual = (pr_lat - 90) if pr_lat else None
-            pred_lon_actual = (pr_lon - 180) if pr_lon else None
-            pred_mag_actual = (pr_mag / 10.0) if pr_mag else 4.0
+            pred_lat_actual = (pr_lat - 90) if pr_lat is not None else None
+            pred_lon_actual = (pr_lon - 180) if pr_lon is not None else None
+            pred_mag_actual = (pr_mag / 10.0) if pr_mag is not None else 4.0
 
             # Search window: from prediction time to prediction_time + dt + 72h
             expected_event_time = pr_timestamp + timedelta(minutes=pr_dt or 60)
@@ -638,7 +653,7 @@ def get_live_data():
         closest_match = None
         matched_earthquake = None
         prediction_status = None  # Will hold computed status info for frontend
-        now = datetime.now(timezone.utc).replace(tzinfo=None)  # Use UTC for consistency
+        now = datetime.now()  # Must match DB timestamps (MySQL NOW() = local time)
 
         # If the latest prediction is already verified, we need to create a new one
         if latest_prediction and latest_prediction.get('verified'):
