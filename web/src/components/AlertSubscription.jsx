@@ -34,7 +34,7 @@ export default function AlertSubscription() {
   const [email, setEmail] = useState('');
   const [location, setLocation] = useState(null);
   const [radiusKm, setRadiusKm] = useState(500);
-  const [status, setStatus] = useState(null); // { type: 'success'|'error', msg: '' }
+  const [status, setStatus] = useState(null); // { type: 'success'|'error'|'verify', msg: '' }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alerts, setAlerts] = useState([]);
   const [checkedEmail, setCheckedEmail] = useState('');
@@ -69,7 +69,10 @@ export default function AlertSubscription() {
       const data = await res.json();
 
       if (data.success) {
-        setStatus({ type: 'success', msg: data.message });
+        setStatus({
+          type: 'verify',
+          msg: `Verification email sent to ${email}. Please check your inbox and click the link to activate alerts.`
+        });
         fetchAlerts(email);
       } else {
         setStatus({ type: 'error', msg: data.error || 'Failed to subscribe' });
@@ -190,18 +193,28 @@ export default function AlertSubscription() {
                       disabled={!email || !location || isSubmitting}
                       className="btn-primary w-full text-sm py-2"
                     >
-                      {isSubmitting ? 'Subscribing...' : 'Subscribe'}
+                      {isSubmitting ? 'Sending verification...' : 'Subscribe'}
                     </button>
                   </form>
 
                   {/* Status message */}
                   {status && (
                     <div className={`mt-3 px-3 py-2 rounded text-xs ${
-                      status.type === 'success'
-                        ? 'bg-green-900/30 text-green-400 border border-green-800'
-                        : 'bg-red-900/30 text-red-400 border border-red-800'
+                      status.type === 'verify'
+                        ? 'bg-blue-900/30 text-blue-400 border border-blue-800'
+                        : status.type === 'success'
+                          ? 'bg-green-900/30 text-green-400 border border-green-800'
+                          : 'bg-red-900/30 text-red-400 border border-red-800'
                     }`}>
-                      {status.msg}
+                      {status.type === 'verify' && (
+                        <div className="flex items-start gap-2">
+                          <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                          <span>{status.msg}</span>
+                        </div>
+                      )}
+                      {status.type !== 'verify' && status.msg}
                     </div>
                   )}
 
@@ -212,10 +225,20 @@ export default function AlertSubscription() {
                       <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
                         {alerts.map((alert) => (
                           <div key={alert.id} className="flex items-center justify-between bg-zinc-800 rounded px-2 py-1.5 text-xs">
-                            <span className="text-zinc-300">
-                              {alert.lat.toFixed(1)}, {alert.lon.toFixed(1)}
-                              <span className="text-zinc-500 ml-1">({alert.radius_km}km)</span>
-                            </span>
+                            <div className="flex items-center gap-2">
+                              {alert.verified && alert.active ? (
+                                <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" title="Active" />
+                              ) : (
+                                <span className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" title="Pending verification" />
+                              )}
+                              <span className="text-zinc-300">
+                                {alert.lat.toFixed(1)}, {alert.lon.toFixed(1)}
+                                <span className="text-zinc-500 ml-1">({alert.radius_km}km)</span>
+                              </span>
+                              {!alert.verified && (
+                                <span className="text-yellow-500 text-[10px]">check email</span>
+                              )}
+                            </div>
                             <button
                               onClick={() => handleUnsubscribe(alert.token)}
                               className="text-red-400 hover:text-red-300 ml-2"

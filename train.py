@@ -190,10 +190,11 @@ def compute_val_loss(model, dataC, B, T, num_batches=10, label_smoothing=0.0):
 
     for _ in range(num_batches):
         try:
-            x, targets = dataC.getBatchHybrid(B, T, 'valid')
+            x, targets, target_mask = dataC.getBatchHybrid(B, T, 'valid')
             x = x.to(device)
             targets = {k: v.to(device) for k, v in targets.items()}
-            _, loss, _ = model(x, targets, label_smoothing=label_smoothing)
+            target_mask = target_mask.to(device)
+            _, loss, _ = model(x, targets, label_smoothing=label_smoothing, target_mask=target_mask)
             total_loss += loss.item()
             valid_batches += 1
         except Exception as e:
@@ -259,6 +260,7 @@ def train():
     iteration = 0
     opt_step = 0
     running_loss = 0.0
+    running_targets = 0.0
     running_dim_loss = {'lat': 0.0, 'lon': 0.0, 'dt': 0.0, 'mag': 0.0}
     best_val_loss = float('inf')
     last_avg_loss = float('inf')
@@ -299,10 +301,11 @@ def train():
 
     model.train()
 
-    print(f"\n[{datetime.now()}] Training started...")
+    print(f"\n[{datetime.now()}] Training started (MULTI-POSITION)...")
     print(f"LR schedule: warmup {WARMUP_STEPS} optimizer steps, cosine decay to {MAX_STEPS}")
     print(f"Gradient accumulation: {ACCUMULATION_STEPS} steps (effective batch={B*ACCUMULATION_STEPS})")
-    print(f"Label smoothing: {LABEL_SMOOTHING}\n")
+    print(f"Label smoothing: {LABEL_SMOOTHING}")
+    print(f"Multi-position: loss at ALL M4+ positions per sequence\n")
 
     # Initialize gradient accumulation
     optimizer.zero_grad(set_to_none=True)
@@ -316,17 +319,18 @@ def train():
             for param_group in optimizer.param_groups:
                 param_group['lr'] = lr
 
-            # Get batch
+            # Get batch with multi-position targets
             try:
-                x, targets = dataC.getBatchHybrid(B, T, 'train')
+                x, targets, target_mask = dataC.getBatchHybrid(B, T, 'train')
                 x = x.to(device)
                 targets = {k: v.to(device) for k, v in targets.items()}
+                target_mask = target_mask.to(device)
             except Exception as e:
                 print(f"Batch error: {e}")
                 continue
 
-            # Forward pass with label smoothing
-            logits, loss, loss_dict = model(x, targets, label_smoothing=LABEL_SMOOTHING)
+            # Forward pass with multi-position loss
+            logits, loss, loss_dict = model(x, targets, label_smoothing=LABEL_SMOOTHING, target_mask=target_mask)
 
             # NaN/Inf guard — skip batch to protect model weights
             if torch.isnan(loss) or torch.isinf(loss):
@@ -348,6 +352,7 @@ def train():
                 opt_step += 1
 
             running_loss += loss.item()  # Log unscaled loss
+            running_targets += target_mask.sum().item()  # Count M4+ target positions
 
             # Accumulate per-dimension losses
             if loss_dict:
@@ -358,11 +363,12 @@ def train():
             if iteration % PRINT_INTERVAL == 0:
                 last_avg_loss = running_loss / PRINT_INTERVAL
                 avg_dim = {k: running_dim_loss[k] / PRINT_INTERVAL for k in running_dim_loss}
+                avg_targets = running_targets / PRINT_INTERVAL
 
                 # Compute validation loss WITHOUT label smoothing for true generalization signal
                 val_loss = compute_val_loss(model, dataC, B, T, num_batches=20, label_smoothing=0.0)
 
-                print(f"step {iteration:6d} | train {last_avg_loss:.4f} | val {val_loss:.4f} | lr {lr:.2e} | lat {avg_dim['lat']:.2f} lon {avg_dim['lon']:.2f} dt {avg_dim['dt']:.2f} mag {avg_dim['mag']:.2f}")
+                print(f"step {iteration:6d} | train {last_avg_loss:.4f} | val {val_loss:.4f} | lr {lr:.2e} | tgt {avg_targets:.0f} | lat {avg_dim['lat']:.2f} lon {avg_dim['lon']:.2f} dt {avg_dim['dt']:.2f} mag {avg_dim['mag']:.2f}")
 
                 # Update status file for server
                 update_training_status(iteration, last_avg_loss)
@@ -376,6 +382,7 @@ def train():
                     print(f"  -> New best val loss!")
 
                 running_loss = 0.0
+                running_targets = 0.0
                 running_dim_loss = {'lat': 0.0, 'lon': 0.0, 'dt': 0.0, 'mag': 0.0}
 
             # Save checkpoint

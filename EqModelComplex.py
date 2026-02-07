@@ -1249,32 +1249,39 @@ class CustomComplexEmbedding(nn.Module):
         self.m_size = sizes['m_size'] + 1
         self.d_size = sizes['d_size'] + 1
         self.t_size = sizes['t_size'] + 1
+        self.lt_size = sizes['lt_size'] + 1  # local dt: 26 bins (0-25)
 
         self.embed_dim = embed_dim
         self.use_gpe = use_gpe
 
         if use_gpe:
-            # LOCATION-PRIORITY ALLOCATION:
-            # GPE (lat/lon): 40% of embedding space → location is most important for eq prediction
-            # dt: 14% (standard embed + log-scale encoding combined)
-            # yr, mt, mag, depth: ~11.5% each
+            # LOCATION-PRIORITY ALLOCATION (with local dt):
+            # GPE (lat/lon): ~35% → location still most important
+            # global_dt: ~14% (standard embed + log-scale encoding)
+            # local_dt: ~14% (standard embed + log-scale encoding)
+            # yr, mt, mag, depth: ~9% each
             #
             # For n_embed=1176:
-            #   gpe_dim    = 472  (40.1%)
-            #   dt_dim     = 168  (14.3%) - split: 84 standard + 84 log-scale
-            #   other_dim  = 134  each (11.4%)
-            #   Total: 472 + 168 + 134*4 = 472 + 168 + 536 = 1176 ✓
+            #   gpe_dim      = 408  (34.7%)
+            #   dt_dim       = 168  (14.3%) - split: 84 standard + 84 log-scale
+            #   lt_dim       = 168  (14.3%) - split: 84 standard + 84 log-scale
+            #   feature_dim  = 108  each (9.2%) × 4 = 432
+            #   Total: 408 + 168 + 168 + 432 = 1176 ✓
 
-            self.gpe_dim = embed_dim * 2 // 5          # 40% for location
-            self.dt_dim = embed_dim // 7               # 14% for dt (total)
-            remaining = embed_dim - self.gpe_dim - self.dt_dim
-            self.feature_dim = remaining // 4          # yr, mt, mag, depth
+            self.dt_dim = embed_dim // 7               # 14% for global dt
+            self.lt_dim = embed_dim // 7               # 14% for local dt
+            remaining = embed_dim - self.dt_dim - self.lt_dim
+            self.feature_dim = remaining // 5          # yr, mt, mag, depth (+ GPE absorbs remainder)
             # Absorb any rounding remainder into GPE
-            self.gpe_dim = embed_dim - self.dt_dim - 4 * self.feature_dim
+            self.gpe_dim = embed_dim - self.dt_dim - self.lt_dim - 4 * self.feature_dim
 
-            # dt split: half for standard embedding, half for log-scale encoding
+            # global dt split: half for standard embedding, half for log-scale encoding
             self.dt_embed_dim = self.dt_dim // 2
             self.dt_log_dim = self.dt_dim - self.dt_embed_dim
+
+            # local dt split: same pattern
+            self.lt_embed_dim = self.lt_dim // 2
+            self.lt_log_dim = self.lt_dim - self.lt_embed_dim
 
             # Complex embeddings for non-location features
             self.yr_embed = ComplexEmbedding(self.yr_size, self.feature_dim)
@@ -1282,26 +1289,32 @@ class CustomComplexEmbedding(nn.Module):
             self.m_embed = ComplexEmbedding(self.m_size, self.feature_dim)
             self.d_embed = ComplexEmbedding(self.d_size, self.feature_dim)
 
-            # dt: standard discrete embedding
+            # Global dt: standard discrete embedding + log-scale continuous
             self.t_embed = ComplexEmbedding(self.t_size, self.dt_embed_dim)
-
-            # dt: log-scale continuous encoding (captures log-normal distribution)
             self.t_log_embed = LogScaleDtEncoding(
                 embed_dim=self.dt_log_dim,
-                max_dt=sizes['t_size'],  # 720
+                max_dt=sizes['t_size'],
                 num_scales=8
             )
 
-            # Geographic Positional Encoding for lat/lon (with MORE capacity)
+            # Local dt: standard discrete embedding + log-scale continuous
+            self.lt_embed = ComplexEmbedding(self.lt_size, self.lt_embed_dim)
+            self.lt_log_embed = LogScaleDtEncoding(
+                embed_dim=self.lt_log_dim,
+                max_dt=sizes['lt_size'],
+                num_scales=8
+            )
+
+            # Geographic Positional Encoding for lat/lon
             self.gpe = GeographicPositionalEncoding(
                 embed_dim=self.gpe_dim,
-                spherical_degree=8,      # increased from 6 for finer spatial detail
-                num_frequencies=16,      # increased from 12 for more scales
-                num_zones=32             # increased from 24 for better zone coverage
+                spherical_degree=8,
+                num_frequencies=16,
+                num_zones=32
             )
         else:
             # Original behavior: simple embeddings for all features
-            self.feature_dim = embed_dim // 7
+            self.feature_dim = embed_dim // 8  # 8 features now
 
             self.yr_embed = ComplexEmbedding(self.yr_size, self.feature_dim)
             self.mt_embed = ComplexEmbedding(self.mt_size, self.feature_dim)
@@ -1310,14 +1323,16 @@ class CustomComplexEmbedding(nn.Module):
             self.m_embed = ComplexEmbedding(self.m_size, self.feature_dim)
             self.d_embed = ComplexEmbedding(self.d_size, self.feature_dim)
             self.t_embed = ComplexEmbedding(self.t_size, self.feature_dim)
+            self.lt_embed = ComplexEmbedding(self.lt_size, self.feature_dim)
             self.gpe = None
             self.t_log_embed = None
+            self.lt_log_embed = None
 
     def forward(self, data):
         """
         Args:
-            data: Tensor of shape [B, T, 7] with earthquake features
-                  [year, month, lat, lon, mag, depth, time_diff]
+            data: Tensor of shape [B, T, 8] with earthquake features
+                  [year, month, lat, lon, mag, depth, dt_global, dt_local]
         Returns:
             Complex tensor of shape [B, T, embed_dim]
         """
@@ -1326,6 +1341,7 @@ class CustomComplexEmbedding(nn.Module):
         m_emb = self.m_embed(data[:, :, 4])
         d_emb = self.d_embed(data[:, :, 5])
         t_emb = self.t_embed(data[:, :, 6])
+        lt_emb = self.lt_embed(data[:, :, 7])
 
         if self.use_gpe:
             # Use Geographic Positional Encoding for location
@@ -1333,16 +1349,17 @@ class CustomComplexEmbedding(nn.Module):
             lon_encoded = data[:, :, 3]
             loc_emb = self.gpe(lat_encoded, lon_encoded)
 
-            # Log-scale dt encoding (captures log-normal distribution)
+            # Log-scale encodings for both global and local dt
             t_log_emb = self.t_log_embed(data[:, :, 6])
+            lt_log_emb = self.lt_log_embed(data[:, :, 7])
 
-            # Concatenate: location first (most important), then dt, then others
-            emb = torch.cat((loc_emb, yr_emb, mt_emb, m_emb, d_emb, t_emb, t_log_emb), dim=-1)
+            # Concatenate: location first, then temporal features, then others
+            emb = torch.cat((loc_emb, yr_emb, mt_emb, m_emb, d_emb, t_emb, t_log_emb, lt_emb, lt_log_emb), dim=-1)
         else:
             # Original: separate embeddings for lat/lon
             x_emb = self.x_embed(data[:, :, 2])
             y_emb = self.y_embed(data[:, :, 3])
-            emb = torch.cat((yr_emb, mt_emb, x_emb, y_emb, m_emb, d_emb, t_emb), dim=-1)
+            emb = torch.cat((yr_emb, mt_emb, x_emb, y_emb, m_emb, d_emb, t_emb, lt_emb), dim=-1)
 
         return emb
 
@@ -1465,19 +1482,21 @@ class EqModelComplex(nn.Module):
         elif isinstance(module, nn.Embedding):
             nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx, targets=None, label_smoothing=0.0, use_all_positions=False):
+    def forward(self, idx, targets=None, label_smoothing=0.0, target_mask=None):
         """
         Forward pass for 4-parameter prediction.
 
         Args:
             idx: Input tensor [B, T, 7] - sequence of earthquakes
-            targets: Dict {'lat': [B], 'lon': [B], 'dt': [B], 'mag': [B]} or None
+            targets: Dict with target tensors. Shape [B, T] if target_mask provided, [B] otherwise.
             label_smoothing: Label smoothing factor (0.0-0.2 recommended)
-            use_all_positions: If True, compute loss on all positions (more training signal)
+            target_mask: Optional boolean tensor [B, T]. When provided, loss is computed at
+                         all True positions (multi-position training). When None, uses last position only.
 
         Returns:
-            logits: Dict with 'lat', 'lon', 'dt', 'mag' logits
+            logits: Dict with 'lat', 'lon', 'dt', 'mag' logits [B, T, vocab]
             loss: Combined loss or None
+            loss_dict: Per-dimension losses or None
         """
         B_actual, T_actual = idx.shape[0], idx.shape[1]
 
@@ -1522,11 +1541,32 @@ class EqModelComplex(nn.Module):
             loss = None
             loss_dict = None
         else:
-            # Use last position only (standard approach for next-token prediction)
-            lat_loss = FN.cross_entropy(lat_logits[:, -1, :], targets['lat'], label_smoothing=label_smoothing)
-            lon_loss = FN.cross_entropy(lon_logits[:, -1, :], targets['lon'], label_smoothing=label_smoothing)
-            dt_loss = FN.cross_entropy(dt_logits[:, -1, :], targets['dt'], label_smoothing=label_smoothing)
-            mag_loss = FN.cross_entropy(mag_logits[:, -1, :], targets['mag'], label_smoothing=label_smoothing)
+            if target_mask is not None:
+                # Multi-position loss: compute at ALL M4+ positions in the sequence
+                mask_flat = target_mask.reshape(-1)  # [B*T]
+
+                lat_loss = FN.cross_entropy(
+                    lat_logits.reshape(-1, lat_logits.size(-1))[mask_flat],
+                    targets['lat'].reshape(-1)[mask_flat],
+                    label_smoothing=label_smoothing)
+                lon_loss = FN.cross_entropy(
+                    lon_logits.reshape(-1, lon_logits.size(-1))[mask_flat],
+                    targets['lon'].reshape(-1)[mask_flat],
+                    label_smoothing=label_smoothing)
+                dt_loss = FN.cross_entropy(
+                    dt_logits.reshape(-1, dt_logits.size(-1))[mask_flat],
+                    targets['dt'].reshape(-1)[mask_flat],
+                    label_smoothing=label_smoothing)
+                mag_loss = FN.cross_entropy(
+                    mag_logits.reshape(-1, mag_logits.size(-1))[mask_flat],
+                    targets['mag'].reshape(-1)[mask_flat],
+                    label_smoothing=label_smoothing)
+            else:
+                # Single-position loss (backward compat for server inference)
+                lat_loss = FN.cross_entropy(lat_logits[:, -1, :], targets['lat'], label_smoothing=label_smoothing)
+                lon_loss = FN.cross_entropy(lon_logits[:, -1, :], targets['lon'], label_smoothing=label_smoothing)
+                dt_loss = FN.cross_entropy(dt_logits[:, -1, :], targets['dt'], label_smoothing=label_smoothing)
+                mag_loss = FN.cross_entropy(mag_logits[:, -1, :], targets['mag'], label_smoothing=label_smoothing)
 
             # Equal weights — each dimension contributes equally
             loss = lat_loss + lon_loss + dt_loss + mag_loss
@@ -1546,7 +1586,7 @@ class EqModelComplex(nn.Module):
         """Generate predictions for latitude, longitude, time difference, and magnitude.
 
         Args:
-            x_test: Input tensor [B, T, 7]
+            x_test: Input tensor [B, T, 8]
             temperature: Sampling temperature (higher = more random)
 
         Returns:

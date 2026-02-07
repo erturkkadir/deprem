@@ -173,17 +173,18 @@ def send_alert_email(to_email, prediction, unsubscribe_token):
         return False
 
 
-def send_welcome_email(to_email, lat, lon, radius_km, place, unsubscribe_token):
-    """Send a stunning welcome/confirmation email when a user subscribes."""
+def send_verification_email(to_email, lat, lon, radius_km, place, verify_token):
+    """Send verification email with magic link to confirm subscription."""
+    print(f"[{datetime.now()}] Sending verification email to {to_email}...", flush=True)
     try:
         msg = MIMEMultipart('alternative')
-        msg['Subject'] = "You're In — Earthquake Alerts Activated"
+        msg['Subject'] = "Verify Your Earthquake Alert Subscription"
         msg['From'] = f"{config.SMTP_FROM_NAME} <{config.SMTP_FROM}>"
         msg['To'] = to_email
         msg['Bcc'] = 'kadirerturk@gmail.com'
 
         base_url = config.APP_URL
-        unsubscribe_url = f"{base_url}/api/alerts/unsubscribe/{unsubscribe_token}"
+        verify_url = f"{base_url}/api/alerts/verify/{verify_token}"
         map_url = f"https://www.google.com/maps?q={lat},{lon}&z=6"
         location_display = place or f"{lat:.2f}, {lon:.2f}"
 
@@ -193,32 +194,34 @@ def send_welcome_email(to_email, lat, lon, radius_km, place, unsubscribe_token):
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0c0c0e; color: #fff; padding: 0; margin: 0;">
   <div style="max-width: 520px; margin: 0 auto; padding: 20px;">
 
-    <!-- Header with gradient -->
+    <!-- Header -->
     <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 50%, #c2410c 100%); border-radius: 16px 16px 0 0; padding: 40px 32px 32px; text-align: center;">
-      <div style="width: 72px; height: 72px; margin: 0 auto 16px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-        <img src="https://img.icons8.com/fluency/96/seismograph.png" alt="" width="48" height="48" style="display: block;" />
+      <div style="width: 72px; height: 72px; margin: 0 auto 16px; background: rgba(255,255,255,0.2); border-radius: 50%; line-height: 72px; font-size: 32px;">
+        &#128205;
       </div>
-      <h1 style="margin: 0 0 8px; font-size: 26px; font-weight: 800; color: #fff; letter-spacing: -0.5px;">
-        Alerts Activated
+      <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 800; color: #fff; letter-spacing: -0.5px;">
+        One Click to Activate
       </h1>
-      <p style="margin: 0; color: rgba(255,255,255,0.85); font-size: 15px;">
-        AI-powered earthquake predictions, straight to your inbox
+      <p style="margin: 0; color: rgba(255,255,255,0.85); font-size: 14px;">
+        Confirm your email to start receiving earthquake predictions
       </p>
     </div>
 
     <!-- Main card -->
     <div style="background: #1c1c1f; border-left: 1px solid #2a2a2e; border-right: 1px solid #2a2a2e; padding: 32px;">
 
-      <!-- Confirmation check -->
-      <div style="text-align: center; margin-bottom: 28px;">
-        <div style="display: inline-block; width: 48px; height: 48px; background: linear-gradient(135deg, #22c55e, #16a34a); border-radius: 50%; line-height: 48px; font-size: 24px;">
-          &#10003;
-        </div>
-        <p style="color: #4ade80; font-weight: 700; font-size: 16px; margin: 12px 0 4px;">Email Confirmed</p>
-        <p style="color: #71717a; font-size: 13px; margin: 0;">Your subscription is active and monitoring has begun</p>
+      <!-- Verify CTA — big and unmissable -->
+      <div style="text-align: center; margin-bottom: 32px;">
+        <p style="color: #d4d4d8; font-size: 14px; margin: 0 0 20px; line-height: 1.5;">
+          Click the button below to verify your email and activate earthquake prediction alerts for your location.
+        </p>
+        <a href="{verify_url}" style="display: inline-block; background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; padding: 16px 48px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 16px; letter-spacing: 0.5px; box-shadow: 0 4px 20px rgba(34,197,94,0.4);">
+          Verify &amp; Activate Alerts
+        </a>
+        <p style="color: #52525b; font-size: 11px; margin: 12px 0 0;">This link is unique to you. Do not share it.</p>
       </div>
 
-      <!-- Subscription details box -->
+      <!-- Subscription details -->
       <div style="background: #27272a; border: 1px solid #3f3f46; border-radius: 12px; overflow: hidden; margin-bottom: 24px;">
         <div style="background: linear-gradient(90deg, #27272a, #302a24); padding: 14px 20px; border-bottom: 1px solid #3f3f46;">
           <span style="color: #f97316; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">Your Monitoring Zone</span>
@@ -242,66 +245,56 @@ def send_welcome_email(to_email, lat, lon, radius_km, place, unsubscribe_token):
             <tr>
               <td style="padding: 8px 0; color: #a1a1aa; font-size: 13px;">Status</td>
               <td style="padding: 8px 0;">
-                <span style="display: inline-block; background: rgba(34,197,94,0.15); color: #4ade80; padding: 3px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 1px solid rgba(34,197,94,0.3);">Active — Monitoring 24/7</span>
+                <span style="display: inline-block; background: rgba(250,204,21,0.15); color: #facc15; padding: 3px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 1px solid rgba(250,204,21,0.3);">Pending Verification</span>
               </td>
             </tr>
           </table>
         </div>
       </div>
 
-      <!-- CTA buttons -->
-      <div style="text-align: center; margin-bottom: 28px;">
-        <a href="{map_url}" style="display: inline-block; background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 14px; box-shadow: 0 4px 14px rgba(249,115,22,0.4);">View Your Zone on Map</a>
-        <br><br>
-        <a href="{base_url}" style="display: inline-block; background: #27272a; color: #f97316; padding: 12px 28px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 13px; border: 1px solid #f97316;">Open Dashboard</a>
-      </div>
-
       <!-- How it works -->
       <div style="background: #27272a; border: 1px solid #3f3f46; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
-        <h3 style="color: #fff; font-size: 15px; margin: 0 0 20px; font-weight: 700;">How It Works</h3>
-
-        <div style="display: flex; margin-bottom: 16px;">
-          <div style="min-width: 32px; height: 32px; background: linear-gradient(135deg, #3b82f6, #2563eb); border-radius: 8px; text-align: center; line-height: 32px; font-size: 14px; font-weight: 700; color: #fff; margin-right: 14px;">1</div>
-          <div>
-            <div style="color: #fff; font-weight: 600; font-size: 13px; margin-bottom: 2px;">Real-time Data Ingestion</div>
-            <div style="color: #71717a; font-size: 12px;">Earthquake data pulled every 2 minutes from global seismic networks</div>
-          </div>
-        </div>
-
-        <div style="display: flex; margin-bottom: 16px;">
-          <div style="min-width: 32px; height: 32px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 8px; text-align: center; line-height: 32px; font-size: 14px; font-weight: 700; color: #fff; margin-right: 14px;">2</div>
-          <div>
-            <div style="color: #fff; font-weight: 600; font-size: 13px; margin-bottom: 2px;">AI Prediction Engine</div>
-            <div style="color: #71717a; font-size: 12px;">Complex-valued transformer neural network analyzes seismic patterns</div>
-          </div>
-        </div>
-
-        <div style="display: flex; margin-bottom: 16px;">
-          <div style="min-width: 32px; height: 32px; background: linear-gradient(135deg, #f97316, #ea580c); border-radius: 8px; text-align: center; line-height: 32px; font-size: 14px; font-weight: 700; color: #fff; margin-right: 14px;">3</div>
-          <div>
-            <div style="color: #fff; font-weight: 600; font-size: 13px; margin-bottom: 2px;">Instant Alert</div>
-            <div style="color: #71717a; font-size: 12px;">If a prediction falls within your {radius_km}km zone, you get notified immediately</div>
-          </div>
-        </div>
-
-        <div style="display: flex;">
-          <div style="min-width: 32px; height: 32px; background: linear-gradient(135deg, #22c55e, #16a34a); border-radius: 8px; text-align: center; line-height: 32px; font-size: 14px; font-weight: 700; color: #fff; margin-right: 14px;">4</div>
-          <div>
-            <div style="color: #fff; font-weight: 600; font-size: 13px; margin-bottom: 2px;">Verified Results</div>
-            <div style="color: #71717a; font-size: 12px;">Every prediction is verified against actual earthquakes within 2 hours</div>
-          </div>
-        </div>
+        <h3 style="color: #fff; font-size: 15px; margin: 0 0 20px; font-weight: 700;">What Happens Next?</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 8px 0; vertical-align: top; width: 36px;">
+              <div style="width: 28px; height: 28px; background: linear-gradient(135deg, #22c55e, #16a34a); border-radius: 7px; text-align: center; line-height: 28px; font-size: 13px; font-weight: 700; color: #fff;">1</div>
+            </td>
+            <td style="padding: 8px 0 8px 10px;">
+              <div style="color: #fff; font-weight: 600; font-size: 13px;">Click "Verify" above</div>
+              <div style="color: #71717a; font-size: 12px;">Your alerts are activated instantly</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; vertical-align: top;">
+              <div style="width: 28px; height: 28px; background: linear-gradient(135deg, #3b82f6, #2563eb); border-radius: 7px; text-align: center; line-height: 28px; font-size: 13px; font-weight: 700; color: #fff;">2</div>
+            </td>
+            <td style="padding: 8px 0 8px 10px;">
+              <div style="color: #fff; font-weight: 600; font-size: 13px;">AI monitors seismic data 24/7</div>
+              <div style="color: #71717a; font-size: 12px;">Complex-valued transformer analyzes global earthquake patterns in real-time</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; vertical-align: top;">
+              <div style="width: 28px; height: 28px; background: linear-gradient(135deg, #f97316, #ea580c); border-radius: 7px; text-align: center; line-height: 28px; font-size: 13px; font-weight: 700; color: #fff;">3</div>
+            </td>
+            <td style="padding: 8px 0 8px 10px;">
+              <div style="color: #fff; font-weight: 600; font-size: 13px;">Get alerted when it matters</div>
+              <div style="color: #71717a; font-size: 12px;">Email notification with magnitude, location, and expected time within your {radius_km}km zone</div>
+            </td>
+          </tr>
+        </table>
       </div>
 
       <!-- Trust badges -->
-      <div style="text-align: center; padding: 16px 0 8px;">
-        <div style="display: inline-block; margin: 0 12px 8px; color: #52525b; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">
+      <div style="text-align: center; padding: 8px 0;">
+        <div style="display: inline-block; margin: 0 10px 8px; color: #52525b; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">
           <span style="color: #22c55e; font-size: 14px;">&#9679;</span> 24/7 Monitoring
         </div>
-        <div style="display: inline-block; margin: 0 12px 8px; color: #52525b; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">
+        <div style="display: inline-block; margin: 0 10px 8px; color: #52525b; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">
           <span style="color: #3b82f6; font-size: 14px;">&#9679;</span> AI Powered
         </div>
-        <div style="display: inline-block; margin: 0 12px 8px; color: #52525b; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">
+        <div style="display: inline-block; margin: 0 10px 8px; color: #52525b; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">
           <span style="color: #f97316; font-size: 14px;">&#9679;</span> Free Forever
         </div>
       </div>
@@ -309,11 +302,11 @@ def send_welcome_email(to_email, lat, lon, radius_km, place, unsubscribe_token):
 
     <!-- Footer -->
     <div style="background: #141416; border-radius: 0 0 16px 16px; border: 1px solid #2a2a2e; border-top: none; padding: 20px 32px; text-align: center;">
-      <p style="color: #52525b; font-size: 11px; margin: 0 0 8px; line-height: 1.5;">
-        You are receiving this because you subscribed to earthquake prediction alerts at
+      <p style="color: #52525b; font-size: 11px; margin: 0 0 4px; line-height: 1.5;">
+        You received this because someone used this email to subscribe at
         <a href="{base_url}" style="color: #71717a;">{base_url.replace('https://', '')}</a>
       </p>
-      <a href="{unsubscribe_url}" style="color: #52525b; font-size: 11px; text-decoration: underline;">Unsubscribe</a>
+      <p style="color: #3f3f46; font-size: 11px; margin: 0;">If this wasn't you, simply ignore this email. No alerts will be sent.</p>
     </div>
   </div>
 </body>
@@ -325,10 +318,10 @@ def send_welcome_email(to_email, lat, lon, radius_km, place, unsubscribe_token):
             server.login(config.SMTP_USER, config.SMTP_PASS)
             server.sendmail(config.SMTP_FROM, [to_email, 'kadirerturk@gmail.com'], msg.as_string())
 
-        print(f"[{datetime.now()}] Welcome email sent to {to_email}")
+        print(f"[{datetime.now()}] Verification email sent to {to_email}", flush=True)
         return True
     except Exception as e:
-        print(f"[{datetime.now()}] Error sending welcome email to {to_email}: {e}")
+        print(f"[{datetime.now()}] Error sending verification email to {to_email}: {e}", flush=True)
         return False
 
 
@@ -1735,28 +1728,87 @@ def subscribe_alert():
         result = dataC.add_email_alert(email, lat, lon, radius_km)
 
         if result is None:
-            return jsonify({'error': 'You already have an alert for this location'}), 409
+            return jsonify({'error': 'You already have a verified alert for this location'}), 409
 
         # Get location name for confirmation
         place = reverse_geocode(lat, lon)
 
-        # Send welcome/confirmation email in background
-        threading.Thread(
-            target=send_welcome_email,
-            args=(email, lat, lon, radius_km, place, result['token']),
-            daemon=True
-        ).start()
+        # Send verification email
+        try:
+            send_verification_email(email, lat, lon, radius_km, place, result['verify_token'])
+        except Exception as e:
+            print(f"[{datetime.now()}] Verification email failed: {e}", flush=True)
 
         return jsonify({
             'success': True,
-            'message': f'Subscribed to alerts near {place or f"{lat:.2f}, {lon:.2f}"}',
+            'message': f'Verification email sent! Check your inbox to activate alerts near {place or f"{lat:.2f}, {lon:.2f}"}',
             'alert_id': result['ea_id'],
-            'place': place
+            'place': place,
+            'pending_verification': True
         })
 
     except Exception as e:
         print(f"Error subscribing alert: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/alerts/verify/<token>', methods=['GET'])
+def verify_alert(token):
+    """Verify email subscription via magic link. Returns styled HTML page."""
+    global dataC
+
+    if dataC is None:
+        return "<h1>Service unavailable</h1>", 500
+
+    result = dataC.verify_alert_by_token(token)
+    base_url = config.APP_URL
+
+    if result:
+        location_display = reverse_geocode(result['lat'], result['lon']) or f"{result['lat']:.2f}, {result['lon']:.2f}"
+        print(f"[{datetime.now()}] Email verified: {result['email']} for {location_display}", flush=True)
+        return f"""<!DOCTYPE html>
+<html>
+<head><title>Email Verified - Earthquake Alerts</title><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0c0c0e; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px;">
+  <div style="text-align: center; max-width: 440px; width: 100%;">
+    <div style="background: #1c1c1f; border-radius: 16px; border: 1px solid #2a2a2e; overflow: hidden;">
+      <!-- Green header -->
+      <div style="background: linear-gradient(135deg, #22c55e, #16a34a); padding: 32px 24px; text-align: center;">
+        <div style="width: 64px; height: 64px; margin: 0 auto 12px; background: rgba(255,255,255,0.2); border-radius: 50%; line-height: 64px; font-size: 28px;">&#10003;</div>
+        <h1 style="margin: 0 0 4px; font-size: 22px; font-weight: 800; color: #fff;">Email Verified!</h1>
+        <p style="margin: 0; color: rgba(255,255,255,0.85); font-size: 14px;">Your earthquake alerts are now active</p>
+      </div>
+      <!-- Details -->
+      <div style="padding: 28px 24px;">
+        <div style="background: #27272a; border: 1px solid #3f3f46; border-radius: 10px; padding: 16px; margin-bottom: 20px; text-align: left;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr><td style="padding: 6px 0; color: #a1a1aa; font-size: 13px;">Email</td><td style="padding: 6px 0; color: #fff; font-weight: 600; font-size: 13px;">{result['email']}</td></tr>
+            <tr><td style="padding: 6px 0; color: #a1a1aa; font-size: 13px;">Location</td><td style="padding: 6px 0; color: #fff; font-weight: 600; font-size: 13px;">{location_display}</td></tr>
+            <tr><td style="padding: 6px 0; color: #a1a1aa; font-size: 13px;">Radius</td><td style="padding: 6px 0; color: #f97316; font-weight: 700; font-size: 13px;">{result['radius_km']} km</td></tr>
+            <tr><td style="padding: 6px 0; color: #a1a1aa; font-size: 13px;">Status</td><td style="padding: 6px 0;"><span style="background: rgba(34,197,94,0.15); color: #4ade80; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 1px solid rgba(34,197,94,0.3);">Active - Monitoring 24/7</span></td></tr>
+          </table>
+        </div>
+        <a href="{base_url}" style="display: inline-block; background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; padding: 14px 36px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 14px; box-shadow: 0 4px 14px rgba(249,115,22,0.3);">Open Dashboard</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>"""
+    else:
+        return f"""<!DOCTYPE html>
+<html>
+<head><title>Verification Failed - Earthquake Alerts</title><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0c0c0e; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px;">
+  <div style="text-align: center; max-width: 440px; width: 100%;">
+    <div style="background: #1c1c1f; border-radius: 16px; border: 1px solid #2a2a2e; padding: 40px 24px;">
+      <div style="width: 64px; height: 64px; margin: 0 auto 16px; background: rgba(248,113,113,0.15); border-radius: 50%; line-height: 64px; font-size: 28px; border: 1px solid rgba(248,113,113,0.3);">&#10007;</div>
+      <h2 style="color: #f87171; margin: 0 0 8px;">Invalid or Expired Link</h2>
+      <p style="color: #71717a; font-size: 14px; margin: 0 0 24px;">This verification link is invalid or has already been used. Please subscribe again to receive a new verification email.</p>
+      <a href="{base_url}" style="display: inline-block; background: #f97316; color: #fff; padding: 12px 28px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 14px;">Back to App</a>
+    </div>
+  </div>
+</body>
+</html>"""
 
 
 @app.route('/api/alerts/unsubscribe/<token>', methods=['GET'])
@@ -1768,23 +1820,36 @@ def unsubscribe_alert_by_token(token):
         return "<h1>Service unavailable</h1>", 500
 
     success = dataC.deactivate_alert_by_token(token)
+    base_url = config.APP_URL
+    print(f"[{datetime.now()}] Unsubscribe via link: token={token[:8]}... success={success}", flush=True)
 
-    # Return styled HTML confirmation page
     if success:
-        message = "You have been unsubscribed from earthquake prediction alerts."
-        color = "#4ade80"
-    else:
-        message = "This unsubscribe link is invalid or has already been used."
-        color = "#f87171"
-
-    return f"""<!DOCTYPE html>
+        return f"""<!DOCTYPE html>
 <html>
-<head><title>Earthquake Alerts</title></head>
-<body style="font-family: -apple-system, sans-serif; background: #18181b; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0;">
-  <div style="text-align: center; max-width: 400px; padding: 40px; background: #27272a; border-radius: 12px; border: 1px solid #3f3f46;">
-    <h2 style="color: {color};">{'Unsubscribed' if success else 'Error'}</h2>
-    <p style="color: #d4d4d8;">{message}</p>
-    <a href="{config.APP_URL}" style="display: inline-block; margin-top: 16px; background: #f97316; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">Back to App</a>
+<head><title>Unsubscribed - Earthquake Alerts</title><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0c0c0e; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px;">
+  <div style="text-align: center; max-width: 440px; width: 100%;">
+    <div style="background: #1c1c1f; border-radius: 16px; border: 1px solid #2a2a2e; padding: 40px 24px;">
+      <div style="width: 64px; height: 64px; margin: 0 auto 16px; background: rgba(34,197,94,0.15); border-radius: 50%; line-height: 64px; font-size: 28px; border: 1px solid rgba(34,197,94,0.3);">&#10003;</div>
+      <h2 style="color: #4ade80; margin: 0 0 8px;">Successfully Unsubscribed</h2>
+      <p style="color: #a1a1aa; font-size: 14px; margin: 0 0 24px; line-height: 1.5;">You will no longer receive earthquake prediction alerts for this location. You can always re-subscribe from the dashboard.</p>
+      <a href="{base_url}" style="display: inline-block; background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; padding: 12px 28px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 14px;">Back to Dashboard</a>
+    </div>
+  </div>
+</body>
+</html>"""
+    else:
+        return f"""<!DOCTYPE html>
+<html>
+<head><title>Unsubscribe - Earthquake Alerts</title><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0c0c0e; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px;">
+  <div style="text-align: center; max-width: 440px; width: 100%;">
+    <div style="background: #1c1c1f; border-radius: 16px; border: 1px solid #2a2a2e; padding: 40px 24px;">
+      <div style="width: 64px; height: 64px; margin: 0 auto 16px; background: rgba(161,161,170,0.1); border-radius: 50%; line-height: 64px; font-size: 28px; border: 1px solid #3f3f46;">&#128276;</div>
+      <h2 style="color: #a1a1aa; margin: 0 0 8px;">Already Unsubscribed</h2>
+      <p style="color: #71717a; font-size: 14px; margin: 0 0 24px; line-height: 1.5;">This link has already been used or the subscription was already removed. You're not receiving any alerts from this subscription.</p>
+      <a href="{base_url}" style="display: inline-block; background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; padding: 12px 28px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 14px;">Back to Dashboard</a>
+    </div>
   </div>
 </body>
 </html>"""
@@ -1825,12 +1890,14 @@ def unsubscribe_alert():
             return jsonify({'error': 'Token required'}), 400
 
         success = dataC.deactivate_alert_by_token(token)
+        print(f"[{datetime.now()}] Unsubscribe via API: token={token[:8]}... success={success}", flush=True)
         if success:
             return jsonify({'success': True, 'message': 'Unsubscribed successfully'})
         else:
             return jsonify({'error': 'Alert not found or already unsubscribed'}), 404
 
     except Exception as e:
+        print(f"[{datetime.now()}] Unsubscribe error: {e}", flush=True)
         return jsonify({'error': str(e)}), 500
 
 

@@ -1,5 +1,4 @@
 <?php
-  header('Content-Type: application/json');
   header('Access-Control-Allow-Origin: *');
   header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
   header('Access-Control-Allow-Headers: Content-Type');
@@ -15,10 +14,25 @@
       $api_url .= '?' . $query;
   }
 
+  $opts = ['http' => ['method' => $_SERVER['REQUEST_METHOD'], 'ignore_errors' => true]];
   if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $data = file_get_contents('php://input');
-      $opts = ['http' => ['method' => 'POST', 'header' => 'Content-Type: application/json', 'content' => $data]];
-      echo file_get_contents($api_url, false, stream_context_create($opts));
-  } else {
-      echo file_get_contents($api_url);
+      $opts['http']['header'] = 'Content-Type: application/json';
+      $opts['http']['content'] = $data;
   }
+
+  $response = file_get_contents($api_url, false, stream_context_create($opts));
+
+  // Detect content type from backend response headers
+  $content_type = 'application/json';
+  if (isset($http_response_header)) {
+      foreach ($http_response_header as $h) {
+          if (stripos($h, 'Content-Type:') === 0) {
+              $content_type = trim(substr($h, 13));
+              break;
+          }
+      }
+  }
+  header('Content-Type: ' . $content_type);
+
+  echo $response;

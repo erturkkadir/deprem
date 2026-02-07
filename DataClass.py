@@ -32,6 +32,8 @@ class DataC():
         self.d_max = 200       # Depth 0-200 km → 201 embeddings (captures subduction zones)
         self.t_max = 9         # Log-scale bins 0-9 → 10 embeddings
         self.t_raw_max = 360   # Raw minutes cap before log binning
+        self.lt_max = 25       # Local dt log-scale bins 0-25 → 26 embeddings
+        self.lt_raw_max = 29000000  # ~55 years in minutes (no upper cap)
         self.data = []
         self.train = []
         self.valid = []
@@ -310,13 +312,16 @@ class DataC():
             ea_lat DECIMAL(7,4) NOT NULL,
             ea_lon DECIMAL(7,4) NOT NULL,
             ea_radius_km INT NOT NULL DEFAULT 500,
-            ea_active BOOLEAN NOT NULL DEFAULT TRUE,
+            ea_active BOOLEAN NOT NULL DEFAULT FALSE,
+            ea_verified BOOLEAN NOT NULL DEFAULT FALSE,
+            ea_verify_token VARCHAR(36) NOT NULL,
             ea_unsubscribe_token VARCHAR(36) NOT NULL,
             ea_last_notified DATETIME DEFAULT NULL,
             ea_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE KEY idx_email_location (ea_email, ea_lat, ea_lon),
-            INDEX idx_active (ea_active),
-            INDEX idx_token (ea_unsubscribe_token)
+            INDEX idx_active_verified (ea_active, ea_verified),
+            INDEX idx_unsub_token (ea_unsubscribe_token),
+            INDEX idx_verify_token (ea_verify_token)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """
         try:
@@ -325,66 +330,99 @@ class DataC():
         except Exception as e:
             print(f"Error creating email_alerts table: {e}")
 
+        # Migrations for existing tables
+        migrations = [
+            "ALTER TABLE email_alerts ADD COLUMN ea_verified BOOLEAN NOT NULL DEFAULT FALSE AFTER ea_active",
+            "ALTER TABLE email_alerts ADD COLUMN ea_verify_token VARCHAR(36) NOT NULL DEFAULT '' AFTER ea_verified",
+            "ALTER TABLE email_alerts ADD INDEX idx_verify_token (ea_verify_token)",
+            "UPDATE email_alerts SET ea_verified = TRUE WHERE ea_active = TRUE AND ea_verified = FALSE",
+        ]
+        for m in migrations:
+            try:
+                self._safe_execute(m)
+                self.mydb.commit()
+            except Exception:
+                pass
+
     def add_email_alert(self, email, lat, lon, radius_km=500):
         """Subscribe an email to earthquake alerts for a location.
 
-        If a deactivated subscription exists for the same email+location,
-        it is reactivated with a new token.
-
-        Args:
-            email: Subscriber email address
-            lat: Actual latitude (-90 to 90)
-            lon: Actual longitude (-180 to 180)
-            radius_km: Alert radius in km (default 500)
+        Creates an UNVERIFIED, INACTIVE subscription. User must click
+        the verification link in the email to activate it.
 
         Returns:
-            dict with ea_id and token on success, None on active duplicate
+            dict with ea_id, verify_token, unsub_token on success
+            None if already active+verified for this location
+            'pending' if already pending verification
         """
-        token = str(uuid.uuid4())
+        verify_token = str(uuid.uuid4())
+        unsub_token = str(uuid.uuid4())
         try:
             with self._lock:
-                # Check for existing (active or inactive) entry
                 existing = self._safe_fetch(
-                    "SELECT ea_id, ea_active FROM email_alerts WHERE ea_email = %s AND ea_lat = %s AND ea_lon = %s",
+                    "SELECT ea_id, ea_active, ea_verified, ea_verify_token FROM email_alerts WHERE ea_email = %s AND ea_lat = %s AND ea_lon = %s",
                     (email, lat, lon), fetch_one=True
                 )
                 if existing:
-                    ea_id, ea_active = existing
-                    if ea_active:
-                        return None  # Already subscribed
-                    # Reactivate with new token
+                    ea_id, ea_active, ea_verified, old_verify = existing
+                    if ea_active and ea_verified:
+                        return None  # Already fully active
+                    # Reset: new tokens, unverified, inactive
                     self._safe_execute(
-                        "UPDATE email_alerts SET ea_active = TRUE, ea_unsubscribe_token = %s, ea_radius_km = %s, ea_last_notified = NULL WHERE ea_id = %s",
-                        (token, radius_km, ea_id)
+                        """UPDATE email_alerts
+                           SET ea_active = FALSE, ea_verified = FALSE,
+                               ea_verify_token = %s, ea_unsubscribe_token = %s,
+                               ea_radius_km = %s, ea_last_notified = NULL
+                           WHERE ea_id = %s""",
+                        (verify_token, unsub_token, radius_km, ea_id)
                     )
                     self.mydb.commit()
-                    return {'ea_id': ea_id, 'token': token}
+                    return {'ea_id': ea_id, 'verify_token': verify_token, 'unsub_token': unsub_token}
 
-                # New subscription
+                # New subscription — inactive until verified
                 self._safe_execute(
-                    "INSERT INTO email_alerts (ea_email, ea_lat, ea_lon, ea_radius_km, ea_unsubscribe_token) VALUES (%s, %s, %s, %s, %s)",
-                    (email, lat, lon, radius_km, token)
+                    """INSERT INTO email_alerts
+                       (ea_email, ea_lat, ea_lon, ea_radius_km, ea_active, ea_verified, ea_verify_token, ea_unsubscribe_token)
+                       VALUES (%s, %s, %s, %s, FALSE, FALSE, %s, %s)""",
+                    (email, lat, lon, radius_km, verify_token, unsub_token)
                 )
                 self.mydb.commit()
-                return {'ea_id': self.mycursor.lastrowid, 'token': token}
+                return {'ea_id': self.mycursor.lastrowid, 'verify_token': verify_token, 'unsub_token': unsub_token}
         except Exception as e:
             print(f"Error adding email alert: {e}")
             return None
 
-    def get_active_alerts_in_bbox(self, lat_min, lat_max, lon_min, lon_max):
-        """Get active alert subscriptions within a bounding box.
-
-        Args:
-            lat_min, lat_max: Latitude range (-90 to 90)
-            lon_min, lon_max: Longitude range (-180 to 180)
+    def verify_alert_by_token(self, token):
+        """Verify and activate an alert subscription via magic link.
 
         Returns:
-            List of tuples: (ea_id, ea_email, ea_lat, ea_lon, ea_radius_km, ea_last_notified, ea_unsubscribe_token)
+            dict with alert details on success, None if token invalid/already verified
         """
+        try:
+            with self._lock:
+                row = self._safe_fetch(
+                    "SELECT ea_id, ea_email, ea_lat, ea_lon, ea_radius_km FROM email_alerts WHERE ea_verify_token = %s",
+                    (token,), fetch_one=True
+                )
+                if not row:
+                    return None
+                ea_id, ea_email, ea_lat, ea_lon, ea_radius_km = row
+                self._safe_execute(
+                    "UPDATE email_alerts SET ea_active = TRUE, ea_verified = TRUE WHERE ea_id = %s",
+                    (ea_id,)
+                )
+                self.mydb.commit()
+                return {'ea_id': ea_id, 'email': ea_email, 'lat': float(ea_lat), 'lon': float(ea_lon), 'radius_km': ea_radius_km}
+        except Exception as e:
+            print(f"Error verifying alert: {e}")
+            return None
+
+    def get_active_alerts_in_bbox(self, lat_min, lat_max, lon_min, lon_max):
+        """Get active+verified alert subscriptions within a bounding box."""
         sql = """
         SELECT ea_id, ea_email, ea_lat, ea_lon, ea_radius_km, ea_last_notified, ea_unsubscribe_token
         FROM email_alerts
-        WHERE ea_active = TRUE
+        WHERE ea_active = TRUE AND ea_verified = TRUE
           AND ea_lat BETWEEN %s AND %s
           AND ea_lon BETWEEN %s AND %s
         """
@@ -405,30 +443,33 @@ class DataC():
     def deactivate_alert_by_token(self, token):
         """Deactivate an alert subscription by its unsubscribe token.
 
+        Works for both active and pending-verification subscriptions.
+
         Returns:
             True if a subscription was deactivated, False otherwise
         """
         try:
-            self._safe_execute(
-                "UPDATE email_alerts SET ea_active = FALSE WHERE ea_unsubscribe_token = %s AND ea_active = TRUE",
-                (token,)
-            )
-            self.mydb.commit()
-            return self.mycursor.rowcount > 0
+            with self._lock:
+                self._safe_execute(
+                    "UPDATE email_alerts SET ea_active = FALSE, ea_verified = FALSE WHERE ea_unsubscribe_token = %s AND (ea_active = TRUE OR ea_verified = FALSE)",
+                    (token,)
+                )
+                self.mydb.commit()
+                return self.mycursor.rowcount > 0
         except Exception as e:
             print(f"Error deactivating alert: {e}")
             return False
 
     def get_alerts_by_email(self, email):
-        """Get all active alert subscriptions for an email address.
+        """Get all alert subscriptions for an email address (active or pending verification).
 
         Returns:
             List of dicts with subscription details
         """
         sql = """
-        SELECT ea_id, ea_lat, ea_lon, ea_radius_km, ea_unsubscribe_token, ea_created_at
+        SELECT ea_id, ea_lat, ea_lon, ea_radius_km, ea_unsubscribe_token, ea_created_at, ea_active, ea_verified
         FROM email_alerts
-        WHERE ea_email = %s AND ea_active = TRUE
+        WHERE ea_email = %s AND (ea_active = TRUE OR ea_verified = FALSE)
         ORDER BY ea_created_at DESC
         """
         try:
@@ -439,7 +480,9 @@ class DataC():
                 'lon': float(r[2]),
                 'radius_km': r[3],
                 'token': r[4],
-                'created_at': r[5].isoformat() if r[5] else None
+                'created_at': r[5].isoformat() if r[5] else None,
+                'active': bool(r[6]),
+                'verified': bool(r[7]),
             } for r in rows]
         except Exception as e:
             print(f"Error getting alerts by email: {e}")
@@ -1016,7 +1059,53 @@ class DataC():
             print(f"Error batch calc_dt: {e}")
             import traceback
             traceback.print_exc()
-        
+
+        # Calculate us_lt = time since last M4+ earthquake within 1000km for new records
+        try:
+            count_result = self._safe_fetch("SELECT COUNT(*) FROM usgs WHERE us_lt IS NULL OR us_lt = 0", fetch_one=True)
+            count = count_result[0] if count_result else 0
+
+            if count > 0:
+                print(f"Calculating local M4+ dt (1000km) for {count} new records...")
+
+                # For small batches of new records, use SQL with bounding box + haversine
+                # Bounding box: ~9° lat ≈ 1000km; lon box = 9 / cos(lat) but we use 36° to be safe up to ~75°
+                self._safe_execute("DROP TABLE IF EXISTS _tmp_lt")
+                self._safe_execute("""
+                    CREATE TABLE _tmp_lt AS
+                    SELECT u.us_id,
+                        GREATEST(1, COALESCE(
+                            (SELECT TIMESTAMPDIFF(MINUTE, p.us_datetime, u.us_datetime)
+                             FROM usgs p
+                             WHERE p.us_datetime < u.us_datetime
+                               AND p.us_mag >= 4.0
+                               AND p.us_x BETWEEN u.us_x - 9 AND u.us_x + 9
+                               AND p.us_y BETWEEN u.us_y - 36 AND u.us_y + 36
+                               AND (6371 * 2 * ASIN(SQRT(
+                                   POW(SIN(RADIANS((p.us_x - 90) - (u.us_x - 90)) / 2), 2) +
+                                   COS(RADIANS(u.us_x - 90)) * COS(RADIANS(p.us_x - 90)) *
+                                   POW(SIN(RADIANS((p.us_y - 180) - (u.us_y - 180)) / 2), 2)
+                               ))) < 1000
+                             ORDER BY p.us_datetime DESC
+                             LIMIT 1),
+                            29000000
+                        )) as lt_val
+                    FROM usgs u
+                    WHERE u.us_lt IS NULL OR u.us_lt = 0
+                """)
+                self.mydb.commit()
+
+                self._safe_execute("UPDATE usgs u JOIN _tmp_lt t ON u.us_id = t.us_id SET u.us_lt = t.lt_val")
+                self.mydb.commit()
+
+                self._safe_execute("DROP TABLE IF EXISTS _tmp_lt")
+                self.mydb.commit()
+                print(f"Done calculating local M4+ dt for {count} records")
+        except Exception as e:
+            print(f"Error batch calc_lt: {e}")
+            import traceback
+            traceback.print_exc()
+
     def getData(self, from_db=True, min_mag=3.9):
         """Load training data from database or CSV.
 
@@ -1155,7 +1244,8 @@ class DataC():
                 self.data = np.nan_to_num(self.data, 0)
 
                 # Store target indices for efficient sampling
-                self.target_indices = np.where(self.data[:, 7] == 1)[0]
+                # Column 8 = is_target (columns: yr, mo, x, y, m, d, dt, lt, is_target)
+                self.target_indices = np.where(self.data[:, 8] == 1)[0]
                 target_count = len(self.target_indices)
 
                 print(f"Loaded {len(self.data):,} records (M{input_mag}+)")
@@ -1186,13 +1276,14 @@ class DataC():
         # print(f" d  min:  {self.data[:,5].min()} max : {self.data[:,5].max()}")
         # print(f" t  min:  {self.data[:,6].min()} max : {self.data[:,6].max()}")
         sizes = {
-            'yr_size' : self.yr_max, 
-            'mt_size' : self.mt_max, 
-            'x_size' : self.x_max, 
-            'y_size' : self.y_max, 
-            'm_size' : self.m_max, 
-            'd_size' : self.d_max, 
-            't_size' : self.t_max
+            'yr_size' : self.yr_max,
+            'mt_size' : self.mt_max,
+            'x_size' : self.x_max,
+            'y_size' : self.y_max,
+            'm_size' : self.m_max,
+            'd_size' : self.d_max,
+            't_size' : self.t_max,
+            'lt_size' : self.lt_max
         }
         return sizes    
 
@@ -1273,14 +1364,16 @@ class DataC():
         return x.long(), targets
 
     def getBatchHybrid(self, B, T, split):
-        """Get batch for hybrid training: input has ALL earthquakes, targets are M4+ only.
+        """Get batch for hybrid training with multi-position targets.
 
-        This method requires getDataHybrid() to be called first.
-        Samples sequences where the target position is a M4+ earthquake.
+        Input has ALL earthquakes, loss is computed at ALL M4+ positions within
+        each sequence (not just the last one). This gives ~100-180x more gradient
+        signal per batch compared to single-position training.
 
         Returns:
-            x: Input sequences [B, T, 7] - includes all earthquakes as context
-            targets: Dict with 'lat', 'lon', 'dt', 'mag' tensors [B] - only M4+ targets
+            x: Input sequences [B, T, 8] - includes all earthquakes as context
+            targets: Dict with 'lat', 'lon', 'dt', 'mag' tensors [B, T] - targets at every position
+            target_mask: Boolean tensor [B, T] - True where position predicts an M4+ next event
         """
         if len(self.data) < 1 or not hasattr(self, 'target_indices'):
             raise ValueError("Call getDataHybrid() first to load hybrid data")
@@ -1311,32 +1404,42 @@ class DataC():
             target_positions = [target_positions.item()]
 
         # Get input sequences (T positions before each target)
-        # Only use first 7 columns (exclude is_target column)
-        data_tensor = torch.from_numpy(self.data[:, :7])
+        # Use first 8 columns (exclude is_target column at index 8)
+        # Columns: [yr, mo, lat, lon, mag, depth, dt_global, dt_local]
+        data_tensor = torch.from_numpy(self.data[:, :8])
+        is_target_col = torch.from_numpy(self.data[:, 8])
 
         x = torch.stack([data_tensor[int(pos)-T:int(pos)] for pos in target_positions])
 
         # CRITICAL: Clamp input data to model embedding ranges
-        # Column indices: 0=year, 1=month, 2=lat, 3=lon, 4=mag, 5=depth, 6=dt
+        # Column indices: 0=year, 1=month, 2=lat, 3=lon, 4=mag, 5=depth, 6=dt_global, 7=dt_local
         x[:, :, 0] = torch.clamp(x[:, :, 0], 0, self.yr_max)      # year: 0-60
         x[:, :, 1] = torch.clamp(x[:, :, 1] - 1, 0, 11)           # month: convert 1-12 to 0-11 for embedding
         x[:, :, 2] = torch.clamp(x[:, :, 2], 0, self.x_max)       # lat: 0-180
         x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)       # lon: 0-360
         x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)       # mag: 0-91
         x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-200
-        x[:, :, 6] = self._log_bin_tensor(torch.clamp(x[:, :, 6], 0, self.t_raw_max))  # dt: log-binned 0-9
+        x[:, :, 6] = self._log_bin_tensor(torch.clamp(x[:, :, 6], 0, self.t_raw_max))            # global dt: log-binned 0-9
+        x[:, :, 7] = self._log_bin_tensor(torch.clamp(x[:, :, 7], 0, self.lt_raw_max), n_bins=26)  # local dt: log-binned 0-25
 
-        # Get target values from the M4+ positions
-        next_pos = torch.stack([data_tensor[int(pos)] for pos in target_positions])
+        # Multi-position targets: for each position j, the target is position j+1
+        # "next positions" = data[pos-T+1 : pos+1] — shifted by 1 from input
+        next_data = torch.stack([data_tensor[int(pos)-T+1:int(pos)+1] for pos in target_positions])  # [B, T, 8]
+        next_is_target = torch.stack([is_target_col[int(pos)-T+1:int(pos)+1] for pos in target_positions])  # [B, T]
 
+        # Target mask: True where the NEXT position is M4+ (loss computed there)
+        # Position T-1 always True (anchor target is M4+ by construction)
+        target_mask = (next_is_target == 1)  # [B, T] boolean
+
+        # Build multi-position targets [B, T] with same clamping/log-binning
         targets = {
-            'lat': torch.clamp(next_pos[:, 2], 0, 180).long(),
-            'lon': torch.clamp(next_pos[:, 3], 0, 360).long(),
-            'mag': torch.clamp(next_pos[:, 4], 0, 91).long(),
-            'dt':  self._log_bin_tensor(torch.clamp(next_pos[:, 6], 0, self.t_raw_max)).long(),
+            'lat': torch.clamp(next_data[:, :, 2], 0, 180).long(),
+            'lon': torch.clamp(next_data[:, :, 3], 0, 360).long(),
+            'mag': torch.clamp(next_data[:, :, 4], 0, 91).long(),
+            'dt':  self._log_bin_tensor(torch.clamp(next_data[:, :, 6], 0, self.t_raw_max)).long(),
         }
 
-        return x.long(), targets
+        return x.long(), targets, target_mask
 
     def getLast(self, B, T, split, col):
         """Get the LAST sequence of T earthquakes for inference prediction.
@@ -1388,21 +1491,16 @@ class DataC():
         This method queries the database directly instead of using the cached
         data array, ensuring predictions use the most recent earthquake data.
 
-        IMPORTANT: dt is calculated dynamically using LAG() to match training data,
-        NOT from the us_t column which stores different values.
-
         Args:
             T: Sequence length (number of recent earthquakes to fetch)
             input_mag: Minimum magnitude filter (default 2.0)
 
         Returns:
-            x: Last T earthquakes [1, T, 7] as tensor ready for model input
+            x: Last T earthquakes [1, T, 8] as tensor ready for model input
         """
         try:
-            # Query the database for the last T earthquakes
-            # Use pre-computed location-aware dt (us_t)
             sql = """
-            SELECT year, month, us_x, us_y, us_m, us_d, us_t FROM (
+            SELECT year, month, us_x, us_y, us_m, us_d, us_t, us_lt FROM (
                 SELECT
                     YEAR(us_datetime) - 1970 as year,
                     MONTH(us_datetime) as month,
@@ -1415,6 +1513,10 @@ class DataC():
                         WHEN us_t > 360 THEN 360
                         ELSE us_t
                     END as us_t,
+                    CASE
+                        WHEN us_lt IS NULL OR us_lt = 0 THEN 29000000
+                        ELSE us_lt
+                    END as us_lt,
                     us_datetime
                 FROM usgs
                 WHERE us_mag >= %s
@@ -1432,25 +1534,22 @@ class DataC():
                 print(f"Warning: Only got {len(rows) if rows else 0} earthquakes, need {T}")
                 return None
 
-            # Data is already in chronological order (oldest first) from SQL ORDER BY
-
-            # Convert to numpy array
             import numpy as np
             data = np.array(rows, dtype=np.float64)
             data = np.nan_to_num(data, 0)
 
-            # Convert to tensor
-            x = torch.from_numpy(data).unsqueeze(0)  # [1, T, 7]
+            x = torch.from_numpy(data).unsqueeze(0)  # [1, T, 8]
 
             # CRITICAL: Clamp input data to model embedding ranges
-            # Column indices: 0=year, 1=month, 2=lat, 3=lon, 4=mag, 5=depth, 6=dt
+            # Columns: 0=year, 1=month, 2=lat, 3=lon, 4=mag, 5=depth, 6=dt_global, 7=dt_local
             x[:, :, 0] = torch.clamp(x[:, :, 0], 0, self.yr_max)      # year: 0-60
             x[:, :, 1] = torch.clamp(x[:, :, 1] - 1, 0, 11)           # month: convert 1-12 to 0-11 for embedding
             x[:, :, 2] = torch.clamp(x[:, :, 2], 0, self.x_max)       # lat: 0-180
             x[:, :, 3] = torch.clamp(x[:, :, 3], 0, self.y_max)       # lon: 0-360
             x[:, :, 4] = torch.clamp(x[:, :, 4], 0, self.m_max)       # mag: 0-91
             x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-200
-            x[:, :, 6] = self._log_bin_tensor(torch.clamp(x[:, :, 6], 0, self.t_raw_max))  # dt: log-binned 0-9
+            x[:, :, 6] = self._log_bin_tensor(torch.clamp(x[:, :, 6], 0, self.t_raw_max))            # global dt: log-binned 0-9
+            x[:, :, 7] = self._log_bin_tensor(torch.clamp(x[:, :, 7], 0, self.lt_raw_max), n_bins=26)  # local dt: log-binned 0-25
 
             return x.long()
 
