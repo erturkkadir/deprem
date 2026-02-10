@@ -550,11 +550,10 @@ def make_prediction():
 
         lat_encoded = predictions['lat']
         lon_encoded = predictions['lon']
-        dt_bin = predictions['dt']
         mag_encoded = predictions['mag']
 
-        # Convert dt log-bin back to minutes
-        dt_minutes = DataC.LOG_BIN_MIDPOINTS[min(dt_bin, len(DataC.LOG_BIN_MIDPOINTS) - 1)]
+        # Fixed 2-hour prediction window (time no longer predicted by model)
+        dt_minutes = 120
 
         # Convert to actual coordinates
         lat_actual = lat_encoded - 90

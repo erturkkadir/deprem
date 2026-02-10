@@ -1352,13 +1352,11 @@ class DataC():
         # Get next position (T+1) for all samples - this is what we predict
         next_pos = torch.stack([data_tensor[i+T] for i in ix])
 
-        # Extract each target column from the next position
-        # Clamp values to valid model output ranges
+        # Extract each target column from the next position — lat, lon, mag only
         targets = {
             'lat': torch.clamp(next_pos[:, 2], 0, 180).long(),  # latitude (0-180)
             'lon': torch.clamp(next_pos[:, 3], 0, 360).long(),  # longitude (0-360)
             'mag': torch.clamp(next_pos[:, 4], 0, 91).long(),   # magnitude (0-91)
-            'dt':  self._log_bin_tensor(torch.clamp(next_pos[:, 6], 0, self.t_raw_max)).long(),
         }
 
         return x.long(), targets
@@ -1431,12 +1429,11 @@ class DataC():
         # Position T-1 always True (anchor target is M4+ by construction)
         target_mask = (next_is_target == 1)  # [B, T] boolean
 
-        # Build multi-position targets [B, T] with same clamping/log-binning
+        # Build multi-position targets [B, T] — lat, lon, mag only (no dt prediction)
         targets = {
             'lat': torch.clamp(next_data[:, :, 2], 0, 180).long(),
             'lon': torch.clamp(next_data[:, :, 3], 0, 360).long(),
             'mag': torch.clamp(next_data[:, :, 4], 0, 91).long(),
-            'dt':  self._log_bin_tensor(torch.clamp(next_data[:, :, 6], 0, self.t_raw_max)).long(),
         }
 
         return x.long(), targets, target_mask

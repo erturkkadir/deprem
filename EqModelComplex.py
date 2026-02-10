@@ -1422,7 +1422,6 @@ class EqModelComplex(nn.Module):
         self.device = device
         self.use_rope = use_rope
         self.use_gpe = use_gpe
-        self.t_size = sizes['t_size'] + 1  # Time diff output size (e.g., 1441 for 0-1440 minutes)
 
         # Complex embedding for earthquake features with Geographic Positional Encoding
         self.embed = CustomComplexEmbedding(sizes, n_embed, use_gpe=use_gpe)
@@ -1445,18 +1444,22 @@ class EqModelComplex(nn.Module):
         # Final layer norm
         self.ln_f = ComplexLayerNorm(n_embed)
 
-        # Output heads (MLP for better decoding from complex representation)
-        head_hidden = n_embed // 2  # Hidden dim for output MLP
+        # Output heads: lat, lon, mag (no dt — time prediction removed)
+        head_hidden = n_embed // 2
         self.lat_head = self._make_head(n_embed * 2, 181, head_hidden)
         self.lon_head = self._make_head(n_embed * 2, 361, head_hidden)
-        self.dt_head = self._make_head(n_embed * 2, self.t_size, head_hidden)
         self.mag_head = self._make_head(n_embed * 2, 92, head_hidden)
+
+        # Gaussian label smoothing parameters (physically motivated)
+        self.lat_smooth = {'epsilon': 0.3, 'sigma': 2.0}   # 2° ≈ 222km spatial blur
+        self.lon_smooth = {'epsilon': 0.3, 'sigma': 2.0}   # 2° spatial blur
+        self.mag_smooth = {'epsilon': 0.15, 'sigma': 2.0}  # ±0.2 mag uncertainty
 
         self.apply(self._init_weights)
 
         # Re-initialize output head final layers with near-zero weights
         # so logits start near uniform (critical for stable early training)
-        for head in [self.lat_head, self.lon_head, self.dt_head, self.mag_head]:
+        for head in [self.lat_head, self.lon_head, self.mag_head]:
             nn.init.normal_(head[-1].weight, mean=0.0, std=0.02)
             if head[-1].bias is not None:
                 nn.init.zeros_(head[-1].bias)
@@ -1482,19 +1485,50 @@ class EqModelComplex(nn.Module):
         elif isinstance(module, nn.Embedding):
             nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
+    def _gaussian_smooth_loss(self, logits, targets, num_classes, epsilon, sigma):
+        """Cross-entropy with Gaussian label smoothing.
+
+        Instead of uniform smoothing (all wrong classes equally likely),
+        spread probability as a Gaussian centered on the true class.
+        Teaches the model that being spatially close is better than far.
+
+        target_dist = (1 - epsilon) * one_hot + epsilon * Gaussian(true_class, sigma)
+        loss = -sum(target_dist * log_softmax(logits))
+        """
+        device = logits.device
+        log_probs = FN.log_softmax(logits, dim=-1)  # [N, C]
+
+        # One-hot component
+        one_hot = torch.zeros_like(log_probs).scatter_(1, targets.unsqueeze(1), 1.0)
+
+        # Gaussian component centered on true class
+        indices = torch.arange(num_classes, device=device, dtype=torch.float32)  # [C]
+        diff = indices.unsqueeze(0) - targets.float().unsqueeze(1)  # [N, C]
+        gaussian = torch.exp(-0.5 * (diff / sigma) ** 2)
+        gaussian = gaussian / gaussian.sum(dim=-1, keepdim=True)  # normalize
+
+        # Blend: (1-eps)*one_hot + eps*gaussian
+        smooth_target = (1 - epsilon) * one_hot + epsilon * gaussian
+
+        # Cross-entropy against smooth target
+        loss = -(smooth_target * log_probs).sum(dim=-1).mean()
+        return loss
+
     def forward(self, idx, targets=None, label_smoothing=0.0, target_mask=None):
         """
-        Forward pass for 4-parameter prediction.
+        Forward pass for 3-parameter prediction (lat, lon, mag).
 
         Args:
-            idx: Input tensor [B, T, 7] - sequence of earthquakes
-            targets: Dict with target tensors. Shape [B, T] if target_mask provided, [B] otherwise.
-            label_smoothing: Label smoothing factor (0.0-0.2 recommended)
+            idx: Input tensor [B, T, 8] - sequence of earthquakes
+            targets: Dict with 'lat', 'lon', 'mag' target tensors.
+                     Shape [B, T] if target_mask provided, [B] otherwise.
+            label_smoothing: When > 0, uses Gaussian label smoothing (training).
+                             When == 0, uses standard cross-entropy (validation).
             target_mask: Optional boolean tensor [B, T]. When provided, loss is computed at
-                         all True positions (multi-position training). When None, uses last position only.
+                         all True positions (multi-position training).
 
         Returns:
-            logits: Dict with 'lat', 'lon', 'dt', 'mag' logits [B, T, vocab]
+            logits: Dict with 'lat', 'lon', 'mag' logits [B, T, vocab]
             loss: Combined loss or None
             loss_dict: Per-dimension losses or None
         """
@@ -1524,16 +1558,14 @@ class EqModelComplex(nn.Module):
         # Combine real and imaginary for output heads
         x_combined = torch.cat([x.real, x.imag], dim=-1)
 
-        # Compute logits for each head
+        # Compute logits for each head (no dt — time prediction removed)
         lat_logits = self.lat_head(x_combined)
         lon_logits = self.lon_head(x_combined)
-        dt_logits = self.dt_head(x_combined)
         mag_logits = self.mag_head(x_combined)
 
         logits = {
             'lat': lat_logits,
             'lon': lon_logits,
-            'dt': dt_logits,
             'mag': mag_logits
         }
 
@@ -1545,37 +1577,37 @@ class EqModelComplex(nn.Module):
                 # Multi-position loss: compute at ALL M4+ positions in the sequence
                 mask_flat = target_mask.reshape(-1)  # [B*T]
 
-                lat_loss = FN.cross_entropy(
-                    lat_logits.reshape(-1, lat_logits.size(-1))[mask_flat],
-                    targets['lat'].reshape(-1)[mask_flat],
-                    label_smoothing=label_smoothing)
-                lon_loss = FN.cross_entropy(
-                    lon_logits.reshape(-1, lon_logits.size(-1))[mask_flat],
-                    targets['lon'].reshape(-1)[mask_flat],
-                    label_smoothing=label_smoothing)
-                dt_loss = FN.cross_entropy(
-                    dt_logits.reshape(-1, dt_logits.size(-1))[mask_flat],
-                    targets['dt'].reshape(-1)[mask_flat],
-                    label_smoothing=label_smoothing)
-                mag_loss = FN.cross_entropy(
-                    mag_logits.reshape(-1, mag_logits.size(-1))[mask_flat],
-                    targets['mag'].reshape(-1)[mask_flat],
-                    label_smoothing=label_smoothing)
+                lat_flat = lat_logits.reshape(-1, lat_logits.size(-1))[mask_flat]
+                lon_flat = lon_logits.reshape(-1, lon_logits.size(-1))[mask_flat]
+                mag_flat = mag_logits.reshape(-1, mag_logits.size(-1))[mask_flat]
+                lat_tgt = targets['lat'].reshape(-1)[mask_flat]
+                lon_tgt = targets['lon'].reshape(-1)[mask_flat]
+                mag_tgt = targets['mag'].reshape(-1)[mask_flat]
             else:
-                # Single-position loss (backward compat for server inference)
-                lat_loss = FN.cross_entropy(lat_logits[:, -1, :], targets['lat'], label_smoothing=label_smoothing)
-                lon_loss = FN.cross_entropy(lon_logits[:, -1, :], targets['lon'], label_smoothing=label_smoothing)
-                dt_loss = FN.cross_entropy(dt_logits[:, -1, :], targets['dt'], label_smoothing=label_smoothing)
-                mag_loss = FN.cross_entropy(mag_logits[:, -1, :], targets['mag'], label_smoothing=label_smoothing)
+                # Single-position loss (backward compat)
+                lat_flat = lat_logits[:, -1, :]
+                lon_flat = lon_logits[:, -1, :]
+                mag_flat = mag_logits[:, -1, :]
+                lat_tgt = targets['lat']
+                lon_tgt = targets['lon']
+                mag_tgt = targets['mag']
 
-            # Equal weights — each dimension contributes equally
-            loss = lat_loss + lon_loss + dt_loss + mag_loss
+            if label_smoothing > 0:
+                # Gaussian label smoothing: teaches spatial proximity awareness
+                lat_loss = self._gaussian_smooth_loss(lat_flat, lat_tgt, 181, **self.lat_smooth)
+                lon_loss = self._gaussian_smooth_loss(lon_flat, lon_tgt, 361, **self.lon_smooth)
+                mag_loss = self._gaussian_smooth_loss(mag_flat, mag_tgt, 92, **self.mag_smooth)
+            else:
+                # Standard cross-entropy for validation (true generalization signal)
+                lat_loss = FN.cross_entropy(lat_flat, lat_tgt)
+                lon_loss = FN.cross_entropy(lon_flat, lon_tgt)
+                mag_loss = FN.cross_entropy(mag_flat, mag_tgt)
 
-            # Per-dimension losses for diagnostics
+            loss = lat_loss + lon_loss + mag_loss
+
             loss_dict = {
                 'lat': lat_loss.item(),
                 'lon': lon_loss.item(),
-                'dt': dt_loss.item(),
                 'mag': mag_loss.item()
             }
 
@@ -1583,14 +1615,14 @@ class EqModelComplex(nn.Module):
 
     @torch.no_grad()
     def generate(self, x_test, temperature=0.8):
-        """Generate predictions for latitude, longitude, time difference, and magnitude.
+        """Generate predictions for latitude, longitude, and magnitude.
 
         Args:
             x_test: Input tensor [B, T, 8]
             temperature: Sampling temperature (higher = more random)
 
         Returns:
-            dict with 'lat', 'lon', 'dt', 'mag' encoded values
+            dict with 'lat', 'lon', 'mag' encoded values
         """
         # Extract lat/lon for spatial attention bias
         lat = x_test[:, :, 2] if self.use_gpe else None
@@ -1619,36 +1651,31 @@ class EqModelComplex(nn.Module):
         # Get logits from each head
         lat_logits = self.lat_head(x_last)
         lon_logits = self.lon_head(x_last)
-        dt_logits = self.dt_head(x_last)
         mag_logits = self.mag_head(x_last)
 
         # Handle NaN/Inf
-        for logits in [lat_logits, lon_logits, dt_logits, mag_logits]:
+        for logits in [lat_logits, lon_logits, mag_logits]:
             if torch.isnan(logits).any() or torch.isinf(logits).any():
                 logits.copy_(torch.nan_to_num(logits, nan=0.0, posinf=100.0, neginf=-100.0))
 
         # Apply temperature and softmax
         lat_probs = FN.softmax(lat_logits / temperature, dim=-1)
         lon_probs = FN.softmax(lon_logits / temperature, dim=-1)
-        dt_probs = FN.softmax(dt_logits / temperature, dim=-1)
         mag_probs = FN.softmax(mag_logits / temperature, dim=-1)
 
         # Sample from distributions
         lat_pred = torch.multinomial(lat_probs, num_samples=1)
         lon_pred = torch.multinomial(lon_probs, num_samples=1)
-        dt_pred = torch.multinomial(dt_probs, num_samples=1)
         mag_pred = torch.multinomial(mag_probs, num_samples=1)
 
-        # Clamp to valid ranges (no artificial minimum on magnitude)
+        # Clamp to valid ranges
         lat_val = min(max(lat_pred.item(), 0), 180)
         lon_val = min(max(lon_pred.item(), 0), 360)
-        dt_val = min(max(dt_pred.item(), 1), 360)    # Min 1 minute, max 6 hours between events
-        mag_val = min(max(mag_pred.item(), 0), 91)   # Full magnitude range 0-91 (0.0-9.1)
+        mag_val = min(max(mag_pred.item(), 0), 91)
 
         return {
             'lat': lat_val,
             'lon': lon_val,
-            'dt': dt_val,
             'mag': mag_val
         }
 

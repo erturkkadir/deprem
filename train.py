@@ -261,7 +261,7 @@ def train():
     opt_step = 0
     running_loss = 0.0
     running_targets = 0.0
-    running_dim_loss = {'lat': 0.0, 'lon': 0.0, 'dt': 0.0, 'mag': 0.0}
+    running_dim_loss = {'lat': 0.0, 'lon': 0.0, 'mag': 0.0}
     best_val_loss = float('inf')
     last_avg_loss = float('inf')
 
@@ -368,7 +368,7 @@ def train():
                 # Compute validation loss WITHOUT label smoothing for true generalization signal
                 val_loss = compute_val_loss(model, dataC, B, T, num_batches=20, label_smoothing=0.0)
 
-                print(f"step {iteration:6d} | train {last_avg_loss:.4f} | val {val_loss:.4f} | lr {lr:.2e} | tgt {avg_targets:.0f} | lat {avg_dim['lat']:.2f} lon {avg_dim['lon']:.2f} dt {avg_dim['dt']:.2f} mag {avg_dim['mag']:.2f}")
+                print(f"step {iteration:6d} | train {last_avg_loss:.4f} | val {val_loss:.4f} | lr {lr:.2e} | tgt {avg_targets:.0f} | lat {avg_dim['lat']:.2f} lon {avg_dim['lon']:.2f} mag {avg_dim['mag']:.2f}")
 
                 # Update status file for server
                 update_training_status(iteration, last_avg_loss)
@@ -383,7 +383,7 @@ def train():
 
                 running_loss = 0.0
                 running_targets = 0.0
-                running_dim_loss = {'lat': 0.0, 'lon': 0.0, 'dt': 0.0, 'mag': 0.0}
+                running_dim_loss = {'lat': 0.0, 'lon': 0.0, 'mag': 0.0}
 
             # Save checkpoint
             if iteration % CHECKPOINT_INTERVAL == 0:
