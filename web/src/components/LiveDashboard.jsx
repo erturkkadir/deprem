@@ -274,7 +274,7 @@ function LiveDashboard() {
                         </h3>
                       </div>
                       <a
-                        href={`https://www.google.com/maps?q=${latest_prediction.predicted_lat},${latest_prediction.predicted_lon}&z=5`}
+                        href={`/map.html?id=${latest_prediction.id}&plat=${latest_prediction.predicted_lat}&plon=${latest_prediction.predicted_lon}&pmag=${latest_prediction.predicted_mag || ''}&pdt=${latest_prediction.predicted_dt || ''}&pplace=${encodeURIComponent(latest_prediction.predicted_place || '')}&time=${encodeURIComponent(latest_prediction.prediction_time || '')}&wend=${encodeURIComponent(latest_prediction.window_end || '')}&verified=false&correct=false`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center justify-center gap-2 px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors text-sm whitespace-nowrap"
@@ -496,7 +496,7 @@ function LiveDashboard() {
                             {eq.lat?.toFixed(1)}°, {eq.lon?.toFixed(1)}°
                           </span>
                           <a
-                            href={`https://www.google.com/maps?q=${eq.lat},${eq.lon}`}
+                            href={`/map.html?plat=${eq.lat}&plon=${eq.lon}&pmag=${eq.mag || ''}&pplace=${encodeURIComponent(eq.place || '')}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-400 hover:text-blue-300 text-[10px] flex items-center gap-0.5"

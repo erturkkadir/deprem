@@ -34,6 +34,10 @@ class DataC():
         self.t_raw_max = 360   # Raw minutes cap before log binning
         self.lt_max = 25       # Local dt log-scale bins 0-25 → 26 embeddings
         self.lt_raw_max = 29000000  # ~55 years in minutes (no upper cap)
+        self.hr_max = 23       # Hour of day 0-23 → 24 embeddings
+        self.doy_max = 365     # Day of year 0-365 → 366 embeddings
+        self.mp_max = 29       # Moon phase 0-29 → 30 embeddings (0=new, 15=full)
+        self.md_max = 9        # Moon distance bin 0-9 → 10 embeddings (0=perigee, 9=apogee)
         self.data = []
         self.train = []
         self.valid = []
@@ -68,6 +72,37 @@ class DataC():
             log_vals = torch.log2(t[mask].float().clamp(min=1))
             result[mask] = torch.clamp(log_vals.floor() + 1, max=n_bins - 1).to(t.dtype)
         return result
+
+    @staticmethod
+    def _compute_moon_features(unix_timestamps):
+        """Compute moon phase and distance bins from unix timestamps.
+
+        Uses simple orbital mechanics — no external dependencies.
+        Vectorized with numpy for fast computation on 1M+ records.
+
+        Returns:
+            moon_phase: int array 0-29 (0=new moon, 15=full moon)
+            moon_dist_bin: int array 0-9 (0=perigee/closest, 9=apogee/farthest)
+        """
+        SYNODIC_PERIOD = 29.530588853       # days (new moon to new moon)
+        REF_NEW_MOON = 947182440            # Jan 6, 2000 18:14 UTC (known new moon)
+        ANOMALISTIC_PERIOD = 27.554551      # days (perigee to perigee)
+        REF_PERIGEE = 948019200             # Jan 16, 2000 ~00:00 UTC (approximate perigee)
+
+        ts = np.asarray(unix_timestamps, dtype=np.float64)
+
+        # Moon phase: 0-29 based on synodic cycle
+        days_since_new = (ts - REF_NEW_MOON) / 86400.0
+        moon_phase = ((days_since_new % SYNODIC_PERIOD) / SYNODIC_PERIOD * 30).astype(np.int32) % 30
+
+        # Moon distance: approximate using eccentricity model
+        # Distance varies from ~356,500 km (perigee) to ~406,700 km (apogee)
+        days_since_perigee = (ts - REF_PERIGEE) / 86400.0
+        anomaly = 2 * np.pi * (days_since_perigee % ANOMALISTIC_PERIOD) / ANOMALISTIC_PERIOD
+        distance_km = 384400 * (1 - 0.0549 * np.cos(anomaly))
+        moon_dist_bin = np.clip(((distance_km - 356500) / (406700 - 356500) * 10).astype(np.int32), 0, 9)
+
+        return moon_phase, moon_dist_bin
 
     def _connect_db(self):
         """Establish database connection. Only called once or after connection dies."""
@@ -1237,19 +1272,35 @@ class DataC():
             db.close()
 
             if rows:
-                self.data = np.array(rows, dtype=np.float64)
-                nan_count = np.isnan(self.data).sum()
+                raw = np.array(rows, dtype=np.float64)
+                nan_count = np.isnan(raw).sum()
                 if nan_count > 0:
                     print(f"  Warning: {nan_count} NaN values replaced with 0 (valid embedding index)")
-                self.data = np.nan_to_num(self.data, 0)
+                raw = np.nan_to_num(raw, 0)
+
+                # Stored proc returns 12 columns:
+                # [yr, mo, x, y, m, d, dt, lt, hour, doy, unix_ts, is_target]
+                # Compute moon features from unix_ts (col 10)
+                unix_ts = raw[:, 10]
+                moon_phase, moon_dist_bin = self._compute_moon_features(unix_ts)
+
+                # Build final data array: 13 columns
+                # [yr, mo, x, y, m, d, dt, lt, hour, doy, moon_phase, moon_dist, is_target]
+                self.data = np.column_stack([
+                    raw[:, :10],           # yr, mo, x, y, m, d, dt, lt, hour, doy
+                    moon_phase,            # col 10: moon phase 0-29
+                    moon_dist_bin,         # col 11: moon distance bin 0-9
+                    raw[:, 11],            # col 12: is_target
+                ])
 
                 # Store target indices for efficient sampling
-                # Column 8 = is_target (columns: yr, mo, x, y, m, d, dt, lt, is_target)
-                self.target_indices = np.where(self.data[:, 8] == 1)[0]
+                # Column 12 = is_target
+                self.target_indices = np.where(self.data[:, 12] == 1)[0]
                 target_count = len(self.target_indices)
 
                 print(f"Loaded {len(self.data):,} records (M{input_mag}+)")
                 print(f"  Training targets (M{target_mag}+): {target_count:,} ({100*target_count/len(self.data):.1f}%)")
+                print(f"  Earth-state features: hour[0-23], doy[0-365], moon_phase[0-29], moon_dist[0-9]")
 
                 self._update_data_splits()
             else:
@@ -1283,7 +1334,11 @@ class DataC():
             'm_size' : self.m_max,
             'd_size' : self.d_max,
             't_size' : self.t_max,
-            'lt_size' : self.lt_max
+            'lt_size' : self.lt_max,
+            'hr_size' : self.hr_max,
+            'doy_size' : self.doy_max,
+            'mp_size' : self.mp_max,
+            'md_size' : self.md_max
         }
         return sizes    
 
@@ -1402,15 +1457,16 @@ class DataC():
             target_positions = [target_positions.item()]
 
         # Get input sequences (T positions before each target)
-        # Use first 8 columns (exclude is_target column at index 8)
-        # Columns: [yr, mo, lat, lon, mag, depth, dt_global, dt_local]
-        data_tensor = torch.from_numpy(self.data[:, :8])
-        is_target_col = torch.from_numpy(self.data[:, 8])
+        # Use first 12 columns (exclude is_target column at index 12)
+        # Columns: [yr, mo, lat, lon, mag, depth, dt_global, dt_local, hour, doy, moon_phase, moon_dist]
+        data_tensor = torch.from_numpy(self.data[:, :12])
+        is_target_col = torch.from_numpy(self.data[:, 12])
 
         x = torch.stack([data_tensor[int(pos)-T:int(pos)] for pos in target_positions])
 
         # CRITICAL: Clamp input data to model embedding ranges
-        # Column indices: 0=year, 1=month, 2=lat, 3=lon, 4=mag, 5=depth, 6=dt_global, 7=dt_local
+        # Columns: 0=year, 1=month, 2=lat, 3=lon, 4=mag, 5=depth, 6=dt_global, 7=dt_local,
+        #          8=hour, 9=doy, 10=moon_phase, 11=moon_dist
         x[:, :, 0] = torch.clamp(x[:, :, 0], 0, self.yr_max)      # year: 0-60
         x[:, :, 1] = torch.clamp(x[:, :, 1] - 1, 0, 11)           # month: convert 1-12 to 0-11 for embedding
         x[:, :, 2] = torch.clamp(x[:, :, 2], 0, self.x_max)       # lat: 0-180
@@ -1419,10 +1475,14 @@ class DataC():
         x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-200
         x[:, :, 6] = self._log_bin_tensor(torch.clamp(x[:, :, 6], 0, self.t_raw_max))            # global dt: log-binned 0-9
         x[:, :, 7] = self._log_bin_tensor(torch.clamp(x[:, :, 7], 0, self.lt_raw_max), n_bins=26)  # local dt: log-binned 0-25
+        x[:, :, 8] = torch.clamp(x[:, :, 8], 0, self.hr_max)      # hour: 0-23
+        x[:, :, 9] = torch.clamp(x[:, :, 9], 0, self.doy_max)     # day of year: 0-365
+        x[:, :, 10] = torch.clamp(x[:, :, 10], 0, self.mp_max)    # moon phase: 0-29
+        x[:, :, 11] = torch.clamp(x[:, :, 11], 0, self.md_max)    # moon distance: 0-9
 
         # Multi-position targets: for each position j, the target is position j+1
         # "next positions" = data[pos-T+1 : pos+1] — shifted by 1 from input
-        next_data = torch.stack([data_tensor[int(pos)-T+1:int(pos)+1] for pos in target_positions])  # [B, T, 8]
+        next_data = torch.stack([data_tensor[int(pos)-T+1:int(pos)+1] for pos in target_positions])  # [B, T, 12]
         next_is_target = torch.stack([is_target_col[int(pos)-T+1:int(pos)+1] for pos in target_positions])  # [B, T]
 
         # Target mask: True where the NEXT position is M4+ (loss computed there)
@@ -1493,11 +1553,13 @@ class DataC():
             input_mag: Minimum magnitude filter (default 2.0)
 
         Returns:
-            x: Last T earthquakes [1, T, 8] as tensor ready for model input
+            x: Last T earthquakes [1, T, 12] as tensor ready for model input
         """
         try:
             sql = """
-            SELECT year, month, us_x, us_y, us_m, us_d, us_t, us_lt FROM (
+            SELECT year, month, us_x, us_y, us_m, us_d, us_t, us_lt,
+                   hour_of_day, day_of_year, unix_ts
+            FROM (
                 SELECT
                     YEAR(us_datetime) - 1970 as year,
                     MONTH(us_datetime) as month,
@@ -1514,6 +1576,9 @@ class DataC():
                         WHEN us_lt IS NULL OR us_lt = 0 THEN 29000000
                         ELSE us_lt
                     END as us_lt,
+                    HOUR(us_datetime) as hour_of_day,
+                    DAYOFYEAR(us_datetime) - 1 as day_of_year,
+                    UNIX_TIMESTAMP(us_datetime) as unix_ts,
                     us_datetime
                 FROM usgs
                 WHERE us_mag >= %s
@@ -1531,14 +1596,25 @@ class DataC():
                 print(f"Warning: Only got {len(rows) if rows else 0} earthquakes, need {T}")
                 return None
 
-            import numpy as np
             data = np.array(rows, dtype=np.float64)
             data = np.nan_to_num(data, 0)
 
-            x = torch.from_numpy(data).unsqueeze(0)  # [1, T, 8]
+            # Compute moon features from unix_ts (col 10)
+            unix_ts = data[:, 10]
+            moon_phase, moon_dist_bin = self._compute_moon_features(unix_ts)
+
+            # Build 12-column array: [yr, mo, x, y, m, d, dt, lt, hour, doy, moon_phase, moon_dist]
+            data_12 = np.column_stack([
+                data[:, :10],       # yr, mo, x, y, m, d, dt, lt, hour, doy
+                moon_phase,
+                moon_dist_bin,
+            ])
+
+            x = torch.from_numpy(data_12).unsqueeze(0)  # [1, T, 12]
 
             # CRITICAL: Clamp input data to model embedding ranges
-            # Columns: 0=year, 1=month, 2=lat, 3=lon, 4=mag, 5=depth, 6=dt_global, 7=dt_local
+            # Columns: 0=year, 1=month, 2=lat, 3=lon, 4=mag, 5=depth, 6=dt_global, 7=dt_local,
+            #          8=hour, 9=doy, 10=moon_phase, 11=moon_dist
             x[:, :, 0] = torch.clamp(x[:, :, 0], 0, self.yr_max)      # year: 0-60
             x[:, :, 1] = torch.clamp(x[:, :, 1] - 1, 0, 11)           # month: convert 1-12 to 0-11 for embedding
             x[:, :, 2] = torch.clamp(x[:, :, 2], 0, self.x_max)       # lat: 0-180
@@ -1547,6 +1623,10 @@ class DataC():
             x[:, :, 5] = torch.clamp(x[:, :, 5], 0, self.d_max)       # depth: 0-200
             x[:, :, 6] = self._log_bin_tensor(torch.clamp(x[:, :, 6], 0, self.t_raw_max))            # global dt: log-binned 0-9
             x[:, :, 7] = self._log_bin_tensor(torch.clamp(x[:, :, 7], 0, self.lt_raw_max), n_bins=26)  # local dt: log-binned 0-25
+            x[:, :, 8] = torch.clamp(x[:, :, 8], 0, self.hr_max)      # hour: 0-23
+            x[:, :, 9] = torch.clamp(x[:, :, 9], 0, self.doy_max)     # day of year: 0-365
+            x[:, :, 10] = torch.clamp(x[:, :, 10], 0, self.mp_max)    # moon phase: 0-29
+            x[:, :, 11] = torch.clamp(x[:, :, 11], 0, self.md_max)    # moon distance: 0-9
 
             return x.long()
 

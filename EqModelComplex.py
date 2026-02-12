@@ -1249,31 +1249,35 @@ class CustomComplexEmbedding(nn.Module):
         self.m_size = sizes['m_size'] + 1
         self.d_size = sizes['d_size'] + 1
         self.t_size = sizes['t_size'] + 1
-        self.lt_size = sizes['lt_size'] + 1  # local dt: 26 bins (0-25)
+        self.lt_size = sizes['lt_size'] + 1   # local dt: 26 bins (0-25)
+        self.hr_size = sizes['hr_size'] + 1   # hour of day: 24 (0-23)
+        self.doy_size = sizes['doy_size'] + 1 # day of year: 366 (0-365)
+        self.mp_size = sizes['mp_size'] + 1   # moon phase: 30 (0-29)
+        self.md_size = sizes['md_size'] + 1   # moon distance: 10 (0-9)
 
         self.embed_dim = embed_dim
         self.use_gpe = use_gpe
 
         if use_gpe:
-            # LOCATION-PRIORITY ALLOCATION (with local dt):
-            # GPE (lat/lon): ~35% → location still most important
-            # global_dt: ~14% (standard embed + log-scale encoding)
-            # local_dt: ~14% (standard embed + log-scale encoding)
-            # yr, mt, mag, depth: ~9% each
+            # LOCATION-PRIORITY ALLOCATION with Earth-state features:
+            # GPE (lat/lon): ~27% → location still dominant
+            # global_dt: ~10% (standard embed + log-scale encoding)
+            # local_dt: ~10% (standard embed + log-scale encoding)
+            # yr, mt, mag, depth, hour, doy, moon_phase, moon_dist: ~6.6% each
             #
             # For n_embed=1176:
-            #   gpe_dim      = 408  (34.7%)
-            #   dt_dim       = 168  (14.3%) - split: 84 standard + 84 log-scale
-            #   lt_dim       = 168  (14.3%) - split: 84 standard + 84 log-scale
-            #   feature_dim  = 108  each (9.2%) × 4 = 432
-            #   Total: 408 + 168 + 168 + 432 = 1176 ✓
+            #   dt_dim       = 117  (10.0%) - split: 58 standard + 59 log-scale
+            #   lt_dim       = 117  (10.0%) - split: 58 standard + 59 log-scale
+            #   feature_dim  = 78   each (6.6%) × 8 = 624
+            #   gpe_dim      = 318  (27.0%) - absorbs rounding remainder
+            #   Total: 117 + 117 + 624 + 318 = 1176 ✓
 
-            self.dt_dim = embed_dim // 7               # 14% for global dt
-            self.lt_dim = embed_dim // 7               # 14% for local dt
+            self.dt_dim = embed_dim // 10              # 10% for global dt
+            self.lt_dim = embed_dim // 10              # 10% for local dt
             remaining = embed_dim - self.dt_dim - self.lt_dim
-            self.feature_dim = remaining // 5          # yr, mt, mag, depth (+ GPE absorbs remainder)
+            self.feature_dim = remaining // 12         # 8 simple features (+ 4 GPE weight)
             # Absorb any rounding remainder into GPE
-            self.gpe_dim = embed_dim - self.dt_dim - self.lt_dim - 4 * self.feature_dim
+            self.gpe_dim = remaining - 8 * self.feature_dim
 
             # global dt split: half for standard embedding, half for log-scale encoding
             self.dt_embed_dim = self.dt_dim // 2
@@ -1288,6 +1292,12 @@ class CustomComplexEmbedding(nn.Module):
             self.mt_embed = ComplexEmbedding(self.mt_size, self.feature_dim)
             self.m_embed = ComplexEmbedding(self.m_size, self.feature_dim)
             self.d_embed = ComplexEmbedding(self.d_size, self.feature_dim)
+
+            # Earth-state embeddings (NEW)
+            self.hr_embed = ComplexEmbedding(self.hr_size, self.feature_dim)   # hour of day
+            self.doy_embed = ComplexEmbedding(self.doy_size, self.feature_dim) # day of year
+            self.mp_embed = ComplexEmbedding(self.mp_size, self.feature_dim)   # moon phase
+            self.md_embed = ComplexEmbedding(self.md_size, self.feature_dim)   # moon distance
 
             # Global dt: standard discrete embedding + log-scale continuous
             self.t_embed = ComplexEmbedding(self.t_size, self.dt_embed_dim)
@@ -1314,7 +1324,7 @@ class CustomComplexEmbedding(nn.Module):
             )
         else:
             # Original behavior: simple embeddings for all features
-            self.feature_dim = embed_dim // 8  # 8 features now
+            self.feature_dim = embed_dim // 12  # 12 features now
 
             self.yr_embed = ComplexEmbedding(self.yr_size, self.feature_dim)
             self.mt_embed = ComplexEmbedding(self.mt_size, self.feature_dim)
@@ -1324,6 +1334,10 @@ class CustomComplexEmbedding(nn.Module):
             self.d_embed = ComplexEmbedding(self.d_size, self.feature_dim)
             self.t_embed = ComplexEmbedding(self.t_size, self.feature_dim)
             self.lt_embed = ComplexEmbedding(self.lt_size, self.feature_dim)
+            self.hr_embed = ComplexEmbedding(self.hr_size, self.feature_dim)
+            self.doy_embed = ComplexEmbedding(self.doy_size, self.feature_dim)
+            self.mp_embed = ComplexEmbedding(self.mp_size, self.feature_dim)
+            self.md_embed = ComplexEmbedding(self.md_size, self.feature_dim)
             self.gpe = None
             self.t_log_embed = None
             self.lt_log_embed = None
@@ -1331,8 +1345,9 @@ class CustomComplexEmbedding(nn.Module):
     def forward(self, data):
         """
         Args:
-            data: Tensor of shape [B, T, 8] with earthquake features
-                  [year, month, lat, lon, mag, depth, dt_global, dt_local]
+            data: Tensor of shape [B, T, 12] with earthquake features
+                  [year, month, lat, lon, mag, depth, dt_global, dt_local,
+                   hour, day_of_year, moon_phase, moon_distance]
         Returns:
             Complex tensor of shape [B, T, embed_dim]
         """
@@ -1342,6 +1357,10 @@ class CustomComplexEmbedding(nn.Module):
         d_emb = self.d_embed(data[:, :, 5])
         t_emb = self.t_embed(data[:, :, 6])
         lt_emb = self.lt_embed(data[:, :, 7])
+        hr_emb = self.hr_embed(data[:, :, 8])
+        doy_emb = self.doy_embed(data[:, :, 9])
+        mp_emb = self.mp_embed(data[:, :, 10])
+        md_emb = self.md_embed(data[:, :, 11])
 
         if self.use_gpe:
             # Use Geographic Positional Encoding for location
@@ -1353,13 +1372,16 @@ class CustomComplexEmbedding(nn.Module):
             t_log_emb = self.t_log_embed(data[:, :, 6])
             lt_log_emb = self.lt_log_embed(data[:, :, 7])
 
-            # Concatenate: location first, then temporal features, then others
-            emb = torch.cat((loc_emb, yr_emb, mt_emb, m_emb, d_emb, t_emb, t_log_emb, lt_emb, lt_log_emb), dim=-1)
+            # Concatenate: location first, then seismic features, then Earth-state features
+            emb = torch.cat((loc_emb, yr_emb, mt_emb, m_emb, d_emb,
+                             t_emb, t_log_emb, lt_emb, lt_log_emb,
+                             hr_emb, doy_emb, mp_emb, md_emb), dim=-1)
         else:
             # Original: separate embeddings for lat/lon
             x_emb = self.x_embed(data[:, :, 2])
             y_emb = self.y_embed(data[:, :, 3])
-            emb = torch.cat((yr_emb, mt_emb, x_emb, y_emb, m_emb, d_emb, t_emb, lt_emb), dim=-1)
+            emb = torch.cat((yr_emb, mt_emb, x_emb, y_emb, m_emb, d_emb,
+                             t_emb, lt_emb, hr_emb, doy_emb, mp_emb, md_emb), dim=-1)
 
         return emb
 

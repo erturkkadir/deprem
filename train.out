@@ -7,185 +7,41 @@ Batch: 2  |  Seq len: 512  |  Embed: 1176
 Print every: 200  |  Save every: 600
 Learning rate: 0.0001
 ============================================================
-[2026-02-09 20:39:28.089141] Loading hybrid data (M2.0+ input, M4.0+ targets)...
+[2026-02-11 23:39:12.348343] Loading hybrid data (M2.0+ input, M4.0+ targets)...
 Database connection established
-Loaded 1,491,497 records (M2.0+)
-  Training targets (M4.0+): 520,794 (34.9%)
+Loaded 1,492,239 records (M2.0+)
+  Training targets (M4.0+): 520,936 (34.9%)
+  Earth-state features: hour[0-23], doy[0-365], moon_phase[0-29], moon_dist[0-9]
   Warning: depth max 651 exceeds model limit 200, will be clamped
 
-[2026-02-09 20:39:55.189742] Creating model with Geographic Positional Encoding (GPE)...
-Model parameters: 270,341,810
+[2026-02-11 23:39:44.249842] Creating model with Geographic Positional Encoding (GPE)...
+Model parameters: 270,498,666
 Starting from scratch
 
-[2026-02-09 20:40:01.578482] Training started (MULTI-POSITION)...
+[2026-02-11 23:39:53.555254] Training started (MULTI-POSITION)...
 LR schedule: warmup 2000 optimizer steps, cosine decay to 500000
 Gradient accumulation: 16 steps (effective batch=32)
 Label smoothing: 0.1
 Multi-position: loss at ALL M4+ positions per sequence
 
-step    200 | train 15.7541 | val 15.7477 | lr 6.00e-07 | tgt 399 | lat 5.26 lon 5.94 mag 4.55
+step    200 | train 15.7196 | val 15.7283 | lr 6.00e-07 | tgt 404 | lat 5.25 lon 5.93 mag 4.55
   -> New best val loss!
-step    400 | train 15.7458 | val 15.7336 | lr 1.20e-06 | tgt 400 | lat 5.26 lon 5.94 mag 4.55
+step    400 | train 15.7146 | val 15.7078 | lr 1.20e-06 | tgt 411 | lat 5.25 lon 5.93 mag 4.54
   -> New best val loss!
-step    600 | train 15.7365 | val 15.7127 | lr 1.85e-06 | tgt 397 | lat 5.26 lon 5.94 mag 4.54
+step    600 | train 15.7044 | val 15.6969 | lr 1.85e-06 | tgt 395 | lat 5.24 lon 5.93 mag 4.53
   -> New best val loss!
-[2026-02-09 20:47:43.962139] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_204735.pth (iter=600, loss=15.7365)
-step    800 | train 15.7158 | val 15.6695 | lr 2.45e-06 | tgt 397 | lat 5.25 lon 5.93 mag 4.53
+[2026-02-11 23:48:47.486703] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260211_234839.pth (iter=600, loss=15.7044)
+step    800 | train 15.6825 | val 15.6561 | lr 2.45e-06 | tgt 403 | lat 5.24 lon 5.92 mag 4.52
   -> New best val loss!
-step   1000 | train 15.6942 | val 15.6532 | lr 3.10e-06 | tgt 398 | lat 5.25 lon 5.93 mag 4.52
+step   1000 | train 15.6631 | val 15.6299 | lr 3.10e-06 | tgt 389 | lat 5.24 lon 5.92 mag 4.51
   -> New best val loss!
-step   1200 | train 15.6701 | val 15.6126 | lr 3.70e-06 | tgt 404 | lat 5.24 lon 5.92 mag 4.50
+step   1200 | train 15.6347 | val 15.5746 | lr 3.70e-06 | tgt 401 | lat 5.23 lon 5.91 mag 4.49
   -> New best val loss!
-[2026-02-09 20:56:07.249293] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_205518.pth (iter=1200, loss=15.6701)
-step   1400 | train 15.6351 | val 15.5809 | lr 4.35e-06 | tgt 402 | lat 5.24 lon 5.92 mag 4.48
+[2026-02-11 23:58:36.366671] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260211_235802.pth (iter=1200, loss=15.6347)
+step   1400 | train 15.6016 | val 15.5255 | lr 4.35e-06 | tgt 405 | lat 5.22 lon 5.90 mag 4.47
   -> New best val loss!
-step   1600 | train 15.5922 | val 15.5023 | lr 4.95e-06 | tgt 395 | lat 5.23 lon 5.91 mag 4.46
+step   1600 | train 15.5564 | val 15.4736 | lr 4.95e-06 | tgt 404 | lat 5.21 lon 5.90 mag 4.45
   -> New best val loss!
-step   1800 | train 15.5499 | val 15.4413 | lr 5.60e-06 | tgt 398 | lat 5.22 lon 5.90 mag 4.43
+step   1800 | train 15.5148 | val 15.3879 | lr 5.60e-06 | tgt 407 | lat 5.21 lon 5.89 mag 4.42
   -> New best val loss!
-[2026-02-09 21:04:15.430921] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_210342.pth (iter=1800, loss=15.5499)
-step   2000 | train 15.4977 | val 15.3736 | lr 6.20e-06 | tgt 405 | lat 5.21 lon 5.89 mag 4.40
-  -> New best val loss!
-step   2200 | train 15.4441 | val 15.2900 | lr 6.85e-06 | tgt 402 | lat 5.20 lon 5.88 mag 4.37
-  -> New best val loss!
-step   2400 | train 15.3873 | val 15.2215 | lr 7.45e-06 | tgt 399 | lat 5.19 lon 5.87 mag 4.33
-  -> New best val loss!
-[2026-02-09 21:12:44.833413] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_211150.pth (iter=2400, loss=15.3873)
-step   2600 | train 15.3202 | val 15.1066 | lr 8.10e-06 | tgt 398 | lat 5.18 lon 5.85 mag 4.29
-  -> New best val loss!
-step   2800 | train 15.2570 | val 15.0210 | lr 8.70e-06 | tgt 406 | lat 5.16 lon 5.84 mag 4.25
-  -> New best val loss!
-step   3000 | train 15.1810 | val 14.9402 | lr 9.35e-06 | tgt 397 | lat 5.15 lon 5.82 mag 4.21
-  -> New best val loss!
-[2026-02-09 21:21:32.117156] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_212020.pth (iter=3000, loss=15.1810)
-step   3200 | train 15.1113 | val 14.8415 | lr 9.95e-06 | tgt 393 | lat 5.13 lon 5.81 mag 4.17
-  -> New best val loss!
-step   3400 | train 15.0341 | val 14.7507 | lr 1.06e-05 | tgt 391 | lat 5.12 lon 5.80 mag 4.12
-  -> New best val loss!
-step   3600 | train 14.9475 | val 14.5815 | lr 1.12e-05 | tgt 403 | lat 5.11 lon 5.78 mag 4.07
-  -> New best val loss!
-[2026-02-09 21:29:40.829000] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_212908.pth (iter=3600, loss=14.9475)
-step   3800 | train 14.8554 | val 14.5295 | lr 1.19e-05 | tgt 385 | lat 5.09 lon 5.76 mag 4.01
-  -> New best val loss!
-step   4000 | train 14.7747 | val 14.3959 | lr 1.25e-05 | tgt 403 | lat 5.08 lon 5.74 mag 3.96
-  -> New best val loss!
-step   4200 | train 14.6818 | val 14.2898 | lr 1.31e-05 | tgt 400 | lat 5.06 lon 5.72 mag 3.90
-  -> New best val loss!
-[2026-02-09 21:37:50.145220] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_213715.pth (iter=4200, loss=14.6818)
-step   4400 | train 14.5797 | val 14.1535 | lr 1.37e-05 | tgt 393 | lat 5.04 lon 5.70 mag 3.84
-  -> New best val loss!
-step   4600 | train 14.4966 | val 14.0727 | lr 1.43e-05 | tgt 390 | lat 5.03 lon 5.69 mag 3.78
-  -> New best val loss!
-step   4800 | train 14.3858 | val 13.9769 | lr 1.50e-05 | tgt 396 | lat 5.01 lon 5.66 mag 3.72
-  -> New best val loss!
-[2026-02-09 21:46:08.570404] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_214525.pth (iter=4800, loss=14.3858)
-step   5000 | train 14.2937 | val 13.8702 | lr 1.56e-05 | tgt 393 | lat 4.99 lon 5.64 mag 3.66
-  -> New best val loss!
-step   5200 | train 14.1874 | val 13.8213 | lr 1.62e-05 | tgt 402 | lat 4.97 lon 5.62 mag 3.61
-  -> New best val loss!
-step   5400 | train 14.0983 | val 13.6870 | lr 1.68e-05 | tgt 395 | lat 4.96 lon 5.60 mag 3.55
-  -> New best val loss!
-[2026-02-09 21:54:47.413190] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_215351.pth (iter=5400, loss=14.0983)
-step   5600 | train 13.9930 | val 13.5602 | lr 1.75e-05 | tgt 396 | lat 4.94 lon 5.58 mag 3.48
-  -> New best val loss!
-step   5800 | train 13.8922 | val 13.4782 | lr 1.81e-05 | tgt 397 | lat 4.92 lon 5.55 mag 3.42
-  -> New best val loss!
-step   6000 | train 13.8014 | val 13.4387 | lr 1.87e-05 | tgt 390 | lat 4.90 lon 5.53 mag 3.38
-  -> New best val loss!
-[2026-02-09 22:03:18.239906] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_220222.pth (iter=6000, loss=13.8014)
-step   6200 | train 13.7234 | val 13.2451 | lr 1.94e-05 | tgt 393 | lat 4.88 lon 5.52 mag 3.32
-  -> New best val loss!
-step   6400 | train 13.6413 | val 13.1732 | lr 2.00e-05 | tgt 396 | lat 4.87 lon 5.49 mag 3.28
-  -> New best val loss!
-step   6600 | train 13.5647 | val 13.1470 | lr 2.06e-05 | tgt 399 | lat 4.85 lon 5.47 mag 3.24
-  -> New best val loss!
-[2026-02-09 22:11:33.383673] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_221053.pth (iter=6600, loss=13.5647)
-step   6800 | train 13.4848 | val 13.1489 | lr 2.12e-05 | tgt 398 | lat 4.84 lon 5.45 mag 3.20
-step   7000 | train 13.4246 | val 12.9844 | lr 2.19e-05 | tgt 399 | lat 4.82 lon 5.44 mag 3.17
-  -> New best val loss!
-step   7200 | train 13.3627 | val 12.9889 | lr 2.25e-05 | tgt 399 | lat 4.82 lon 5.40 mag 3.14
-[2026-02-09 22:20:05.515394] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_221921.pth (iter=7200, loss=13.3627)
-step   7400 | train 13.2981 | val 12.9530 | lr 2.31e-05 | tgt 404 | lat 4.79 lon 5.40 mag 3.11
-  -> New best val loss!
-step   7600 | train 13.2310 | val 12.8669 | lr 2.37e-05 | tgt 400 | lat 4.78 lon 5.37 mag 3.08
-  -> New best val loss!
-step   7800 | train 13.1812 | val 12.7613 | lr 2.43e-05 | tgt 412 | lat 4.76 lon 5.36 mag 3.05
-  -> New best val loss!
-[2026-02-09 22:28:22.306047] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_222740.pth (iter=7800, loss=13.1812)
-step   8000 | train 13.1219 | val 12.8579 | lr 2.49e-05 | tgt 399 | lat 4.75 lon 5.35 mag 3.02
-step   8200 | train 13.0903 | val 12.7914 | lr 2.56e-05 | tgt 410 | lat 4.75 lon 5.34 mag 3.01
-step   8400 | train 13.1077 | val 12.6866 | lr 2.62e-05 | tgt 386 | lat 4.75 lon 5.36 mag 3.00
-  -> New best val loss!
-[2026-02-09 22:36:43.963289] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_223603.pth (iter=8400, loss=13.1077)
-step   8600 | train 13.0327 | val 12.7078 | lr 2.69e-05 | tgt 388 | lat 4.74 lon 5.33 mag 2.97
-step   8800 | train 12.9996 | val 12.7793 | lr 2.75e-05 | tgt 406 | lat 4.73 lon 5.32 mag 2.95
-step   9000 | train 12.9766 | val 12.6226 | lr 2.81e-05 | tgt 397 | lat 4.72 lon 5.32 mag 2.94
-  -> New best val loss!
-[2026-02-09 22:46:26.559551] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_224546.pth (iter=9000, loss=12.9766)
-step   9200 | train 12.9703 | val 12.6224 | lr 2.87e-05 | tgt 403 | lat 4.71 lon 5.32 mag 2.94
-  -> New best val loss!
-step   9400 | train 12.9508 | val 12.7280 | lr 2.94e-05 | tgt 397 | lat 4.71 lon 5.32 mag 2.93
-step   9600 | train 12.9126 | val 12.7245 | lr 2.99e-05 | tgt 392 | lat 4.70 lon 5.30 mag 2.90
-[2026-02-09 22:55:25.320879] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_225450.pth (iter=9600, loss=12.9126)
-step   9800 | train 12.8814 | val 12.7355 | lr 3.06e-05 | tgt 397 | lat 4.68 lon 5.28 mag 2.92
-step  10000 | train 12.8942 | val 12.6589 | lr 3.12e-05 | tgt 404 | lat 4.70 lon 5.30 mag 2.89
-step  10200 | train 12.8422 | val 12.6772 | lr 3.19e-05 | tgt 410 | lat 4.69 lon 5.27 mag 2.88
-[2026-02-09 23:03:59.173851] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_230324.pth (iter=10200, loss=12.8422)
-step  10400 | train 12.8669 | val 12.6884 | lr 3.25e-05 | tgt 398 | lat 4.67 lon 5.29 mag 2.91
-step  10600 | train 12.8004 | val 12.4549 | lr 3.31e-05 | tgt 404 | lat 4.68 lon 5.25 mag 2.87
-  -> New best val loss!
-step  10800 | train 12.8328 | val 12.6248 | lr 3.37e-05 | tgt 401 | lat 4.68 lon 5.27 mag 2.88
-[2026-02-09 23:12:12.985928] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_231134.pth (iter=10800, loss=12.8328)
-step  11000 | train 12.8822 | val 12.6228 | lr 3.44e-05 | tgt 397 | lat 4.70 lon 5.29 mag 2.89
-step  11200 | train 12.8436 | val 12.6514 | lr 3.50e-05 | tgt 405 | lat 4.67 lon 5.29 mag 2.89
-step  11400 | train 12.8069 | val 12.6887 | lr 3.56e-05 | tgt 404 | lat 4.67 lon 5.28 mag 2.85
-[2026-02-09 23:20:22.052310] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_231948.pth (iter=11400, loss=12.8069)
-step  11600 | train 12.7876 | val 12.5316 | lr 3.62e-05 | tgt 404 | lat 4.66 lon 5.27 mag 2.86
-step  11800 | train 12.8264 | val 12.6316 | lr 3.69e-05 | tgt 393 | lat 4.68 lon 5.28 mag 2.87
-step  12000 | train 12.7882 | val 12.6100 | lr 3.75e-05 | tgt 398 | lat 4.66 lon 5.27 mag 2.86
-[2026-02-09 23:28:45.376884] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_232756.pth (iter=12000, loss=12.7882)
-step  12200 | train 12.8075 | val 12.4490 | lr 3.81e-05 | tgt 407 | lat 4.67 lon 5.28 mag 2.86
-  -> New best val loss!
-step  12400 | train 12.7946 | val 12.6495 | lr 3.87e-05 | tgt 405 | lat 4.68 lon 5.26 mag 2.85
-step  12600 | train 12.8055 | val 12.6577 | lr 3.94e-05 | tgt 394 | lat 4.67 lon 5.28 mag 2.86
-[2026-02-09 23:36:53.702724] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_233620.pth (iter=12600, loss=12.8055)
-step  12800 | train 12.8104 | val 12.5573 | lr 4.00e-05 | tgt 400 | lat 4.67 lon 5.28 mag 2.86
-step  13000 | train 12.7876 | val 12.5484 | lr 4.06e-05 | tgt 396 | lat 4.66 lon 5.27 mag 2.86
-step  13200 | train 12.7623 | val 12.5292 | lr 4.12e-05 | tgt 391 | lat 4.64 lon 5.27 mag 2.85
-[2026-02-09 23:44:59.951847] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_234428.pth (iter=13200, loss=12.7623)
-step  13400 | train 12.8148 | val 12.7221 | lr 4.19e-05 | tgt 392 | lat 4.68 lon 5.29 mag 2.84
-step  13600 | train 12.7669 | val 12.7031 | lr 4.25e-05 | tgt 400 | lat 4.66 lon 5.26 mag 2.85
-step  13800 | train 12.7885 | val 12.5985 | lr 4.31e-05 | tgt 393 | lat 4.65 lon 5.28 mag 2.85
-[2026-02-09 23:53:12.302822] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260209_235235.pth (iter=13800, loss=12.7885)
-step  14000 | train 12.7707 | val 12.6073 | lr 4.37e-05 | tgt 401 | lat 4.66 lon 5.28 mag 2.84
-step  14200 | train 12.7326 | val 12.5767 | lr 4.44e-05 | tgt 399 | lat 4.65 lon 5.25 mag 2.83
-step  14400 | train 12.7709 | val 12.5192 | lr 4.50e-05 | tgt 390 | lat 4.66 lon 5.26 mag 2.86
-[2026-02-10 00:01:28.196528] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260210_000052.pth (iter=14400, loss=12.7709)
-step  14600 | train 12.7337 | val 12.6522 | lr 4.56e-05 | tgt 402 | lat 4.65 lon 5.24 mag 2.85
-step  14800 | train 12.7598 | val 12.5907 | lr 4.62e-05 | tgt 391 | lat 4.65 lon 5.26 mag 2.85
-step  15000 | train 12.7583 | val 12.4846 | lr 4.69e-05 | tgt 412 | lat 4.65 lon 5.27 mag 2.84
-[2026-02-10 00:10:09.110080] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260210_000933.pth (iter=15000, loss=12.7583)
-step  15200 | train 12.7189 | val 12.5242 | lr 4.75e-05 | tgt 404 | lat 4.66 lon 5.24 mag 2.82
-step  15400 | train 12.7620 | val 12.5138 | lr 4.81e-05 | tgt 388 | lat 4.67 lon 5.26 mag 2.83
-step  15600 | train 12.7155 | val 12.6532 | lr 4.87e-05 | tgt 408 | lat 4.65 lon 5.24 mag 2.82
-[2026-02-10 00:18:55.035356] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260210_001819.pth (iter=15600, loss=12.7155)
-step  15800 | train 12.7436 | val 12.5481 | lr 4.94e-05 | tgt 389 | lat 4.65 lon 5.25 mag 2.84
-step  16000 | train 12.7406 | val 12.5528 | lr 5.00e-05 | tgt 406 | lat 4.65 lon 5.25 mag 2.84
-step  16200 | train 12.7454 | val 12.5004 | lr 5.06e-05 | tgt 405 | lat 4.66 lon 5.24 mag 2.85
-[2026-02-10 00:27:45.473829] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260210_002706.pth (iter=16200, loss=12.7454)
-step  16400 | train 12.7895 | val 12.5328 | lr 5.12e-05 | tgt 392 | lat 4.65 lon 5.28 mag 2.86
-step  16600 | train 12.7277 | val 12.5366 | lr 5.18e-05 | tgt 403 | lat 4.66 lon 5.24 mag 2.83
-step  16800 | train 12.7238 | val 12.5716 | lr 5.25e-05 | tgt 395 | lat 4.64 lon 5.24 mag 2.84
-[2026-02-10 00:36:10.649861] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260210_003522.pth (iter=16800, loss=12.7238)
-step  17000 | train 12.7625 | val 12.5085 | lr 5.31e-05 | tgt 395 | lat 4.66 lon 5.26 mag 2.84
-step  17200 | train 12.7005 | val 12.5252 | lr 5.37e-05 | tgt 401 | lat 4.64 lon 5.23 mag 2.84
-step  17400 | train 12.7006 | val 12.5708 | lr 5.43e-05 | tgt 406 | lat 4.63 lon 5.23 mag 2.85
-[2026-02-10 00:44:22.480617] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260210_004345.pth (iter=17400, loss=12.7006)
-step  17600 | train 12.6836 | val 12.5870 | lr 5.50e-05 | tgt 403 | lat 4.62 lon 5.22 mag 2.84
-step  17800 | train 12.6723 | val 12.5566 | lr 5.56e-05 | tgt 407 | lat 4.63 lon 5.21 mag 2.84
-step  18000 | train 12.7027 | val 12.5701 | lr 5.62e-05 | tgt 405 | lat 4.63 lon 5.24 mag 2.83
-[2026-02-10 00:52:50.478867] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260210_005157.pth (iter=18000, loss=12.7027)
-step  18200 | train 12.7508 | val 12.4638 | lr 5.69e-05 | tgt 381 | lat 4.65 lon 5.27 mag 2.83
-step  18400 | train 12.7552 | val 12.5786 | lr 5.75e-05 | tgt 401 | lat 4.66 lon 5.26 mag 2.84
-step  18600 | train 12.7054 | val 12.5341 | lr 5.81e-05 | tgt 398 | lat 4.63 lon 5.24 mag 2.83
-[2026-02-10 01:01:12.455989] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260210_010023.pth (iter=18600, loss=12.7054)
+[2026-02-12 00:09:30.158811] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260212_000856.pth (iter=1800, loss=15.5148)

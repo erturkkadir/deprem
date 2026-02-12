@@ -134,7 +134,22 @@ def send_alert_email(to_email, prediction, unsubscribe_token):
         base_url = config.APP_URL
         prediction_url = f"{base_url}/prediction/{prediction['id']}"
         unsubscribe_url = f"{base_url}/api/alerts/unsubscribe/{unsubscribe_token}"
-        map_url = f"https://www.google.com/maps?q={prediction['lat']},{prediction['lon']}&z=5"
+
+        from urllib.parse import quote
+        pred_time = prediction.get('time')
+        window_end = prediction.get('window_end')
+        time_str = pred_time.strftime('%Y-%m-%dT%H:%M:%S') if pred_time else ''
+        wend_str = window_end.strftime('%Y-%m-%dT%H:%M:%S.000Z') if window_end else ''
+        place_enc = quote(prediction.get('place') or '')
+        map_url = (
+            f"{base_url}/map.html?id={prediction['id']}"
+            f"&plat={prediction['lat']}&plon={prediction['lon']}"
+            f"&pmag={prediction['mag']:.4f}&pdt={prediction['dt']}"
+            f"&pplace={place_enc}"
+            f"&alat=&alon=&amag=&adt=&aplace=&atime="
+            f"&dlat=&dlon=&verified=false&correct=false"
+            f"&time={quote(time_str)}&wend={quote(wend_str)}"
+        )
 
         html = f"""<html>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #18181b; color: #fff; padding: 20px; margin: 0;">
@@ -334,8 +349,9 @@ def notify_subscribers(pr_id, lat, lon, mag, dt_minutes, place):
             if dataC is None:
                 return
 
-            # Bounding box: ~500km in degrees (rough: 1 deg lat ≈ 111km)
-            max_radius_deg = 500 / 111.0
+            # Bounding box: use max subscriber radius (2000km) to catch all potential matches
+            # Subscribers have radius up to 2000km, so bbox must be at least that large
+            max_radius_deg = 2000 / 111.0  # ~18 degrees
             lat_min = lat - max_radius_deg
             lat_max = lat + max_radius_deg
             cos_lat = math.cos(math.radians(lat)) or 0.01
@@ -345,11 +361,15 @@ def notify_subscribers(pr_id, lat, lon, mag, dt_minutes, place):
 
             candidates = dataC.get_active_alerts_in_bbox(lat_min, lat_max, lon_min, lon_max)
             if not candidates:
+                print(f"[{datetime.now()}] No subscribers within range for prediction #{pr_id} (lat={lat}, lon={lon})")
                 return
 
             cooldown_minutes = getattr(config, 'ALERT_COOLDOWN_MINUTES', 60)
             now = datetime.now()
             sent_count = 0
+
+            pred_time = datetime.now()
+            window_end = pred_time + timedelta(minutes=dt_minutes)
 
             prediction_info = {
                 'id': pr_id,
@@ -358,6 +378,8 @@ def notify_subscribers(pr_id, lat, lon, mag, dt_minutes, place):
                 'mag': mag,
                 'dt': dt_minutes,
                 'place': place or 'Unknown Region',
+                'time': pred_time,
+                'window_end': window_end,
             }
 
             for ea_id, email, sub_lat, sub_lon, radius_km, last_notified, token in candidates:
