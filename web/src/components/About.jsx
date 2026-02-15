@@ -19,8 +19,8 @@ export default function About() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
       ),
-      title: 'Real-time USGS Data',
-      description: 'Continuously updated with the latest earthquake data from the United States Geological Survey.',
+      title: 'Real-time Seismic Data',
+      description: 'Continuously updated with the latest global earthquake data, including Earth-state features like lunar phase and tidal forces.',
     },
     {
       icon: (
