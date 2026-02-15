@@ -19,8 +19,8 @@ export default function About() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
       ),
-      title: 'Real-time Seismic Data',
-      description: 'Continuously updated with the latest global earthquake data, including Earth-state features like lunar phase and tidal forces.',
+      title: 'Real-time EMSC Data',
+      description: 'Continuously updated with the latest global earthquake data from the European-Mediterranean Seismological Centre (EMSC), enriched with Earth-state features like lunar phase and tidal forces.',
     },
     {
       icon: (
@@ -39,9 +39,13 @@ export default function About() {
         <h2 className="text-3xl font-bold text-center text-orange-500 mb-4">
           About This System
         </h2>
-        <p className="text-zinc-400 text-center max-w-2xl mx-auto mb-12">
+        <p className="text-zinc-400 text-center max-w-2xl mx-auto mb-4">
           An experimental earthquake prediction system using deep learning to analyze
           patterns in historical seismic data.
+        </p>
+        <p className="text-zinc-500 text-center text-sm max-w-2xl mx-auto mb-12">
+          This project is under continuous development. The AI model is regularly retrained
+          with new features and improvements, so predictions and statistics may reset periodically.
         </p>
 
         <div className="grid md:grid-cols-3 gap-6 mb-12">

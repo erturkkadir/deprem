@@ -29,7 +29,7 @@ export default function PredictionPanel() {
 
           <p className="text-zinc-400 text-center mb-8">
             Predict the approximate latitude of the next significant earthquake using our
-            complex-valued transformer model trained on USGS historical data.
+            complex-valued transformer model trained on historical seismic data.
           </p>
 
           {/* Action Buttons */}

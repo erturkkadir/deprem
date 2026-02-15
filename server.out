@@ -22360,3 +22360,29 @@ Executed ins_quakes()
 [2026-02-15 16:21:16.933027] Status: pending - {'action': 'pending', 'prediction_id': 190, 'remaining_minutes': 32.4}
 45.43.154.230 - - [15/Feb/2026 16:21:27] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
 45.43.154.230 - - [15/Feb/2026 16:21:38] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [15/Feb/2026 16:21:47] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [15/Feb/2026 16:21:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [15/Feb/2026 16:21:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [15/Feb/2026 16:22:05] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [15/Feb/2026 16:22:27] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [15/Feb/2026 16:22:38] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [15/Feb/2026 16:22:38] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [15/Feb/2026 16:22:38] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [15/Feb/2026 16:22:45] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [15/Feb/2026 16:22:47] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [15/Feb/2026 16:23:05] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [15/Feb/2026 16:23:06] "GET /api/live HTTP/1.1" 200 -
+[EMSC] Fetched 257 earthquakes for last 1 day(s)
+Batch inserted 257 earthquakes
+Executed ins_quakes()
+Calculating global M4+ dt for 1 new records...
+Done calculating global M4+ dt for 1 records
+Calculating local M4+ dt (1000km) for 1 new records...
+Done calculating local M4+ dt for 1 records
+[2026-02-15 16:23:27.771457] Status: pending - {'action': 'pending', 'prediction_id': 190, 'remaining_minutes': 30.2}
+45.43.154.230 - - [15/Feb/2026 16:23:47] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [15/Feb/2026 16:23:47] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [15/Feb/2026 16:23:50] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [15/Feb/2026 16:24:17] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [15/Feb/2026 16:24:38] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [15/Feb/2026 16:24:38] "GET /api/stats HTTP/1.1" 200 -

@@ -2509,3 +2509,5 @@ step 363600 | train 12.2896 | val 12.3537 | lr 9.96e-05 | tgt 396 | lat 4.47 lon
 [2026-02-15 16:16:33.954339] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260215_161557.pth (iter=363600, loss=12.2896)
 step 363800 | train 12.3173 | val 12.3624 | lr 9.96e-05 | tgt 407 | lat 4.49 lon 5.03 mag 2.79
 step 364000 | train 12.3051 | val 12.1654 | lr 9.96e-05 | tgt 404 | lat 4.49 lon 5.03 mag 2.79
+step 364200 | train 12.3348 | val 12.3529 | lr 9.96e-05 | tgt 398 | lat 4.49 lon 5.04 mag 2.80
+[2026-02-15 16:24:47.238497] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260215_162410.pth (iter=364200, loss=12.3348)
