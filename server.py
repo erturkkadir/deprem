@@ -167,6 +167,11 @@ def send_alert_email(to_email, prediction, unsubscribe_token):
       <a href="{prediction_url}" style="display: inline-block; background: #f97316; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">View Prediction</a>
       <a href="{map_url}" style="display: inline-block; background: #3f3f46; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-left: 8px;">View on Map</a>
     </div>
+    <div style="background: #451a03; border: 1px solid #92400e; border-radius: 8px; padding: 12px 16px; margin: 16px 0;">
+      <p style="color: #fbbf24; font-size: 11px; margin: 0; line-height: 1.5;">
+        <strong>Experimental system</strong> — This is an AI research project, not an official earthquake warning service. Predictions are not reliable and should never be used for evacuation or safety decisions. Always follow your local authorities' guidance.
+      </p>
+    </div>
     <hr style="border: none; border-top: 1px solid #3f3f46; margin: 20px 0;">
     <p style="color: #71717a; font-size: 12px; margin-bottom: 0;">
       <a href="{unsubscribe_url}" style="color: #71717a;">Unsubscribe</a> from these alerts.
