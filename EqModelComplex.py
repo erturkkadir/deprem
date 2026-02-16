@@ -1507,7 +1507,7 @@ class EqModelComplex(nn.Module):
         elif isinstance(module, nn.Embedding):
             nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def _gaussian_smooth_loss(self, logits, targets, num_classes, epsilon, sigma):
+    def _gaussian_smooth_loss(self, logits, targets, num_classes, epsilon, sigma, reduce=True):
         """Cross-entropy with Gaussian label smoothing.
 
         Instead of uniform smoothing (all wrong classes equally likely),
@@ -1516,6 +1516,9 @@ class EqModelComplex(nn.Module):
 
         target_dist = (1 - epsilon) * one_hot + epsilon * Gaussian(true_class, sigma)
         loss = -sum(target_dist * log_softmax(logits))
+
+        Args:
+            reduce: If True, return scalar mean. If False, return per-sample losses [N].
         """
         device = logits.device
         log_probs = FN.log_softmax(logits, dim=-1)  # [N, C]
@@ -1533,8 +1536,53 @@ class EqModelComplex(nn.Module):
         smooth_target = (1 - epsilon) * one_hot + epsilon * gaussian
 
         # Cross-entropy against smooth target
-        loss = -(smooth_target * log_probs).sum(dim=-1).mean()
-        return loss
+        per_sample = -(smooth_target * log_probs).sum(dim=-1)  # [N]
+        if reduce:
+            return per_sample.mean()
+        return per_sample
+
+    def _haversine_loss(self, lat_logits, lon_logits, lat_tgt, lon_tgt):
+        """Auxiliary loss: penalizes geographic distance between predicted and true positions.
+
+        Computes differentiable expected lat/lon from softmax probabilities, then
+        great-circle distance via the haversine formula. Uses log1p for better
+        gradient behavior (small errors get proportionally stronger gradients).
+
+        Returns scalar loss in log-degrees (range: 0 at perfect, ~5.2 at max distance).
+        """
+        # Softmax → probability distributions
+        lat_probs = FN.softmax(lat_logits, dim=-1)  # [N, 181]
+        lon_probs = FN.softmax(lon_logits, dim=-1)  # [N, 361]
+
+        # Bin centers in degrees: lat bins 0-180 → -90..90, lon bins 0-360 → -180..180
+        lat_bins = torch.arange(181, device=lat_logits.device, dtype=torch.float32) - 90.0
+        lon_bins = torch.arange(361, device=lon_logits.device, dtype=torch.float32) - 180.0
+
+        # Expected (predicted) position as weighted sum of bin centers
+        pred_lat = (lat_probs * lat_bins).sum(dim=-1)  # [N] degrees
+        pred_lon = (lon_probs * lon_bins).sum(dim=-1)  # [N] degrees
+
+        # True position decoded from bin indices
+        true_lat = lat_tgt.float() - 90.0   # [N] degrees
+        true_lon = lon_tgt.float() - 180.0  # [N] degrees
+
+        # Convert to radians
+        deg2rad = 3.141592653589793 / 180.0
+        lat1 = pred_lat * deg2rad
+        lat2 = true_lat * deg2rad
+        dlat = lat2 - lat1
+        dlon = (pred_lon - true_lon) * deg2rad
+
+        # Haversine formula
+        a = torch.sin(dlat / 2) ** 2 + torch.cos(lat1) * torch.cos(lat2) * torch.sin(dlon / 2) ** 2
+        a = torch.clamp(a, 0.0, 1.0)
+        dist_rad = 2 * torch.asin(torch.sqrt(a + 1e-8))  # eps for numerical stability
+
+        # Convert to degrees for interpretability
+        dist_deg = dist_rad / deg2rad
+
+        # log1p: rewards being close, tolerates being far (avoids gradient explosion)
+        return torch.log1p(dist_deg).mean()
 
     def forward(self, idx, targets=None, label_smoothing=0.0, target_mask=None):
         """
@@ -1615,23 +1663,47 @@ class EqModelComplex(nn.Module):
                 mag_tgt = targets['mag']
 
             if label_smoothing > 0:
-                # Gaussian label smoothing: teaches spatial proximity awareness
-                lat_loss = self._gaussian_smooth_loss(lat_flat, lat_tgt, 181, **self.lat_smooth)
-                lon_loss = self._gaussian_smooth_loss(lon_flat, lon_tgt, 361, **self.lon_smooth)
-                mag_loss = self._gaussian_smooth_loss(mag_flat, mag_tgt, 92, **self.mag_smooth)
+                # --- Magnitude-weighted Gaussian label smoothing ---
+                # Per-sample losses (not reduced to scalar yet)
+                lat_loss_ps = self._gaussian_smooth_loss(lat_flat, lat_tgt, 181, reduce=False, **self.lat_smooth)
+                lon_loss_ps = self._gaussian_smooth_loss(lon_flat, lon_tgt, 361, reduce=False, **self.lon_smooth)
+                mag_loss_ps = self._gaussian_smooth_loss(mag_flat, mag_tgt, 92, reduce=False, **self.mag_smooth)
+
+                # Magnitude weighting: larger earthquakes matter more
+                # M4.0→1.0, M5.0→3.16, M6.0→10.0, M7.0→31.6
+                true_mag = mag_tgt.float() / 10.0
+                mag_w = torch.pow(10.0, 0.5 * (true_mag - 4.0))
+                mag_w = torch.clamp(mag_w, min=1.0)
+                mag_w = mag_w / mag_w.mean()  # normalize to mean=1
+
+                lat_loss = (lat_loss_ps * mag_w).mean()
+                lon_loss = (lon_loss_ps * mag_w).mean()
+                mag_loss = (mag_loss_ps * mag_w).mean()
+
+                # Haversine auxiliary loss: direct geographic distance penalty
+                hav_loss = self._haversine_loss(lat_flat, lon_flat, lat_tgt, lon_tgt)
+
+                loss = lat_loss + lon_loss + mag_loss + 0.5 * hav_loss
+
+                loss_dict = {
+                    'lat': lat_loss.item(),
+                    'lon': lon_loss.item(),
+                    'mag': mag_loss.item(),
+                    'hav': hav_loss.item()
+                }
             else:
                 # Standard cross-entropy for validation (true generalization signal)
                 lat_loss = FN.cross_entropy(lat_flat, lat_tgt)
                 lon_loss = FN.cross_entropy(lon_flat, lon_tgt)
                 mag_loss = FN.cross_entropy(mag_flat, mag_tgt)
 
-            loss = lat_loss + lon_loss + mag_loss
+                loss = lat_loss + lon_loss + mag_loss
 
-            loss_dict = {
-                'lat': lat_loss.item(),
-                'lon': lon_loss.item(),
-                'mag': mag_loss.item()
-            }
+                loss_dict = {
+                    'lat': lat_loss.item(),
+                    'lon': lon_loss.item(),
+                    'mag': mag_loss.item()
+                }
 
         return logits, loss, loss_dict
 

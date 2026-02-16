@@ -1141,6 +1141,43 @@ class DataC():
             import traceback
             traceback.print_exc()
 
+        # Calculate moon features for new records
+        try:
+            count_result = self._safe_fetch(
+                "SELECT COUNT(*) FROM usgs WHERE us_moon_phase = 0 AND us_moon_dist = 0 AND us_datetime IS NOT NULL",
+                fetch_one=True
+            )
+            count = count_result[0] if count_result else 0
+
+            if count > 0:
+                print(f"Computing moon features for {count} new records...")
+                rows = self._safe_fetch(
+                    "SELECT us_id, UNIX_TIMESTAMP(us_datetime) FROM usgs "
+                    "WHERE us_moon_phase = 0 AND us_moon_dist = 0 AND us_datetime IS NOT NULL"
+                )
+                if rows:
+                    ids = np.array([r[0] for r in rows], dtype=np.int64)
+                    ts = np.array([r[1] for r in rows], dtype=np.float64)
+                    moon_phase, moon_dist = self._compute_moon_features(ts)
+
+                    # Only update records where computed value isn't (0,0)
+                    needs_update = ~((moon_phase == 0) & (moon_dist == 0))
+                    if needs_update.any():
+                        batch_data = [
+                            (int(moon_phase[j]), int(moon_dist[j]), int(ids[j]))
+                            for j in range(len(ids)) if needs_update[j]
+                        ]
+                        BATCH = 5000
+                        for i in range(0, len(batch_data), BATCH):
+                            self._safe_execute(
+                                "UPDATE usgs SET us_moon_phase = %s, us_moon_dist = %s WHERE us_id = %s",
+                                batch_data[i:i+BATCH], many=True
+                            )
+                            self.mydb.commit()
+                    print(f"Done computing moon features for {count} records")
+        except Exception as e:
+            print(f"Error computing moon features: {e}")
+
     def getData(self, from_db=True, min_mag=3.9):
         """Load training data from database or CSV.
 
@@ -1272,26 +1309,13 @@ class DataC():
             db.close()
 
             if rows:
-                raw = np.array(rows, dtype=np.float64)
-                nan_count = np.isnan(raw).sum()
+                # Stored proc returns 13 columns directly:
+                # [yr, mo, x, y, m, d, dt, lt, hour, doy, moon_phase, moon_dist, is_target]
+                self.data = np.array(rows, dtype=np.float64)
+                nan_count = np.isnan(self.data).sum()
                 if nan_count > 0:
                     print(f"  Warning: {nan_count} NaN values replaced with 0 (valid embedding index)")
-                raw = np.nan_to_num(raw, 0)
-
-                # Stored proc returns 12 columns:
-                # [yr, mo, x, y, m, d, dt, lt, hour, doy, unix_ts, is_target]
-                # Compute moon features from unix_ts (col 10)
-                unix_ts = raw[:, 10]
-                moon_phase, moon_dist_bin = self._compute_moon_features(unix_ts)
-
-                # Build final data array: 13 columns
-                # [yr, mo, x, y, m, d, dt, lt, hour, doy, moon_phase, moon_dist, is_target]
-                self.data = np.column_stack([
-                    raw[:, :10],           # yr, mo, x, y, m, d, dt, lt, hour, doy
-                    moon_phase,            # col 10: moon phase 0-29
-                    moon_dist_bin,         # col 11: moon distance bin 0-9
-                    raw[:, 11],            # col 12: is_target
-                ])
+                    self.data = np.nan_to_num(self.data, 0)
 
                 # Store target indices for efficient sampling
                 # Column 12 = is_target
@@ -1558,7 +1582,7 @@ class DataC():
         try:
             sql = """
             SELECT year, month, us_x, us_y, us_m, us_d, us_t, us_lt,
-                   hour_of_day, day_of_year, unix_ts
+                   hour_of_day, day_of_year, us_moon_phase, us_moon_dist
             FROM (
                 SELECT
                     YEAR(us_datetime) - 1970 as year,
@@ -1578,7 +1602,8 @@ class DataC():
                     END as us_lt,
                     HOUR(us_datetime) as hour_of_day,
                     DAYOFYEAR(us_datetime) - 1 as day_of_year,
-                    UNIX_TIMESTAMP(us_datetime) as unix_ts,
+                    us_moon_phase,
+                    us_moon_dist,
                     us_datetime
                 FROM usgs
                 WHERE us_mag >= %s
@@ -1596,21 +1621,11 @@ class DataC():
                 print(f"Warning: Only got {len(rows) if rows else 0} earthquakes, need {T}")
                 return None
 
+            # 12 columns: [yr, mo, x, y, m, d, dt, lt, hour, doy, moon_phase, moon_dist]
             data = np.array(rows, dtype=np.float64)
             data = np.nan_to_num(data, 0)
 
-            # Compute moon features from unix_ts (col 10)
-            unix_ts = data[:, 10]
-            moon_phase, moon_dist_bin = self._compute_moon_features(unix_ts)
-
-            # Build 12-column array: [yr, mo, x, y, m, d, dt, lt, hour, doy, moon_phase, moon_dist]
-            data_12 = np.column_stack([
-                data[:, :10],       # yr, mo, x, y, m, d, dt, lt, hour, doy
-                moon_phase,
-                moon_dist_bin,
-            ])
-
-            x = torch.from_numpy(data_12).unsqueeze(0)  # [1, T, 12]
+            x = torch.from_numpy(data).unsqueeze(0)  # [1, T, 12]
 
             # CRITICAL: Clamp input data to model embedding ranges
             # Columns: 0=year, 1=month, 2=lat, 3=lon, 4=mag, 5=depth, 6=dt_global, 7=dt_local,

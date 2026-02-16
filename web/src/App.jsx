@@ -11,6 +11,7 @@ import About from './components/About';
 import RealtimeMap from './components/RealtimeMap';
 import AlertSubscription from './components/AlertSubscription';
 import TrainingLossChart from './components/TrainingLossChart';
+import Changelog from './components/Changelog';
 
 function App() {
   const dispatch = useDispatch();
@@ -109,6 +110,7 @@ function App() {
           <AlertSubscription />
           <PredictionsTable />
           <About />
+          <Changelog />
 
           {/* Training Progress Section */}
           <section className="py-6 bg-zinc-900">
