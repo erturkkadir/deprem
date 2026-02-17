@@ -7,3 +7,111 @@ Hybrid: M2.0+ input, M4.0+ targets
 
 Loading hybrid data...
 Database connection established
+Loaded 1,488,980 records (M2.0+)
+  Training targets (M4.0+): 520,735 (35.0%)
+  Earth-state features: hour[0-23], doy[0-365], moon_phase[0-29], moon_dist[0-9]
+  Warning: depth max 651 exceeds model limit 200, will be clamped
+
+Loading model...
+[2026-02-17 22:21:32.482098] Loading model...
+Database connection established
+Loaded 1,488,980 records (M2.0+)
+  Training targets (M4.0+): 520,735 (35.0%)
+  Earth-state features: hour[0-23], doy[0-365], moon_phase[0-29], moon_dist[0-9]
+  Warning: depth max 651 exceeds model limit 200, will be clamped
+No checkpoint found, using random weights
+
+Checking for active prediction...
+No active prediction found, creating initial prediction...
+[2026-02-17 22:22:16.993162] Prediction: lat=-74, lon=-176, dt=120min, mag=4.5 (id=1)
+
+Starting scheduler...
+[2026-02-17 22:22:16.996857] No subscribers within range for prediction #1 (lat=-74, lon=-176)
+Scheduler started: monitoring every 120 seconds
+============================================================
+Server ready! Monitoring every 120 seconds.
+============================================================
+Server starting on http://0.0.0.0:3000
+ * Serving Flask app 'server'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:3000
+ * Running on http://192.168.1.177:3000
+[33mPress CTRL+C to quit[0m
+127.0.0.1 - - [17/Feb/2026 22:22:38] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:23:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:23:13] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:24:13] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:24:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:24:13] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:24:13] "GET /api/stats HTTP/1.1" 200 -
+[EMSC] Fetched 251 earthquakes for last 1 day(s)
+Batch inserted 251 earthquakes
+Executed ins_quakes()
+Dedup: removed 19 duplicate reports
+Calculating global M4+ dt for 2 new records...
+Done calculating global M4+ dt for 2 records
+Calculating local M4+ dt (1000km) for 2 new records...
+77.90.185.76 - - [17/Feb/2026 22:24:30] "[31m[1mPOST / HTTP/1.1[0m" 405 -
+77.90.185.76 - - [17/Feb/2026 22:24:31] "[31m[1mPOST / HTTP/1.1[0m" 405 -
+Done calculating local M4+ dt for 2 records
+Computing moon features for 2 new records...
+Done computing moon features for 2 records
+[2026-02-17 22:24:34.338817] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 117.7}
+45.43.154.230 - - [17/Feb/2026 22:25:13] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:25:13] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:25:13] "GET /api/model/status HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:26:04] "GET /api/stats HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:26:04] "GET /api/predictions?page=1&limit=20 HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:26:04] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:26:04] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:26:06] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:26:17] "GET /api/live HTTP/1.1" 200 -
+[EMSC] Fetched 252 earthquakes for last 1 day(s)
+Batch inserted 252 earthquakes
+Executed ins_quakes()
+Dedup: removed 19 duplicate reports
+Calculating global M4+ dt for 1 new records...
+Done calculating global M4+ dt for 1 records
+Calculating local M4+ dt (1000km) for 1 new records...
+Error batch calc_lt: bytearray index out of rangeConnection ping failed: bytearray index out of range, reconnecting...
+
+Traceback (most recent call last):
+  File "/var/www/syshuman/quake/DataClass.py", line 1160, in usgs2DB
+    self.mydb.commit()
+  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1456, in commit
+    self._execute_query("COMMIT")
+  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1475, in _execute_query
+    self.cmd_query(query)
+  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/opentelemetry/context_propagation.py", line 97, in wrapper
+    return method(cnx, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
+    raise err
+  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
+    return cnx_method(cnx, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 984, in cmd_query
+    result = self._handle_result(
+             ^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
+    raise err
+  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
+    return cnx_method(cnx, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 737, in _handle_result
+    if packet[4] == OK_STATUS:
+       ~~~~~~^^^
+IndexError: bytearray index out of range
+Database connection established
+Computing moon features for 1 new records...
+45.43.154.230 - - [17/Feb/2026 22:26:33] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:26:33] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+Done computing moon features for 1 records
+[2026-02-17 22:26:33.796438] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 115.7}
+45.43.154.230 - - [17/Feb/2026 22:26:36] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:26:46] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:26:56] "GET /api/live HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:26:57] "GET /api/training-loss?limit=2000 HTTP/1.1" 200 -
+45.43.154.230 - - [17/Feb/2026 22:27:06] "GET /api/live HTTP/1.1" 200 -

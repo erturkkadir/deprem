@@ -1055,6 +1055,35 @@ class DataC():
         except Exception as e:
             print(f"Error ins_quakes: {e}")
 
+        # Deduplicate: EMSC aggregates reports from multiple agencies (AFAD, KOERI, etc.)
+        # so the same earthquake often appears twice with slightly different parameters.
+        # Remove the later record when two events are within 10 sec, 0.1°, and 0.3 mag.
+        try:
+            self._safe_execute("DROP TABLE IF EXISTS _tmp_dedup")
+            self._safe_execute("""
+                CREATE TABLE _tmp_dedup AS
+                SELECT b.us_id as dup_id
+                FROM usgs a
+                INNER JOIN usgs b
+                    ON b.us_id > a.us_id
+                    AND b.us_datetime BETWEEN a.us_datetime AND DATE_ADD(a.us_datetime, INTERVAL 10 SECOND)
+                    AND ABS(b.us_lat - a.us_lat) < 0.1
+                    AND ABS(b.us_lon - a.us_lon) < 0.1
+                    AND ABS(b.us_m - a.us_m) <= 3
+                WHERE a.us_datetime > DATE_SUB(NOW(), INTERVAL 2 DAY)
+            """)
+            self.mydb.commit()
+            count_result = self._safe_fetch("SELECT COUNT(*) FROM _tmp_dedup", fetch_one=True)
+            dedup_count = count_result[0] if count_result else 0
+            if dedup_count > 0:
+                self._safe_execute("DELETE FROM usgs WHERE us_id IN (SELECT dup_id FROM _tmp_dedup)")
+                self.mydb.commit()
+                print(f"Dedup: removed {dedup_count} duplicate reports")
+            self._safe_execute("DROP TABLE IF EXISTS _tmp_dedup")
+            self.mydb.commit()
+        except Exception as e:
+            print(f"Error dedup: {e}")
+
         # Calculate us_t = time since last global M4+ earthquake for new records
         # Uses temp table to work around MySQL "can't update table used in FROM clause"
         try:

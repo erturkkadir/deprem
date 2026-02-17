@@ -326,3 +326,6 @@ web folder is to represent all result
 data folder is to save trainig data
 database is yysql and connection paramters are in config.py file
 pulling data from usgs code and save is at database class
+
+WHEN CODE CHANGES UPDATE THIS FILE AND "How It Works" SECTION ACCORDINGLY
+
