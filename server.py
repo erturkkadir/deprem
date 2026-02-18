@@ -579,8 +579,8 @@ def make_prediction():
         lon_encoded = predictions['lon']
         mag_encoded = predictions['mag']
 
-        # Fixed 2-hour prediction window (time no longer predicted by model)
-        dt_minutes = 120
+        # Fixed 30-minute prediction window (M4+ happens every ~15min median)
+        dt_minutes = 30
 
         # Convert to actual coordinates
         lat_actual = lat_encoded - 90

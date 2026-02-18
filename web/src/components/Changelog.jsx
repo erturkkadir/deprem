@@ -2,6 +2,22 @@ import { useState } from 'react';
 
 const releases = [
   {
+    version: 'v1.0',
+    date: '2026-02-17',
+    title: 'Data Deduplication & How It Works Page',
+    type: 'enhancement',
+    notes: [
+      'Discovered and fixed EMSC multi-agency duplicate problem — same earthquake reported by different seismic networks (e.g. AFAD + KOERI in Turkey) was being stored twice with slightly different parameters',
+      'Scanned 1.5M records: removed 5,350 duplicates (14.8% of recent EMSC data was duplicated, older USGS data only 0.2%)',
+      'Dedup rule: events within 10 seconds, 0.1° (~11km), and 0.3 magnitude → keep earlier record, remove duplicate',
+      'Automated dedup added to ingestion pipeline — runs after every EMSC data pull to prevent future duplicates',
+      'Cleaner data means cleaner temporal signals (dt/lt) and no wasted sequence positions on duplicate events',
+      'Added "How It Works" page with accordion-style sections explaining the core idea, data pipeline, neural network, training strategy, and limitations',
+      'Architecture Deep Dive section with layer-by-layer walkthrough and actual Python code from the model',
+      'Training restarted from scratch on clean deduplicated dataset',
+    ],
+  },
+  {
     version: 'v0.9',
     date: '2026-02-16',
     title: 'Haversine Loss, Magnitude Weighting & Moon Storage',

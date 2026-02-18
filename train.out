@@ -7,23 +7,28 @@ Batch: 2  |  Seq len: 512  |  Embed: 1176
 Print every: 200  |  Save every: 600
 Learning rate: 0.0001
 ============================================================
-[2026-02-17 22:19:32.577781] Loading hybrid data (M2.0+ input, M4.0+ targets)...
+[2026-02-18 18:36:04.697923] Loading hybrid data (M2.0+ input, M4.0+ targets)...
 Database connection established
-Loaded 1,488,980 records (M2.0+)
-  Training targets (M4.0+): 520,735 (35.0%)
+Loaded 1,489,262 records (M2.0+)
+  Training targets (M4.0+): 520,778 (35.0%)
   Earth-state features: hour[0-23], doy[0-365], moon_phase[0-29], moon_dist[0-9]
   Warning: depth max 651 exceeds model limit 200, will be clamped
 
-[2026-02-17 22:21:32.849517] Creating model with Geographic Positional Encoding (GPE)...
+[2026-02-18 18:36:37.820207] Creating model with Geographic Positional Encoding (GPE)...
 Model parameters: 270,498,666
 Starting from scratch
 
-[2026-02-17 22:21:39.915249] Training started (MULTI-POSITION)...
+[2026-02-18 18:36:44.437306] Training started (MULTI-POSITION)...
 LR schedule: warmup 2000 optimizer steps, cosine decay to 500000
 Gradient accumulation: 16 steps (effective batch=32)
 Label smoothing: 0.1
 Multi-position: loss at ALL M4+ positions per sequence
 
-step    200 | train 18.1252 | val 15.7831 | lr 6.00e-07 | tgt 401 | lat 5.24 lon 5.94 mag 4.61 hav 4.67
+step    200 | train 20.1073 | val 15.8612 | lr 6.00e-07 | tgt 398 | lat 5.26 lon 5.92 mag 4.63 hav 4.30
   -> New best val loss!
-step    400 | train 18.1231 | val 15.7907 | lr 1.20e-06 | tgt 410 | lat 5.24 lon 5.94 mag 4.61 hav 4.67
+step    400 | train 20.0759 | val 15.8334 | lr 1.20e-06 | tgt 390 | lat 5.26 lon 5.92 mag 4.62 hav 4.27
+  -> New best val loss!
+step    600 | train 20.0365 | val 15.8394 | lr 1.85e-06 | tgt 390 | lat 5.26 lon 5.92 mag 4.62 hav 4.24
+[2026-02-18 18:44:31.185745] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260218_184423.pth (iter=600, loss=20.0365)
+step    800 | train 19.9712 | val 15.8234 | lr 2.45e-06 | tgt 397 | lat 5.26 lon 5.92 mag 4.62 hav 4.18
+  -> New best val loss!

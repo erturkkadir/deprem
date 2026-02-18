@@ -136,8 +136,8 @@ const sections = [
         text: 'Every 5 minutes, the server feeds the latest 512 earthquakes into the model. The model outputs probability distributions over location and magnitude. The predicted position is the weighted average of the probability distribution (expected value), and the magnitude is the most probable bin.',
       },
       {
-        heading: '2-hour prediction window',
-        text: 'Each prediction has a 2-hour validity window. During this window, the system monitors incoming earthquakes for a match. A prediction is considered successful if an M4+ earthquake occurs within 250km of the predicted location during the window.',
+        heading: '30-minute prediction window',
+        text: 'Each prediction has a 30-minute validity window. During this window, the system monitors incoming earthquakes for a match. A prediction is considered successful if an M4+ earthquake occurs within 250km of the predicted location during the window. When a prediction expires, a new one is created immediately — expired predictions continue to be monitored in the background for late matches.',
       },
       {
         heading: 'Transparent verification',
@@ -653,7 +653,7 @@ export default function HowItWorks() {
               { label: 'Data', value: '1.5M+' },
               { label: 'Input', value: 'M2.0+' },
               { label: 'Target', value: 'M4.0+' },
-              { label: 'Window', value: '2 hrs' },
+              { label: 'Window', value: '30 min' },
               { label: 'Source', value: 'EMSC' },
             ].map((spec, i) => (
               <div key={i} className="bg-zinc-800/60 rounded-lg p-2.5 border border-zinc-700/50 text-center">

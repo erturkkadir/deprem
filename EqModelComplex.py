@@ -480,7 +480,12 @@ class SpatialAttentionBias(nn.Module):
         # Per-head learnable parameters:
         # distance_scale: how strongly distance affects attention (negative = nearby preferred)
         # distance_offset: baseline bias
-        self.distance_scale = nn.Parameter(torch.randn(num_heads) * 0.1 - 0.5)  # Init slightly negative
+        # Diverse init: half nearby-preferring, half neutral — lets different heads
+        # specialize (local aftershock patterns vs regional tectonic relationships)
+        init_scale = torch.zeros(num_heads)
+        init_scale[:num_heads // 2] = -0.3  # nearby-preferring heads
+        # remaining heads start at 0 (no spatial preference)
+        self.distance_scale = nn.Parameter(init_scale)
         self.distance_offset = nn.Parameter(torch.zeros(num_heads))
 
     def forward(self, lat, lon, seq_len):
@@ -1507,7 +1512,7 @@ class EqModelComplex(nn.Module):
         elif isinstance(module, nn.Embedding):
             nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def _gaussian_smooth_loss(self, logits, targets, num_classes, epsilon, sigma, reduce=True):
+    def _gaussian_smooth_loss(self, logits, targets, num_classes, epsilon, sigma, reduce=True, circular=False):
         """Cross-entropy with Gaussian label smoothing.
 
         Instead of uniform smoothing (all wrong classes equally likely),
@@ -1519,6 +1524,7 @@ class EqModelComplex(nn.Module):
 
         Args:
             reduce: If True, return scalar mean. If False, return per-sample losses [N].
+            circular: If True, use wrap-around distance (for longitude where bin 0 ≡ bin 360).
         """
         device = logits.device
         log_probs = FN.log_softmax(logits, dim=-1)  # [N, C]
@@ -1529,6 +1535,13 @@ class EqModelComplex(nn.Module):
         # Gaussian component centered on true class
         indices = torch.arange(num_classes, device=device, dtype=torch.float32)  # [C]
         diff = indices.unsqueeze(0) - targets.float().unsqueeze(1)  # [N, C]
+
+        if circular:
+            # Wrap-around distance for longitude (361 classes, period=360)
+            # Bin 0 ≡ bin 360 (both = ±180°), so distance wraps at 360
+            diff_abs = diff.abs()
+            diff = torch.min(diff_abs, 360.0 - diff_abs)
+
         gaussian = torch.exp(-0.5 * (diff / sigma) ** 2)
         gaussian = gaussian / gaussian.sum(dim=-1, keepdim=True)  # normalize
 
@@ -1548,26 +1561,35 @@ class EqModelComplex(nn.Module):
         great-circle distance via the haversine formula. Uses log1p for better
         gradient behavior (small errors get proportionally stronger gradients).
 
+        Uses circular mean for longitude to handle date-line wrapping correctly.
+        Without this, earthquakes near ±180° (Fiji, Tonga, Aleutians) would have
+        their expected longitude averaged to 0° (wrong hemisphere).
+
         Returns scalar loss in log-degrees (range: 0 at perfect, ~5.2 at max distance).
         """
+        deg2rad = 3.141592653589793 / 180.0
+
         # Softmax → probability distributions
         lat_probs = FN.softmax(lat_logits, dim=-1)  # [N, 181]
         lon_probs = FN.softmax(lon_logits, dim=-1)  # [N, 361]
 
-        # Bin centers in degrees: lat bins 0-180 → -90..90, lon bins 0-360 → -180..180
+        # --- Latitude: linear mean (no wrap-around) ---
         lat_bins = torch.arange(181, device=lat_logits.device, dtype=torch.float32) - 90.0
-        lon_bins = torch.arange(361, device=lon_logits.device, dtype=torch.float32) - 180.0
-
-        # Expected (predicted) position as weighted sum of bin centers
         pred_lat = (lat_probs * lat_bins).sum(dim=-1)  # [N] degrees
-        pred_lon = (lon_probs * lon_bins).sum(dim=-1)  # [N] degrees
+
+        # --- Longitude: circular mean (handles date-line wrapping) ---
+        lon_bins_deg = torch.arange(361, device=lon_logits.device, dtype=torch.float32) - 180.0
+        lon_bins_rad = lon_bins_deg * deg2rad
+        # Circular mean via sin/cos decomposition
+        sin_mean = (lon_probs * torch.sin(lon_bins_rad)).sum(dim=-1)  # [N]
+        cos_mean = (lon_probs * torch.cos(lon_bins_rad)).sum(dim=-1)  # [N]
+        pred_lon = torch.atan2(sin_mean, cos_mean) / deg2rad  # [N] degrees
 
         # True position decoded from bin indices
         true_lat = lat_tgt.float() - 90.0   # [N] degrees
         true_lon = lon_tgt.float() - 180.0  # [N] degrees
 
         # Convert to radians
-        deg2rad = 3.141592653589793 / 180.0
         lat1 = pred_lat * deg2rad
         lat2 = true_lat * deg2rad
         dlat = lat2 - lat1
@@ -1666,7 +1688,7 @@ class EqModelComplex(nn.Module):
                 # --- Magnitude-weighted Gaussian label smoothing ---
                 # Per-sample losses (not reduced to scalar yet)
                 lat_loss_ps = self._gaussian_smooth_loss(lat_flat, lat_tgt, 181, reduce=False, **self.lat_smooth)
-                lon_loss_ps = self._gaussian_smooth_loss(lon_flat, lon_tgt, 361, reduce=False, **self.lon_smooth)
+                lon_loss_ps = self._gaussian_smooth_loss(lon_flat, lon_tgt, 361, reduce=False, circular=True, **self.lon_smooth)
                 mag_loss_ps = self._gaussian_smooth_loss(mag_flat, mag_tgt, 92, reduce=False, **self.mag_smooth)
 
                 # Magnitude weighting: larger earthquakes matter more
@@ -1681,9 +1703,10 @@ class EqModelComplex(nn.Module):
                 mag_loss = (mag_loss_ps * mag_w).mean()
 
                 # Haversine auxiliary loss: direct geographic distance penalty
+                # Weight 1.0 makes it ~25% of total loss (was 0.5 = ~14%, too negligible)
                 hav_loss = self._haversine_loss(lat_flat, lon_flat, lat_tgt, lon_tgt)
 
-                loss = lat_loss + lon_loss + mag_loss + 0.5 * hav_loss
+                loss = lat_loss + lon_loss + mag_loss + 1.0 * hav_loss
 
                 loss_dict = {
                     'lat': lat_loss.item(),
