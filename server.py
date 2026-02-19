@@ -1654,6 +1654,66 @@ def get_training_loss():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/earthquake-history', methods=['GET'])
+def get_earthquake_history():
+    """Get earthquake count distributions by month-of-year and day-of-month within a date range"""
+    global dataC
+
+    if dataC is None:
+        return jsonify({'error': 'Data not loaded'}), 500
+
+    try:
+        start = request.args.get('start', None)
+        end = request.args.get('end', None)
+        min_mag = request.args.get('min_mag', 2.0, type=float)
+
+        from datetime import datetime, timedelta
+        if not end:
+            end = datetime.now().strftime('%Y-%m-%d')
+        if not start:
+            start = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
+
+        month_sql = """
+        SELECT MONTH(us_datetime) as m, COUNT(*) as c FROM usgs
+        WHERE us_datetime BETWEEN %s AND %s AND us_mag >= %s
+        GROUP BY m ORDER BY m
+        """
+        month_rows = dataC._safe_fetch(month_sql, (start, end, min_mag))
+
+        day_sql = """
+        SELECT DAY(us_datetime) as d, COUNT(*) as c FROM usgs
+        WHERE us_datetime BETWEEN %s AND %s AND us_mag >= %s
+        GROUP BY d ORDER BY d
+        """
+        day_rows = dataC._safe_fetch(day_sql, (start, end, min_mag))
+
+        month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        by_month = []
+        month_map = {r[0]: r[1] for r in month_rows} if month_rows else {}
+        for i in range(1, 13):
+            by_month.append({'month': i, 'label': month_labels[i - 1], 'count': month_map.get(i, 0)})
+
+        by_day = []
+        day_map = {r[0]: r[1] for r in day_rows} if day_rows else {}
+        for i in range(1, 32):
+            by_day.append({'day': i, 'count': day_map.get(i, 0)})
+
+        total = sum(d['count'] for d in by_month)
+
+        return jsonify({
+            'by_month': by_month,
+            'by_day': by_day,
+            'total': total,
+            'range': {'start': start, 'end': end},
+            'min_mag': min_mag
+        })
+
+    except Exception as e:
+        print(f"Error getting earthquake history: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/cycle', methods=['POST'])
 def trigger_cycle():
     """Manually trigger a monitoring cycle"""

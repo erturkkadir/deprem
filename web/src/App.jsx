@@ -12,6 +12,7 @@ import RealtimeMap from './components/RealtimeMap';
 import AlertSubscription from './components/AlertSubscription';
 import TrainingLossChart from './components/TrainingLossChart';
 import Changelog from './components/Changelog';
+import EarthquakeHistory from './components/EarthquakeHistory';
 import HowItWorks from './components/HowItWorks';
 
 function App() {
@@ -127,6 +128,8 @@ function App() {
           <PredictionsTable />
           <About />
           <Changelog />
+
+          <EarthquakeHistory />
 
           {/* Training Progress Section */}
           <section className="py-6 bg-zinc-900">
