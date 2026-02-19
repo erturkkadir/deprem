@@ -2,6 +2,23 @@ import { useState } from 'react';
 
 const releases = [
   {
+    version: 'v1.1',
+    date: '2026-02-19',
+    title: 'TimesFM-Inspired Attention & Loss Improvements',
+    type: 'architecture',
+    notes: [
+      'QK-Norm: RMSNorm applied to Q and K before attention — prevents attention logit explosion and stabilizes early training (inspired by Google TimesFM / PaLM)',
+      'PerDimScale: replaced fixed 1/√d attention scaling with learned per-dimension scaling via softplus — each dimension learns its own importance weight',
+      'Post-norm residual connections: added ComplexRMSNorm after both attention and FFN sublayers (4 norms per block vs 2) — stabilizes residual stream and improves gradient flow',
+      'ResidualHead output: output heads now use MLP(x) + Linear_skip(x) with SiLU activation — skip connection provides direct gradient path from loss to transformer',
+      'Longitude circularity fix: Gaussian label smoothing now wraps around the date line (bin 0 ≡ bin 360), fixing artificially high loss for earthquakes near ±180°',
+      'Haversine circular mean: expected longitude computed via sin/cos decomposition — prevents wrong-hemisphere averaging for events near the date line (Fiji, Tonga, Aleutians)',
+      'Haversine loss weight doubled from 0.5× to 1.0× — geographic distance signal now ~25% of total loss instead of negligible ~14%',
+      'Spatial attention bias: diverse per-head initialization — half heads nearby-preferring, half neutral — enables specialization for local vs regional patterns',
+      'Model size: 272M parameters (was 270M, +1.5M from new QK-Norm, PerDimScale, post-norms, and ResidualHead)',
+    ],
+  },
+  {
     version: 'v1.0',
     date: '2026-02-17',
     title: 'Data Deduplication & How It Works Page',

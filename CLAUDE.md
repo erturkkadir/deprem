@@ -8,25 +8,43 @@ This server runs the AI training and prediction backend using a **Full Complex-V
 
 ## Architecture Overview
 
-### Full Complex Neural Network
+### Full Complex Neural Network (272M parameters)
 The model uses true complex-valued operations throughout, maintaining coupling between real and imaginary parts:
 
 - **ComplexLinear**: Magnitude-phase parameterization `W = |W| * exp(i*θ)`
 - **ComplexEmbedding**: Complex embeddings for earthquake features
 - **ComplexLayerNorm/RMSNorm**: Normalization using complex variance
-- **ComplexMultiHeadAttention**: Hermitian inner product with RoPE
+- **ComplexMultiHeadAttention**: Hermitian inner product with QK-Norm, PerDimScale, RoPE
 - **ComplexGatedFeedForward**: SwiGLU-style with true complex multiplication
+- **ResidualHead**: Output heads with MLP + linear skip connection
+- **4-norm transformer blocks**: Pre-norm (LayerNorm) + Post-norm (RMSNorm) per sublayer
 
-### Embedding Sizes
-| Feature   | Range | Size | Description |
-|---------  |-------|------|------------------------------|
-| Year      | 0-60  | 61   | Years since 1970 (1970-2030) |
-| Month     | 0-11  | 12   | Calendar month (0-indexed)   |
-| Latitude  | 0-180 | 181  | Encoded: lat + 90            |
-| Longitude | 0-360 | 361  | Encoded: lon + 180           |
-| Magnitude | 0-91  | 92   | Encoded: mag * 10            |
-| Depth     | 0-200 | 201  | Depth in km                  |
-| Time Diff | 0-9   | 10   | Log-scale bins of minutes since last global M4+ earthquake |
+### Feature Encoding & Decoding Reference
+
+**IMPORTANT**: All features are encoded to integer ranges for embedding lookup.
+When making predictions, decode back to actual values using this table:
+
+| Feature       | Actual Range     | Encoded Range | Embed Size | Encode              | Decode              |
+|---------------|------------------|---------------|------------|----------------------|---------------------|
+| Year          | 1970–2030        | 0–60          | 61         | `year - 1970`        | `encoded + 1970`    |
+| Month         | 1–12             | 0–11          | 12         | `month - 1`          | `encoded + 1`       |
+| Latitude      | -90° to +90°     | 0–180         | 181        | `lat + 90`           | `encoded - 90`      |
+| Longitude     | -180° to +180°   | 0–360         | 361        | `lon + 180`          | `encoded - 180`     |
+| Magnitude     | 0.0–9.1          | 0–91          | 92         | `mag * 10`           | `encoded / 10.0`    |
+| Depth         | 0–200 km         | 0–200         | 201        | `depth` (clamped)    | `encoded` (km)      |
+| Global dt     | 0–360 min        | 0–9           | 10         | log-binned (see below) | bin midpoint      |
+| Local dt      | 0–29M min        | 0–25          | 26         | log-binned           | bin midpoint        |
+| Hour          | 0–23             | 0–23          | 24         | `HOUR(datetime)`     | `encoded` (hour)    |
+| Day of Year   | 0–365            | 0–365         | 366        | `DAYOFYEAR() - 1`    | `encoded + 1`       |
+| Moon Phase    | 0–29             | 0–29          | 30         | orbital mechanics    | 0=new, 15=full      |
+| Moon Distance | 0–9              | 0–9           | 10         | orbital mechanics    | 0=perigee, 9=apogee |
+
+**Prediction decoding in server.py** (line ~586):
+```python
+lat_actual = lat_encoded - 90     # 0-180 → -90 to +90
+lon_actual = lon_encoded - 180    # 0-360 → -180 to +180
+mag_actual = mag_encoded / 10.0   # 0-91  → 0.0 to 9.1
+```
 
 ### Global M4+ Time Difference (us_t) — Log-Binned
 The `us_t` column stores raw minutes since the last global M4+ earthquake (capped at 360).

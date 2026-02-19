@@ -66,8 +66,8 @@ const sections = [
     ),
     content: [
       {
-        heading: 'Complex-valued transformer (270M parameters)',
-        text: 'The architecture is a 6-layer transformer with 8 attention heads, operating entirely in complex number space. Each layer has complex multi-head attention and complex gated feed-forward networks. The model processes sequences of 512 earthquakes to predict the next significant event.',
+        heading: 'Complex-valued transformer (272M parameters)',
+        text: 'The architecture is a 6-layer transformer with 8 attention heads, operating entirely in complex number space. Each layer has complex multi-head attention (with QK-Norm and learned per-dimension scaling) and complex gated feed-forward networks, both wrapped in pre+post normalization. The model processes sequences of 512 earthquakes to predict the next significant event.',
       },
       {
         heading: 'How input becomes prediction',
@@ -75,7 +75,7 @@ const sections = [
       },
       {
         heading: 'Spatial attention bias',
-        text: 'Standard attention treats all earthquakes equally regardless of distance. Our model adds a spatial bias: nearby earthquakes naturally receive higher attention weights, with the decay following haversine (great-circle) distance. Each attention head learns its own distance-decay profile — some heads focus locally (aftershock patterns), others look globally (tectonic interactions).',
+        text: 'Standard attention treats all earthquakes equally regardless of distance. Our model adds a spatial bias: nearby earthquakes naturally receive higher attention weights, with the decay following haversine (great-circle) distance. Each attention head learns its own distance-decay profile — half are initialized to prefer nearby events (aftershock patterns), half start neutral (tectonic interactions). Attention is stabilized by QK-Norm (RMSNorm on queries and keys) and PerDimScale (learned per-dimension importance weighting replacing fixed 1/√d).',
       },
       {
         heading: 'Geographic Positional Encoding (GPE)',
@@ -114,7 +114,7 @@ const sections = [
       },
       {
         heading: 'Haversine auxiliary loss',
-        text: 'Beyond classification accuracy, the model is also penalized by the actual geographic distance (in degrees) between its predicted location and the true location. This provides a direct spatial signal that complements the bin-based cross-entropy loss.',
+        text: 'Beyond classification accuracy, the model is also penalized by the actual geographic distance (in degrees) between its predicted location and the true location. Longitude uses a circular mean (sin/cos decomposition) to correctly handle earthquakes near the date line. The haversine loss is weighted at 1.0× (equal to each cross-entropy head), making geographic accuracy ~25% of total training signal.',
       },
       {
         heading: 'Continuous learning',
@@ -226,37 +226,40 @@ x = dataC.getLastFromDB(T=512)  # → [1, 512, 12]`,
   {
     title: '3. Hermitian Multi-Head Attention',
     shape: '[B, 512, 1176] → [B, 512, 1176] complex',
-    idea: '8 parallel attention heads — each earthquake "looks at" every previous one. Hermitian inner product preserves complex coupling. Spatial bias makes nearby events attend more strongly.',
+    idea: '8 parallel attention heads — each earthquake "looks at" every previous one. QK-Norm stabilizes attention, PerDimScale lets each dimension learn its own importance. Spatial bias makes nearby events attend more strongly.',
     code: `def forward(self, x, lat=None, lon=None):
-    # Project to queries, keys, values
     Q = self.q_proj(x)  # ComplexLinear
     K = self.k_proj(x)
     V = self.v_proj(x)
 
+    # QK-Norm: stabilize Q,K magnitudes before attention
+    Q = self.q_norm(Q)  # ComplexRMSNorm per head
+    K = self.k_norm(K)
+
     # Inject sequence order via rotation
     Q, K = apply_complex_rotary_embedding(Q, K, cos, sin)
 
+    # PerDimScale: learned per-dimension importance
+    dim_scale = base_scale * softplus(self.per_dim_scale)
+    Q_scaled = Q * dim_scale  # each dim weighted differently
+
     # Hermitian inner product (proper complex dot product)
     scores = (
-        torch.matmul(Q.real, K.real.transpose(-2, -1)) +
-        torch.matmul(Q.imag, K.imag.transpose(-2, -1))
-    ) * self.scale  # scale = (2 * head_dim) ^ -0.5
+        Q_scaled.real @ K.real.T + Q_scaled.imag @ K.imag.T
+    )
 
-    # Geographic distance bias (haversine)
-    if self.spatial_bias is not None:
-        scores = scores + self.spatial_bias(lat, lon)
-
-    # Causal mask: can only see past events
+    # Geographic distance bias + causal mask
+    scores = scores + self.spatial_bias(lat, lon)
     scores = scores.masked_fill(causal_mask == 0, -inf)
-    weights = softmax(scores)
 
-    # Apply to complex values
-    out = torch.complex(weights @ V.real, weights @ V.imag)`,
+    out = torch.complex(softmax(scores) @ V.real,
+                        softmax(scores) @ V.imag)`,
     details: [
+      'QK-Norm: RMSNorm on Q and K prevents attention logits from exploding — critical for stable complex-valued training (from TimesFM/PaLM)',
+      'PerDimScale: replaces fixed 1/√d with learned softplus(weight) per dimension — some dimensions matter more than others',
       'RoPE: Position encoded as rotation — nearby events have similar rotations, far ones diverge',
       'Hermitian: Re(Q)·Re(K)ᵀ + Im(Q)·Im(K)ᵀ — the proper complex inner product',
-      'Spatial bias: Per-head learnable distance-decay on haversine distance between locations',
-      'Causal mask: Each earthquake can only attend to earlier ones in the sequence',
+      'Spatial bias: Per-head learnable distance-decay — half heads prefer nearby (aftershocks), half neutral (tectonic)',
     ],
   },
   {
@@ -285,18 +288,22 @@ x = dataC.getLastFromDB(T=512)  # → [1, 512, 12]`,
   },
   {
     title: '5. Transformer Block (×6 stacked)',
-    shape: 'Pre-norm → Attention → Add → Pre-norm → FFN → Add',
-    idea: '6 blocks stacked, each with attention + FFN + residual connections. Early blocks learn "these events are near each other", later blocks learn "this aftershock sequence is accelerating".',
+    shape: 'Pre-norm → Attn → Post-norm → Add → Pre-norm → FFN → Post-norm → Add',
+    idea: '6 blocks stacked, each with 4 norms (pre+post for both attention and FFN). Early blocks learn "these events are near each other", later blocks learn "this aftershock sequence is accelerating".',
     code: `class ComplexTransformerBlock(nn.Module):
     def forward(self, x, lat=None, lon=None):
-        # Pre-norm: normalize BEFORE each sublayer
-        # (more stable gradients for complex networks)
+        # 4-norm design (from TimesFM/PaLM):
+        # pre-norm → sublayer → post-norm → residual add
 
         # Attention: mix information across sequence
-        x = x + self.attn(self.norm1(x), lat, lon)
+        x = x + self.post_norm1(
+            self.attn(self.norm1(x), lat, lon)
+        )
 
         # Feed-forward: process each position
-        x = x + self.ffn(self.norm2(x))
+        x = x + self.post_norm2(
+            self.ffn(self.norm2(x))
+        )
 
         return x
 
@@ -304,52 +311,64 @@ x = dataC.getLastFromDB(T=512)  # → [1, 512, 12]`,
 for block in self.blocks:      # 6 layers
     x = block(x, lat=lat, lon=lon)`,
     details: [
+      'Pre-norm (ComplexLayerNorm) + Post-norm (ComplexRMSNorm) — stabilizes residual stream',
       'Residual connections: each layer learns only the CHANGE, not the full representation',
-      'ComplexRMSNorm: normalizes by √(mean(|z|²)) — the complex magnitude RMS',
+      'Post-norms prevent the residual stream from growing unbounded through 6 layers',
     ],
   },
   {
-    title: '6. Output: 3 Prediction Heads',
+    title: '6. Output: 3 Residual Prediction Heads',
     shape: '[B, 512, 1176] complex → lat(181) + lon(361) + mag(92)',
-    idea: 'Complex representation is split into real + imaginary (→2,352 dims), then three linear layers output probability distributions. This is the only place the model leaves complex space.',
+    idea: 'Complex representation is split into real + imaginary (→2,352 dims). Each head uses MLP + linear skip for better gradient flow. This is the only place the model leaves complex space.',
     code: `# Combine real and imaginary for classification
 x_combined = torch.cat([x.real, x.imag], dim=-1)  # → 2352
 
-# Three independent prediction heads
-lat_logits = self.lat_head(x_combined)  # → 181 classes (-90° to +90°)
-lon_logits = self.lon_head(x_combined)  # → 361 classes (-180° to +180°)
-mag_logits = self.mag_head(x_combined)  # → 92 classes (M0.0 to M9.1)
+# ResidualHead: MLP(x) + Linear_skip(x)
+# Skip connection gives direct gradient path from loss
+class ResidualHead(nn.Module):
+    def forward(self, x):
+        mlp = self.output(self.silu(self.norm(self.hidden(x))))
+        skip = self.skip(x)  # linear shortcut
+        return mlp + skip
 
-# Prediction = expected value from softmax probabilities
-pred_lat = (softmax(lat_logits) * bin_centers).sum()  # weighted avg`,
+lat_logits = self.lat_head(x_combined)  # → 181 classes
+lon_logits = self.lon_head(x_combined)  # → 361 classes
+mag_logits = self.mag_head(x_combined)  # → 92 classes`,
     details: [
-      'Time prediction head was removed — analysis showed it was pure noise',
+      'ResidualHead (from TimesFM): MLP path learns non-linear features, skip path ensures gradient flow',
+      'SiLU/Swish activation in MLP path — smooth gating, no dead neurons',
       'Softmax gives probability distribution, expected value gives predicted position',
+      'Longitude uses circular mean (sin/cos) to handle date-line wrapping correctly',
     ],
   },
   {
     title: '7. Training Loss (3 signals)',
-    shape: 'loss = lat + lon + mag + 0.5 × haversine',
-    idea: 'Three simultaneous training signals: Gaussian smoothing teaches proximity, magnitude weighting prioritizes big quakes, haversine penalizes geographic distance directly.',
-    code: `# 1. Per-sample Gaussian label smoothing (close bins get credit)
+    shape: 'loss = lat + lon + mag + 1.0 × haversine',
+    idea: 'Three simultaneous training signals: Gaussian smoothing teaches proximity (circular for longitude), magnitude weighting prioritizes big quakes, haversine penalizes geographic distance with circular mean.',
+    code: `# 1. Gaussian label smoothing (close bins get credit)
 lat_loss = gaussian_smooth_loss(lat_logits, lat_target, sigma=2.0)
+# Longitude: circular wrap (bin 0 ≡ bin 360 at date line)
+lon_loss = gaussian_smooth_loss(lon_logits, lon_target,
+    sigma=2.0, circular=True)  # wraps at ±180°
 
 # 2. Magnitude weighting (M6.0 = 10× weight of M4.0)
-true_mag = mag_target / 10.0
-mag_weight = 10 ** (0.5 * (true_mag - 4.0))  # exponential
-lat_loss = (lat_loss * mag_weight).mean()
+mag_weight = 10 ** (0.5 * (true_mag - 4.0))
 
-# 3. Haversine auxiliary loss (direct geographic distance)
-pred_lat = (softmax(lat_logits) * lat_bins).sum(dim=-1)
-pred_lon = (softmax(lon_logits) * lon_bins).sum(dim=-1)
-dist = haversine(pred_lat, pred_lon, true_lat, true_lon)
-hav_loss = log1p(dist_in_degrees).mean()
+# 3. Haversine loss with circular mean for longitude
+pred_lat = (softmax(lat_logits) * lat_bins).sum()
+# Circular mean prevents wrong-hemisphere averaging:
+sin_mean = (softmax(lon_logits) * sin(lon_bins_rad)).sum()
+cos_mean = (softmax(lon_logits) * cos(lon_bins_rad)).sum()
+pred_lon = atan2(sin_mean, cos_mean)  # correct near ±180°
+hav_loss = log1p(haversine_dist(pred, true)).mean()
 
-loss = lat_loss + lon_loss + mag_loss + 0.5 * hav_loss`,
+loss = lat_loss + lon_loss + mag_loss + 1.0 * hav_loss`,
     details: [
+      'Longitude circularity: Gaussian wraps around date line — bin 359 is close to bin 1, not 358 bins away',
+      'Circular mean: prevents expected value from averaging to wrong hemisphere for earthquakes near ±180°',
+      'Haversine weight 1.0× (was 0.5×) — geographic distance now ~25% of total loss signal',
       'Gaussian smoothing: σ=2.0 means predicting 1° off is much better than 90° off',
       'Magnitude weighting: M4.0→1×, M5.0→3.2×, M6.0→10×, M7.0→31.6×',
-      'Multi-position: loss at ALL M4+ positions per sequence (~400/batch)',
       'Validation uses clean cross-entropy only — no tricks, pure generalization signal',
     ],
   },
@@ -643,7 +662,7 @@ export default function HowItWorks() {
           <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-4">Technical Specifications</h2>
           <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
             {[
-              { label: 'Parameters', value: '270M' },
+              { label: 'Parameters', value: '272M' },
               { label: 'Features', value: '12' },
               { label: 'Seq Length', value: '512' },
               { label: 'Embed Dim', value: '1,176' },

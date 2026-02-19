@@ -558,7 +558,6 @@ class ComplexMultiHeadAttention(nn.Module):
 
         self.num_heads = num_heads
         self.head_dim = embed_dim // num_heads
-        self.scale = (2 * self.head_dim) ** -0.5  # HERMITIAN sums over 2*head_dim terms
         self.embed_dim = embed_dim
         self.use_rope = use_rope
         self.use_spatial_bias = use_spatial_bias
@@ -568,6 +567,15 @@ class ComplexMultiHeadAttention(nn.Module):
         self.k_proj = ComplexLinear(embed_dim, embed_dim, bias=False)
         self.v_proj = ComplexLinear(embed_dim, embed_dim, bias=False)
         self.out_proj = ComplexLinear(embed_dim, embed_dim)
+
+        # QK-Norm: RMSNorm on Q and K before attention (stabilizes training, from TimesFM)
+        self.q_norm = ComplexRMSNorm(self.head_dim)
+        self.k_norm = ComplexRMSNorm(self.head_dim)
+
+        # PerDimScale: learned per-dimension attention scaling (replaces fixed 1/sqrt(d))
+        # Each dimension learns its own contribution weight via softplus
+        # base_scale * softplus(per_dim_scale) where base_scale = 1/sqrt(2*head_dim)
+        self.per_dim_scale = nn.Parameter(torch.zeros(2 * self.head_dim))  # 2x for HERMITIAN (real+imag)
 
         if use_rope:
             self.rotary_emb = ComplexRotaryEmbedding(self.head_dim, block_size)
@@ -588,6 +596,9 @@ class ComplexMultiHeadAttention(nn.Module):
         """
         Compute attention scores based on configured attention type.
 
+        Uses PerDimScale: each dimension gets a learned scaling factor via softplus,
+        applied before the dot product. This replaces the fixed 1/sqrt(d) scaling.
+
         Full Complex: All three methods preserve the coupling between real and
         imaginary parts - they just define different similarity measures.
 
@@ -597,40 +608,52 @@ class ComplexMultiHeadAttention(nn.Module):
         Returns:
             Real-valued attention scores [batch, heads, seq_len, seq_len]
         """
+        # PerDimScale: base_scale * softplus(per_dim_scale) per dimension
+        # Initialized to zeros → softplus(0)=ln(2)≈0.693, so initial scale ≈ base * 0.693
+        base_scale = (2 * self.head_dim) ** -0.5
+        dim_scale = base_scale * FN.softplus(self.per_dim_scale)  # [2*head_dim]
+        # Split into real and imag portions
+        scale_real = dim_scale[:self.head_dim].view(1, 1, 1, self.head_dim)
+        scale_imag = dim_scale[self.head_dim:].view(1, 1, 1, self.head_dim)
+
+        # Apply per-dim scaling to Q (equivalent to scaling both Q and K by sqrt)
+        Q_real_scaled = Q.real * scale_real
+        Q_imag_scaled = Q.imag * scale_imag
+
         if self.attention_type == AttentionType.HERMITIAN:
             # Hermitian inner product: <q, k> = sum(q * conj(k))
             # Re(<q,k>) = Re(q)@Re(k)^T + Im(q)@Im(k)^T
             # This is the STANDARD complex inner product - recommended!
             scores = (
-                torch.matmul(Q.real, K.real.transpose(-2, -1)) +
-                torch.matmul(Q.imag, K.imag.transpose(-2, -1))
+                torch.matmul(Q_real_scaled, K.real.transpose(-2, -1)) +
+                torch.matmul(Q_imag_scaled, K.imag.transpose(-2, -1))
             )
 
         elif self.attention_type == AttentionType.REAL_PART:
             # Real part of regular product (non-conjugate)
             # Re(q @ k^T) = Re(q)@Re(k)^T - Im(q)@Im(k)^T
             scores = (
-                torch.matmul(Q.real, K.real.transpose(-2, -1)) -
-                torch.matmul(Q.imag, K.imag.transpose(-2, -1))
+                torch.matmul(Q_real_scaled, K.real.transpose(-2, -1)) -
+                torch.matmul(Q_imag_scaled, K.imag.transpose(-2, -1))
             )
 
         elif self.attention_type == AttentionType.MAGNITUDE:
             # Magnitude of complex product |Q @ K*|
             # More expensive but captures full complex relationship
             real_part = (
-                torch.matmul(Q.real, K.real.transpose(-2, -1)) +
-                torch.matmul(Q.imag, K.imag.transpose(-2, -1))
+                torch.matmul(Q_real_scaled, K.real.transpose(-2, -1)) +
+                torch.matmul(Q_imag_scaled, K.imag.transpose(-2, -1))
             )
             imag_part = (
-                torch.matmul(Q.imag, K.real.transpose(-2, -1)) -
-                torch.matmul(Q.real, K.imag.transpose(-2, -1))
+                torch.matmul(Q_imag_scaled, K.real.transpose(-2, -1)) -
+                torch.matmul(Q_real_scaled, K.imag.transpose(-2, -1))
             )
             scores = torch.sqrt(real_part ** 2 + imag_part ** 2 + 1e-8)
 
         else:
             raise ValueError(f"Unknown attention type: {self.attention_type}")
 
-        return scores * self.scale
+        return scores
 
     def forward(self, x, lat=None, lon=None):
         B, L, D = x.shape
@@ -639,12 +662,17 @@ class ComplexMultiHeadAttention(nn.Module):
         K = self.k_proj(x).view(B, L, self.num_heads, self.head_dim).transpose(1, 2)
         V = self.v_proj(x).view(B, L, self.num_heads, self.head_dim).transpose(1, 2)
 
+        # QK-Norm: stabilizes attention by normalizing Q and K before dot product
+        # Applied per-head (last dim = head_dim), before RoPE
+        Q = self.q_norm(Q)
+        K = self.k_norm(K)
+
         # Apply RoPE if enabled
         if self.rotary_emb is not None:
             cos, sin = self.rotary_emb(L, Q.device)
             Q, K = apply_complex_rotary_embedding(Q, K, cos, sin)
 
-        # Compute attention scores based on attention type
+        # Compute attention scores based on attention type (with PerDimScale)
         attn_scores = self._compute_attention_scores(Q, K)
 
         # Add spatial attention bias (geographic distance awareness)
@@ -744,25 +772,34 @@ class ComplexFeedForward(nn.Module):
 
 class ComplexTransformerBlock(nn.Module):
     """
-    Complex transformer block with pre-norm architecture and spatial attention bias.
+    Complex transformer block with pre+post-norm architecture and spatial attention bias.
 
     Uses ComplexGatedFeedForward (SwiGLU-style) with TRUE complex multiplication
     to keep real/imaginary parts coupled throughout the forward pass.
+
+    4-norm design (inspired by TimesFM/PaLM):
+    - pre-attn norm + post-attn norm with residual
+    - pre-FFN norm + post-FFN norm with residual
+    Post-norms stabilize the residual stream and improve gradient flow.
     """
     def __init__(self, embed_dim, num_heads, block_size, dropout=0.1, use_rope=True, use_spatial_bias=True):
         super().__init__()
+        # Pre-norms (before sublayer)
         self.norm1 = ComplexLayerNorm(embed_dim)
-        self.attn = ComplexMultiHeadAttention(embed_dim, num_heads, block_size, dropout, use_rope, use_spatial_bias)
         self.norm2 = ComplexLayerNorm(embed_dim)
+        # Post-norms (after sublayer, before residual add)
+        self.post_norm1 = ComplexRMSNorm(embed_dim)
+        self.post_norm2 = ComplexRMSNorm(embed_dim)
+
+        self.attn = ComplexMultiHeadAttention(embed_dim, num_heads, block_size, dropout, use_rope, use_spatial_bias)
         # Use gated FFN with true complex multiplication
         self.ffwd = ComplexGatedFeedForward(embed_dim, dropout)
         self.dropout = ComplexDropout(dropout)
 
     def forward(self, x, lat=None, lon=None):
-        # Pre-norm architecture: norm -> sublayer -> residual
-        # Pass lat/lon to attention for spatial bias
-        x = x + self.attn(self.norm1(x), lat=lat, lon=lon)
-        x = x + self.dropout(self.ffwd(self.norm2(x)))
+        # Pre-norm + post-norm: norm1 -> attn -> post_norm1 -> residual
+        x = x + self.post_norm1(self.attn(self.norm1(x), lat=lat, lon=lon))
+        x = x + self.post_norm2(self.dropout(self.ffwd(self.norm2(x))))
         return x
 
 
@@ -1418,6 +1455,38 @@ class ComplexPositionalEncoding(nn.Module):
 
 
 # =============================================================================
+# Residual Output Head (inspired by TimesFM ResidualBlock)
+# =============================================================================
+
+class ResidualHead(nn.Module):
+    """Output head with residual skip connection: MLP(x) + Linear_skip(x).
+
+    The linear skip lets gradients flow directly from loss to the transformer output,
+    while the MLP path learns non-linear feature transformations.
+    This is the pattern used by TimesFM for all input/output projections.
+    """
+    def __init__(self, in_dim, out_dim, hidden_dim):
+        super().__init__()
+        # MLP path
+        self.hidden = nn.Linear(in_dim, hidden_dim)
+        self.norm = nn.LayerNorm(hidden_dim)
+        self.act = nn.SiLU()  # SiLU/Swish (same as TimesFM)
+        self.output = nn.Linear(hidden_dim, out_dim)
+        # Skip path (linear projection for dimension change)
+        self.skip = nn.Linear(in_dim, out_dim, bias=False)
+
+    def forward(self, x):
+        return self.output(self.act(self.norm(self.hidden(x)))) + self.skip(x)
+
+    def init_near_zero(self):
+        """Initialize output layers near zero for uniform logits at start."""
+        nn.init.normal_(self.output.weight, mean=0.0, std=0.02)
+        if self.output.bias is not None:
+            nn.init.zeros_(self.output.bias)
+        nn.init.normal_(self.skip.weight, mean=0.0, std=0.02)
+
+
+# =============================================================================
 # EqModelComplex - Main Model Class
 # =============================================================================
 
@@ -1472,10 +1541,11 @@ class EqModelComplex(nn.Module):
         self.ln_f = ComplexLayerNorm(n_embed)
 
         # Output heads: lat, lon, mag (no dt — time prediction removed)
+        # ResidualHead: MLP(x) + Linear_skip(x) for better gradient flow (from TimesFM)
         head_hidden = n_embed // 2
-        self.lat_head = self._make_head(n_embed * 2, 181, head_hidden)
-        self.lon_head = self._make_head(n_embed * 2, 361, head_hidden)
-        self.mag_head = self._make_head(n_embed * 2, 92, head_hidden)
+        self.lat_head = ResidualHead(n_embed * 2, 181, head_hidden)
+        self.lon_head = ResidualHead(n_embed * 2, 361, head_hidden)
+        self.mag_head = ResidualHead(n_embed * 2, 92, head_hidden)
 
         # Gaussian label smoothing parameters (physically motivated)
         self.lat_smooth = {'epsilon': 0.3, 'sigma': 2.0}   # 2° ≈ 222km spatial blur
@@ -1487,18 +1557,7 @@ class EqModelComplex(nn.Module):
         # Re-initialize output head final layers with near-zero weights
         # so logits start near uniform (critical for stable early training)
         for head in [self.lat_head, self.lon_head, self.mag_head]:
-            nn.init.normal_(head[-1].weight, mean=0.0, std=0.02)
-            if head[-1].bias is not None:
-                nn.init.zeros_(head[-1].bias)
-
-    def _make_head(self, in_dim, out_dim, hidden_dim):
-        """Create a 2-layer MLP output head for better decoding."""
-        return nn.Sequential(
-            nn.Linear(in_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
-            nn.GELU(),
-            nn.Linear(hidden_dim, out_dim)
-        )
+            head.init_near_zero()
 
     def _init_weights(self, module):
         # Skip nn.Embedding inside ComplexEmbedding — they have their own init
