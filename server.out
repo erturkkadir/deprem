@@ -1,7 +1,7 @@
-[2026-02-19 19:53:44 +0000] [4185626] [INFO] Starting gunicorn 23.0.0
-[2026-02-19 19:53:44 +0000] [4185626] [INFO] Listening at: http://0.0.0.0:3000 (4185626)
-[2026-02-19 19:53:44 +0000] [4185626] [INFO] Using worker: sync
-[2026-02-19 19:53:44 +0000] [4185627] [INFO] Booting worker with pid: 4185627
+[2026-02-20 18:03:43 +0000] [218390] [INFO] Starting gunicorn 23.0.0
+[2026-02-20 18:03:43 +0000] [218390] [INFO] Listening at: http://0.0.0.0:3000 (218390)
+[2026-02-20 18:03:43 +0000] [218390] [INFO] Using worker: sync
+[2026-02-20 18:03:43 +0000] [218392] [INFO] Booting worker with pid: 218392
 ============================================================
 EARTHQUAKE PREDICTION SERVER
 ============================================================
@@ -11,37 +11,230 @@ Hybrid: M2.0+ input, M4.0+ targets
 
 Loading hybrid data...
 Database connection established
-Loaded 1,489,617 records (M2.0+)
-  Training targets (M4.0+): 520,836 (35.0%)
+Loaded 1,489,936 records (M2.0+)
+  Training targets (M4.0+): 520,881 (35.0%)
   Earth-state features: hour[0-23], doy[0-365], moon_phase[0-29], moon_dist[0-9]
   Warning: depth max 651 exceeds model limit 200, will be clamped
 
 Loading model...
-[2026-02-19 19:54:19.125112] Loading model...
+[2026-02-20 18:04:18.514661] Loading model...
 Database connection established
-Loaded 1,489,617 records (M2.0+)
-  Training targets (M4.0+): 520,836 (35.0%)
+Loaded 1,489,936 records (M2.0+)
+  Training targets (M4.0+): 520,881 (35.0%)
   Earth-state features: hour[0-23], doy[0-365], moon_phase[0-29], moon_dist[0-9]
   Warning: depth max 651 exceeds model limit 200, will be clamped
-[2026-02-19 19:54:58.296727] Loaded checkpoint: eqModel_complex_20260219_195245.pth
+No checkpoint found, using random weights
 
 Checking for active prediction...
-Active prediction found: #41 (16.8 minutes remaining)
+Active prediction found: #1 (26.2 minutes remaining)
 
 Starting scheduler...
 Scheduler started: monitoring every 120 seconds
 ============================================================
 Server ready! Monitoring every 120 seconds.
 ============================================================
-[EMSC] Fetched 284 earthquakes for last 1 day(s)
-Batch inserted 284 earthquakes
+[EMSC] Fetched 283 earthquakes for last 1 day(s)
+Batch inserted 283 earthquakes
 Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
+Dedup: removed 15 duplicate reports
+[2026-02-20 18:07:03.297349] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 24.1}
+[EMSC] Fetched 282 earthquakes for last 1 day(s)
+Batch inserted 282 earthquakes
+Executed ins_quakes()
+Dedup: removed 15 duplicate reports
+Calculating global M4+ dt for 1 new records...
+Done calculating global M4+ dt for 1 records
+Calculating local M4+ dt (1000km) for 1 new records...
+Done calculating local M4+ dt for 1 records
+Computing moon features for 1 new records...
+Done computing moon features for 1 records
+[2026-02-20 18:09:15.554044] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 21.9}
+[EMSC] Fetched 282 earthquakes for last 1 day(s)
+Batch inserted 282 earthquakes
+Executed ins_quakes()
+Dedup: removed 15 duplicate reports
+[2026-02-20 18:11:02.910272] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 20.1}
+[2026-02-20 18:12:55.600057] New checkpoint detected: eqModel_complex_20260220_181225.pth
+[2026-02-20 18:13:00.328532] Reloaded weights: eqModel_complex_20260220_181225.pth
+[EMSC] Fetched 282 earthquakes for last 1 day(s)
+Batch inserted 282 earthquakes
+Executed ins_quakes()
+Dedup: removed 15 duplicate reports
+[2026-02-20 18:13:07.744807] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 18.0}
+[EMSC] Fetched 282 earthquakes for last 1 day(s)
+Batch inserted 282 earthquakes
+Executed ins_quakes()
+Dedup: removed 15 duplicate reports
+[2026-02-20 18:15:03.043314] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 16.1}
+[EMSC] Fetched 283 earthquakes for last 1 day(s)
+Batch inserted 283 earthquakes
+Executed ins_quakes()
+Dedup: removed 15 duplicate reports
+Calculating global M4+ dt for 1 new records...
+Done calculating global M4+ dt for 1 records
+Calculating local M4+ dt (1000km) for 1 new records...
+Done calculating local M4+ dt for 1 records
+Computing moon features for 1 new records...
+Done computing moon features for 1 records
+[2026-02-20 18:17:14.501768] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 13.9}
+[EMSC] Fetched 283 earthquakes for last 1 day(s)
+Batch inserted 283 earthquakes
+Executed ins_quakes()
+Dedup: removed 15 duplicate reports
+[2026-02-20 18:19:02.102884] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 12.1}
+[2026-02-20 18:20:55.600055] New checkpoint detected: eqModel_complex_20260220_182035.pth
+[2026-02-20 18:20:59.114711] Reloaded weights: eqModel_complex_20260220_182035.pth
+[EMSC] Fetched 282 earthquakes for last 1 day(s)
+Batch inserted 282 earthquakes
+Executed ins_quakes()
+Dedup: removed 15 duplicate reports
+[2026-02-20 18:21:05.324742] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 10.1}
+[EMSC] Fetched 283 earthquakes for last 1 day(s)
+Batch inserted 283 earthquakes
+Executed ins_quakes()
+Dedup: removed 15 duplicate reports
+Calculating global M4+ dt for 2 new records...
+Done calculating global M4+ dt for 2 records
+Calculating local M4+ dt (1000km) for 2 new records...
+Done calculating local M4+ dt for 2 records
+Computing moon features for 2 new records...
+Done computing moon features for 2 records
+[2026-02-20 18:23:15.027734] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 7.9}
+[EMSC] Fetched 282 earthquakes for last 1 day(s)
+Batch inserted 282 earthquakes
+Executed ins_quakes()
+Dedup: removed 15 duplicate reports
+[2026-02-20 18:25:02.152090] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 6.1}
+[EMSC] Fetched 282 earthquakes for last 1 day(s)
+Batch inserted 282 earthquakes
+Executed ins_quakes()
+Dedup: removed 15 duplicate reports
+[2026-02-20 18:27:03.088681] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 4.1}
+[EMSC] Fetched 283 earthquakes for last 1 day(s)
+Batch inserted 283 earthquakes
+Executed ins_quakes()
+Dedup: removed 15 duplicate reports
+Calculating global M4+ dt for 1 new records...
+Done calculating global M4+ dt for 1 records
+Calculating local M4+ dt (1000km) for 1 new records...
+Done calculating local M4+ dt for 1 records
+Computing moon features for 1 new records...
+Done computing moon features for 1 records
+[2026-02-20 18:29:13.505904] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 1.9}
+[2026-02-20 18:30:55.600106] New checkpoint detected: eqModel_complex_20260220_182927.pth
+[2026-02-20 18:30:59.060954] Reloaded weights: eqModel_complex_20260220_182927.pth
+[EMSC] Fetched 283 earthquakes for last 1 day(s)
+Batch inserted 283 earthquakes
+Executed ins_quakes()
+Dedup: removed 15 duplicate reports
+[2026-02-20 18:31:06.859599] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 0.0}
+[2026-02-20 18:31:18.829342] Prediction #1 window expired (dt=30min), marking MISSED...
+[2026-02-20 18:31:18.829342] Creating new prediction...
+[2026-02-20 18:31:26.937742] Prediction: lat=0.19, lon=0.17, dt=30min, mag=4.7 (id=2)
+[2026-02-20 18:31:26.940845] No subscribers within range for prediction #2 (lat=0.18718221783638, lon=0.16736061871051788)
+[EMSC] Fetched 282 earthquakes for last 1 day(s)
+Batch inserted 282 earthquakes
+Executed ins_quakes()
+Dedup: removed 15 duplicate reports
+[2026-02-20 18:33:03.082557] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 28.4}
+[EMSC] Fetched 282 earthquakes for last 1 day(s)
+Batch inserted 282 earthquakes
+Executed ins_quakes()
+Dedup: removed 15 duplicate reports
+Calculating global M4+ dt for 1 new records...
+Done calculating global M4+ dt for 1 records
+Calculating local M4+ dt (1000km) for 1 new records...
+Done calculating local M4+ dt for 1 records
+Computing moon features for 1 new records...
+Done computing moon features for 1 records
+[2026-02-20 18:35:14.298864] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 26.2}
+[EMSC] Fetched 282 earthquakes for last 1 day(s)
+Batch inserted 282 earthquakes
+Executed ins_quakes()
+Dedup: removed 15 duplicate reports
+[2026-02-20 18:37:03.156269] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 24.4}
+[2026-02-20 18:38:55.599950] New checkpoint detected: eqModel_complex_20260220_183804.pth
+[2026-02-20 18:38:59.090186] Reloaded weights: eqModel_complex_20260220_183804.pth
+[EMSC] Fetched 282 earthquakes for last 1 day(s)
+Batch inserted 282 earthquakes
+Executed ins_quakes()
+Dedup: removed 14 duplicate reports
+Calculating global M4+ dt for 1 new records...
+Done calculating global M4+ dt for 1 records
+Calculating local M4+ dt (1000km) for 1 new records...
+Done calculating local M4+ dt for 1 records
+Computing moon features for 1 new records...
+Done computing moon features for 1 records
+[2026-02-20 18:39:17.347333] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 22.1}
+[EMSC] Fetched 282 earthquakes for last 1 day(s)
+Batch inserted 282 earthquakes
+Executed ins_quakes()
+Dedup: removed 14 duplicate reports
+[2026-02-20 18:41:03.215304] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 20.4}
+[EMSC] Fetched 283 earthquakes for last 1 day(s)
+Batch inserted 283 earthquakes
+Executed ins_quakes()
+Dedup: removed 14 duplicate reports
 Calculating global M4+ dt for 1 new records...
 Connection ping failed: bytearray index out of range, reconnecting...
 Database connection established
+Fetch failed (attempt 1): bytearray index out of range, reconnecting...
+Database connection established
+Connection ping failed: bytearray index out of range, reconnecting...
+Done calculating global M4+ dt for 1 records
+Database connection established
+Calculating local M4+ dt (1000km) for 1 new records...
+Done calculating local M4+ dt for 1 records
+Computing moon features for 1 new records...
+Done computing moon features for 1 records
+[2026-02-20 18:43:13.808962] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 18.2}
+[EMSC] Fetched 282 earthquakes for last 1 day(s)
+Batch inserted 282 earthquakes
+Executed ins_quakes()
+Dedup: removed 14 duplicate reports
+[2026-02-20 18:45:02.119148] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 16.4}
+[2026-02-20 18:46:55.600104] New checkpoint detected: eqModel_complex_20260220_184641.pth
+[2026-02-20 18:46:59.189637] Reloaded weights: eqModel_complex_20260220_184641.pth
+[EMSC] Fetched 282 earthquakes for last 1 day(s)
+Batch inserted 282 earthquakes
+Executed ins_quakes()
+Dedup: removed 14 duplicate reports
+[2026-02-20 18:47:06.880479] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 14.3}
+[EMSC] Fetched 283 earthquakes for last 1 day(s)
+Batch inserted 283 earthquakes
+Executed ins_quakes()
+Dedup: removed 14 duplicate reports
+Calculating global M4+ dt for 1 new records...
+Connection ping failed: bytearray index out of range, reconnecting...
+Database connection established
+Done calculating global M4+ dt for 1 records
+Calculating local M4+ dt (1000km) for 1 new records...
+Done calculating local M4+ dt for 1 records
+Computing moon features for 1 new records...
+Done computing moon features for 1 records
+[2026-02-20 18:49:20.137696] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 12.1}
+[EMSC] Fetched 281 earthquakes for last 1 day(s)
+Batch inserted 281 earthquakes
+Executed ins_quakes()
+Dedup: removed 14 duplicate reports
+[2026-02-20 18:51:03.061802] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 10.4}
+[EMSC] Fetched 280 earthquakes for last 1 day(s)
+Batch inserted 280 earthquakes
+Executed ins_quakes()
+Dedup: removed 13 duplicate reports
+[2026-02-20 18:53:02.921582] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 8.4}
+[EMSC] Fetched 280 earthquakes for last 1 day(s)
+Batch inserted 280 earthquakes
+Executed ins_quakes()
+Dedup: removed 13 duplicate reports
+[2026-02-20 18:55:02.440816] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 6.4}
+[2026-02-20 18:56:55.600021] New checkpoint detected: eqModel_complex_20260220_185520.pth
+[2026-02-20 18:56:59.050243] Reloaded weights: eqModel_complex_20260220_185520.pth
+[EMSC] Fetched 283 earthquakes for last 1 day(s)
+Batch inserted 283 earthquakes
+Executed ins_quakes()
+Dedup: removed 13 duplicate reports
+Calculating global M4+ dt for 3 new records...
 Error batch calc_dt: bytearray index out of range
 Connection ping failed: bytearray index out of range, reconnecting...
 Traceback (most recent call last):
@@ -72,775 +265,35 @@ Traceback (most recent call last):
        ~~~~~~^^^
 IndexError: bytearray index out of range
 Database connection established
-Calculating local M4+ dt (1000km) for 1 new records...
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Done calculating local M4+ dt for 1 records
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-19 19:57:15.939006] Status: pending - {'action': 'pending', 'prediction_id': 41, 'remaining_minutes': 14.5}
+Calculating local M4+ dt (1000km) for 3 new records...
+Done calculating local M4+ dt for 3 records
+Computing moon features for 3 new records...
+Done computing moon features for 3 records
+[2026-02-20 18:57:17.181194] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 4.1}
 [EMSC] Fetched 284 earthquakes for last 1 day(s)
 Batch inserted 284 earthquakes
 Executed ins_quakes()
-Dedup: removed 10 duplicate reports
+Dedup: removed 13 duplicate reports
+Calculating global M4+ dt for 1 new records...
 Connection ping failed: bytearray index out of range, reconnecting...
 Database connection established
-Calculating global M4+ dt for 1 new records...
 Done calculating global M4+ dt for 1 records
 Calculating local M4+ dt (1000km) for 1 new records...
 Done calculating local M4+ dt for 1 records
 Computing moon features for 1 new records...
 Done computing moon features for 1 records
-[2026-02-19 19:59:17.424641] Status: pending - {'action': 'pending', 'prediction_id': 41, 'remaining_minutes': 12.5}
-[EMSC] Fetched 285 earthquakes for last 1 day(s)
-Batch inserted 285 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Error dedup: bytearray index out of range
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Calculating global M4+ dt for 2 new records...
-Done calculating global M4+ dt for 2 records
-Calculating local M4+ dt (1000km) for 2 new records...
-Connection ping failed: bytearray index out of range, reconnecting...
-Error batch calc_lt: bytearray index out of range
-Traceback (most recent call last):
-  File "/var/www/syshuman/quake/DataClass.py", line 1163, in usgs2DB
-    self.mydb.commit()
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1456, in commit
-    self._execute_query("COMMIT")
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1475, in _execute_query
-    self.cmd_query(query)
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/opentelemetry/context_propagation.py", line 97, in wrapper
-    return method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 984, in cmd_query
-    result = self._handle_result(
-             ^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 737, in _handle_result
-    if packet[4] == OK_STATUS:
-       ~~~~~~^^^
-IndexError: bytearray index out of range
-Database connection established
-Computing moon features for 2 new records...
-Done computing moon features for 2 records
-[2026-02-19 20:01:14.274205] Status: pending - {'action': 'pending', 'prediction_id': 41, 'remaining_minutes': 10.5}
-[2026-02-19 20:02:58.474769] New checkpoint detected: eqModel_complex_20260219_200120.pth
-[2026-02-19 20:03:03.169494] Reloaded weights: eqModel_complex_20260219_200120.pth
-[EMSC] Fetched 285 earthquakes for last 1 day(s)
-Batch inserted 285 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Calculating global M4+ dt for 1 new records...
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Done calculating global M4+ dt for 1 records
-Calculating local M4+ dt (1000km) for 1 new records...
-Connection ping failed: bytearray index out of range, reconnecting...
-Error batch calc_lt: bytearray index out of range
-Traceback (most recent call last):
-  File "/var/www/syshuman/quake/DataClass.py", line 1160, in usgs2DB
-    self.mydb.commit()
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1456, in commit
-    self._execute_query("COMMIT")
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1475, in _execute_query
-    self.cmd_query(query)
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/opentelemetry/context_propagation.py", line 97, in wrapper
-    return method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 984, in cmd_query
-    result = self._handle_result(
-             ^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 737, in _handle_result
-    if packet[4] == OK_STATUS:
-       ~~~~~~^^^
-IndexError: bytearray index out of range
-Database connection established
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-19 20:03:20.684056] Status: pending - {'action': 'pending', 'prediction_id': 41, 'remaining_minutes': 8.4}
-[EMSC] Fetched 285 earthquakes for last 1 day(s)
-Batch inserted 285 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Calculating global M4+ dt for 1 new records...
-Done calculating global M4+ dt for 1 records
-Calculating local M4+ dt (1000km) for 2 new records...
-Connection ping failed: bytearray index out of range, reconnecting...
-Error batch calc_lt: bytearray index out of range
-Traceback (most recent call last):
-  File "/var/www/syshuman/quake/DataClass.py", line 1163, in usgs2DB
-    self.mydb.commit()
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1456, in commit
-    self._execute_query("COMMIT")
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1475, in _execute_query
-    self.cmd_query(query)
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/opentelemetry/context_propagation.py", line 97, in wrapper
-    return method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 984, in cmd_query
-    result = self._handle_result(
-             ^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 737, in _handle_result
-    if packet[4] == OK_STATUS:
-       ~~~~~~^^^
-IndexError: bytearray index out of range
-Database connection established
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-19 20:05:16.567962] Status: pending - {'action': 'pending', 'prediction_id': 41, 'remaining_minutes': 6.5}
-[EMSC] Fetched 284 earthquakes for last 1 day(s)
-Batch inserted 284 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-[2026-02-19 20:07:05.779413] Status: pending - {'action': 'pending', 'prediction_id': 41, 'remaining_minutes': 4.7}
-[EMSC] Fetched 284 earthquakes for last 1 day(s)
-Batch inserted 284 earthquakes
-Executed ins_quakes()
-Dedup: removed 11 duplicate reports
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Error dedup: bytearray index out of range
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-[2026-02-19 20:09:06.241382] Status: pending - {'action': 'pending', 'prediction_id': 41, 'remaining_minutes': 2.6}
-[2026-02-19 20:10:58.474755] New checkpoint detected: eqModel_complex_20260219_201021.pth
-[2026-02-19 20:11:01.969289] Reloaded weights: eqModel_complex_20260219_201021.pth
-[EMSC] Fetched 281 earthquakes for last 1 day(s)
-Batch inserted 281 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-[2026-02-19 20:11:09.078788] Status: pending - {'action': 'pending', 'prediction_id': 41, 'remaining_minutes': 0.6}
-[2026-02-19 20:11:51.336212] Prediction #41 window expired (dt=30min), marking MISSED...
-[2026-02-19 20:11:51.336212] Creating new prediction...
-[2026-02-19 20:11:59.050369] Prediction: lat=-6, lon=69, dt=30min, mag=5.2 (id=42)
-[2026-02-19 20:11:59.053459] No subscribers within range for prediction #42 (lat=-6, lon=69)
-[EMSC] Fetched 281 earthquakes for last 1 day(s)
-Batch inserted 281 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Error dedup: bytearray index out of range
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-[2026-02-19 20:13:06.224043] Status: pending - {'action': 'pending', 'prediction_id': 42, 'remaining_minutes': 28.9}
-[EMSC] Fetched 282 earthquakes for last 1 day(s)
-Batch inserted 282 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Error dedup: bytearray index out of range
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Calculating global M4+ dt for 2 new records...
-Done calculating global M4+ dt for 2 records
-Calculating local M4+ dt (1000km) for 2 new records...
-Error batch calc_lt: bytearray index out of range
-Connection ping failed: bytearray index out of range, reconnecting...
-Traceback (most recent call last):
-  File "/var/www/syshuman/quake/DataClass.py", line 1160, in usgs2DB
-    self.mydb.commit()
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1456, in commit
-    self._execute_query("COMMIT")
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1475, in _execute_query
-    self.cmd_query(query)
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/opentelemetry/context_propagation.py", line 97, in wrapper
-    return method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 984, in cmd_query
-    result = self._handle_result(
-             ^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 737, in _handle_result
-    if packet[4] == OK_STATUS:
-       ~~~~~~^^^
-IndexError: bytearray index out of range
-Database connection established
-Computing moon features for 2 new records...
-Done computing moon features for 2 records
-[2026-02-19 20:15:15.356979] Status: pending - {'action': 'pending', 'prediction_id': 42, 'remaining_minutes': 26.7}
-[EMSC] Fetched 282 earthquakes for last 1 day(s)
-Batch inserted 282 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Calculating local M4+ dt (1000km) for 2 new records...
-Error batch calc_lt: bytearray index out of range
-Connection ping failed: bytearray index out of range, reconnecting...
-Traceback (most recent call last):
-  File "/var/www/syshuman/quake/DataClass.py", line 1160, in usgs2DB
-    self.mydb.commit()
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1456, in commit
-    self._execute_query("COMMIT")
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1475, in _execute_query
-    self.cmd_query(query)
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/opentelemetry/context_propagation.py", line 97, in wrapper
-    return method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 984, in cmd_query
-    result = self._handle_result(
-             ^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 737, in _handle_result
-    if packet[4] == OK_STATUS:
-       ~~~~~~^^^
-IndexError: bytearray index out of range
-Database connection established
-[2026-02-19 20:17:10.940002] Status: pending - {'action': 'pending', 'prediction_id': 42, 'remaining_minutes': 24.8}
-[2026-02-19 20:18:58.474765] New checkpoint detected: eqModel_complex_20260219_201858.pth
-[2026-02-19 20:19:00.475019] Checkpoint still being written, skipping this cycle
-[EMSC] Fetched 282 earthquakes for last 1 day(s)
-Batch inserted 282 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Calculating local M4+ dt (1000km) for 2 new records...
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Done calculating local M4+ dt for 2 records
-[2026-02-19 20:19:13.729277] Status: pending - {'action': 'pending', 'prediction_id': 42, 'remaining_minutes': 22.7}
-[2026-02-19 20:20:58.474772] New checkpoint detected: eqModel_complex_20260219_201858.pth
-[2026-02-19 20:21:01.956302] Reloaded weights: eqModel_complex_20260219_201858.pth
+[2026-02-20 18:59:13.916805] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 2.2}
 [EMSC] Fetched 283 earthquakes for last 1 day(s)
 Batch inserted 283 earthquakes
 Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Calculating global M4+ dt for 1 new records...
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Done calculating global M4+ dt for 1 records
-Calculating local M4+ dt (1000km) for 1 new records...
-Done calculating local M4+ dt for 1 records
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-19 20:21:20.471790] Status: pending - {'action': 'pending', 'prediction_id': 42, 'remaining_minutes': 20.6}
+Dedup: removed 13 duplicate reports
+[2026-02-20 19:01:02.952530] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 0.4}
+[2026-02-20 19:01:34.419033] Prediction #2 window expired (dt=30min), marking MISSED...
+[2026-02-20 19:01:34.419033] Creating new prediction...
+[2026-02-20 19:01:42.442945] Prediction: lat=0.69, lon=1.02, dt=30min, mag=4.5 (id=3)
+[2026-02-20 19:01:42.445878] No subscribers within range for prediction #3 (lat=0.6881781816482544, lon=1.0155670642852783)
 [EMSC] Fetched 283 earthquakes for last 1 day(s)
 Batch inserted 283 earthquakes
 Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-[2026-02-19 20:23:05.629588] Status: pending - {'action': 'pending', 'prediction_id': 42, 'remaining_minutes': 18.9}
-[EMSC] Fetched 283 earthquakes for last 1 day(s)
-Batch inserted 283 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-[2026-02-19 20:25:05.406204] Status: pending - {'action': 'pending', 'prediction_id': 42, 'remaining_minutes': 16.9}
-[EMSC] Fetched 284 earthquakes for last 1 day(s)
-Batch inserted 284 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Calculating global M4+ dt for 1 new records...
-Done calculating global M4+ dt for 1 records
-Calculating local M4+ dt (1000km) for 1 new records...
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Done calculating local M4+ dt for 1 records
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-19 20:27:17.714001] Status: pending - {'action': 'pending', 'prediction_id': 42, 'remaining_minutes': 14.7}
-[2026-02-19 20:28:58.474791] New checkpoint detected: eqModel_complex_20260219_202735.pth
-[2026-02-19 20:29:01.966305] Reloaded weights: eqModel_complex_20260219_202735.pth
-[EMSC] Fetched 285 earthquakes for last 1 day(s)
-Batch inserted 285 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Calculating global M4+ dt for 1 new records...
-Done calculating global M4+ dt for 1 records
-Calculating local M4+ dt (1000km) for 1 new records...
-Done calculating local M4+ dt for 1 records
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-19 20:29:20.399399] Status: pending - {'action': 'pending', 'prediction_id': 42, 'remaining_minutes': 12.6}
-[EMSC] Fetched 285 earthquakes for last 1 day(s)
-Batch inserted 285 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-[2026-02-19 20:31:06.917957] Status: pending - {'action': 'pending', 'prediction_id': 42, 'remaining_minutes': 10.9}
-[EMSC] Fetched 285 earthquakes for last 1 day(s)
-Batch inserted 285 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-[2026-02-19 20:33:06.482108] Status: pending - {'action': 'pending', 'prediction_id': 42, 'remaining_minutes': 8.9}
-[EMSC] Fetched 285 earthquakes for last 1 day(s)
-Batch inserted 285 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-[2026-02-19 20:35:05.699446] Status: pending - {'action': 'pending', 'prediction_id': 42, 'remaining_minutes': 6.9}
-[2026-02-19 20:36:58.474788] New checkpoint detected: eqModel_complex_20260219_203613.pth
-[2026-02-19 20:37:01.934755] Reloaded weights: eqModel_complex_20260219_203613.pth
-[EMSC] Fetched 285 earthquakes for last 1 day(s)
-Batch inserted 285 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Calculating global M4+ dt for 1 new records...
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Done calculating global M4+ dt for 1 records
-Calculating local M4+ dt (1000km) for 1 new records...
-Done calculating local M4+ dt for 1 records
-Computing moon features for 1 new records...
-Error computing moon features: bytearray index out of range
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-[2026-02-19 20:37:20.148542] Status: pending - {'action': 'pending', 'prediction_id': 42, 'remaining_minutes': 4.6}
-[EMSC] Fetched 287 earthquakes for last 1 day(s)
-Batch inserted 287 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Calculating global M4+ dt for 2 new records...
-Done calculating global M4+ dt for 2 records
-Calculating local M4+ dt (1000km) for 2 new records...
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Error batch calc_lt: bytearray index out of range
-Traceback (most recent call last):
-Connection ping failed: bytearray index out of range, reconnecting...
-  File "/var/www/syshuman/quake/DataClass.py", line 1163, in usgs2DB
-    self.mydb.commit()
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1456, in commit
-    self._execute_query("COMMIT")
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1475, in _execute_query
-    self.cmd_query(query)
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/opentelemetry/context_propagation.py", line 97, in wrapper
-    return method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 984, in cmd_query
-    result = self._handle_result(
-             ^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 737, in _handle_result
-    if packet[4] == OK_STATUS:
-       ~~~~~~^^^
-IndexError: bytearray index out of range
-Database connection established
-Computing moon features for 2 new records...
-Done computing moon features for 2 records
-[2026-02-19 20:39:15.219155] Status: pending - {'action': 'pending', 'prediction_id': 42, 'remaining_minutes': 2.7}
-[EMSC] Fetched 286 earthquakes for last 1 day(s)
-Batch inserted 286 earthquakes
-Executed ins_quakes()
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Dedup: removed 10 duplicate reports
-Calculating global M4+ dt for 1 new records...
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Connection ping failed: bytearray index out of range, reconnecting...
-Done calculating global M4+ dt for 1 records
-Database connection established
-Calculating local M4+ dt (1000km) for 1 new records...
-Error batch calc_lt: bytearray index out of range
-Traceback (most recent call last):
-  File "/var/www/syshuman/quake/DataClass.py", line 1166, in usgs2DB
-    self.mydb.commit()
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1456, in commit
-    self._execute_query("COMMIT")
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1475, in _execute_query
-    self.cmd_query(query)
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/opentelemetry/context_propagation.py", line 97, in wrapper
-    return method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 984, in cmd_query
-    result = self._handle_result(
-             ^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 737, in _handle_result
-    if packet[4] == OK_STATUS:
-       ~~~~~~^^^
-IndexError: bytearray index out of range
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Computing moon features for 1 new records...
-Error computing moon features: bytearray index out of range
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-[2026-02-19 20:41:20.648351] Status: pending - {'action': 'pending', 'prediction_id': 42, 'remaining_minutes': 0.6}
-[2026-02-19 20:41:58.033450] Prediction #42 window expired (dt=30min), marking MISSED...
-[2026-02-19 20:41:58.033450] Creating new prediction...
-[2026-02-19 20:42:05.898440] Prediction: lat=2, lon=114 near Sarawak, Malaysia, dt=30min, mag=4.7 (id=43)
-[2026-02-19 20:42:05.901526] No subscribers within range for prediction #43 (lat=2, lon=114)
-[EMSC] Fetched 286 earthquakes for last 1 day(s)
-Batch inserted 286 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Calculating global M4+ dt for 1 new records...
-Done calculating global M4+ dt for 1 records
-Calculating local M4+ dt (1000km) for 1 new records...
-Done calculating local M4+ dt for 1 records
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-19 20:43:15.603265] Status: pending - {'action': 'pending', 'prediction_id': 43, 'remaining_minutes': 28.8}
-[EMSC] Fetched 286 earthquakes for last 1 day(s)
-Batch inserted 286 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-[2026-02-19 20:45:05.703184] Status: pending - {'action': 'pending', 'prediction_id': 43, 'remaining_minutes': 27.0}
-[2026-02-19 20:46:58.474748] New checkpoint detected: eqModel_complex_20260219_204508.pth
-[2026-02-19 20:47:01.932040] Reloaded weights: eqModel_complex_20260219_204508.pth
-[EMSC] Fetched 285 earthquakes for last 1 day(s)
-Batch inserted 285 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-[2026-02-19 20:47:09.173814] Status: pending - {'action': 'pending', 'prediction_id': 43, 'remaining_minutes': 24.9}
-[EMSC] Fetched 283 earthquakes for last 1 day(s)
-Batch inserted 283 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-[2026-02-19 20:49:05.597108] Status: pending - {'action': 'pending', 'prediction_id': 43, 'remaining_minutes': 23.0}
-[EMSC] Fetched 283 earthquakes for last 1 day(s)
-Batch inserted 283 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-[2026-02-19 20:51:06.813388] Status: pending - {'action': 'pending', 'prediction_id': 43, 'remaining_minutes': 21.0}
-[EMSC] Fetched 284 earthquakes for last 1 day(s)
-Batch inserted 284 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Calculating global M4+ dt for 2 new records...
-Error batch calc_dt: bytearray index out of range
-Connection ping failed: bytearray index out of range, reconnecting...
-Traceback (most recent call last):
-  File "/var/www/syshuman/quake/DataClass.py", line 1113, in usgs2DB
-    self.mydb.commit()
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1456, in commit
-    self._execute_query("COMMIT")
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1475, in _execute_query
-    self.cmd_query(query)
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/opentelemetry/context_propagation.py", line 97, in wrapper
-    return method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 984, in cmd_query
-    result = self._handle_result(
-             ^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 737, in _handle_result
-    if packet[4] == OK_STATUS:
-       ~~~~~~^^^
-IndexError: bytearray index out of range
-Database connection established
-Calculating local M4+ dt (1000km) for 2 new records...
-Error batch calc_lt: bytearray index out of range
-Connection ping failed: bytearray index out of range, reconnecting...
-Traceback (most recent call last):
-  File "/var/www/syshuman/quake/DataClass.py", line 1160, in usgs2DB
-    self.mydb.commit()
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1456, in commit
-    self._execute_query("COMMIT")
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1475, in _execute_query
-    self.cmd_query(query)
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/opentelemetry/context_propagation.py", line 97, in wrapper
-    return method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 984, in cmd_query
-    result = self._handle_result(
-             ^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 737, in _handle_result
-    if packet[4] == OK_STATUS:
-       ~~~~~~^^^
-IndexError: bytearray index out of range
-Database connection established
-Computing moon features for 2 new records...
-Error computing moon features: bytearray index out of range
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-[2026-02-19 20:53:13.926425] Status: pending - {'action': 'pending', 'prediction_id': 43, 'remaining_minutes': 18.9}
-[2026-02-19 20:54:58.474740] New checkpoint detected: eqModel_complex_20260219_205345.pth
-[2026-02-19 20:55:01.999119] Reloaded weights: eqModel_complex_20260219_205345.pth
-[EMSC] Fetched 284 earthquakes for last 1 day(s)
-Batch inserted 284 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Calculating global M4+ dt for 2 new records...
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Done calculating global M4+ dt for 2 records
-Calculating local M4+ dt (1000km) for 2 new records...
-Done calculating local M4+ dt for 2 records
-[2026-02-19 20:55:20.404831] Status: pending - {'action': 'pending', 'prediction_id': 43, 'remaining_minutes': 16.7}
-[EMSC] Fetched 285 earthquakes for last 1 day(s)
-Batch inserted 285 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Calculating global M4+ dt for 1 new records...
-Connection ping failed: bytearray index out of range, reconnecting...
-Done calculating global M4+ dt for 1 records
-Database connection established
-Calculating local M4+ dt (1000km) for 1 new records...
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Connection ping failed: bytearray index out of range, reconnecting...
-Database connection established
-Error batch calc_lt: 2055: Lost connection to MySQL server at '192.168.1.166:3306', system error: Errno 9: Bad file descriptor
-Traceback (most recent call last):
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/network.py", line 244, in recv
-    return header + self._recv_chunk(sock, size=payload_len)
-                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/network.py", line 180, in _recv_chunk
-    read = sock.recv_into(pkt_view, size)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-OSError: [Errno 9] Bad file descriptor
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "/var/www/syshuman/quake/DataClass.py", line 1163, in usgs2DB
-    self.mydb.commit()
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1456, in commit
-    self._execute_query("COMMIT")
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1475, in _execute_query
-    self.cmd_query(query)
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/opentelemetry/context_propagation.py", line 97, in wrapper
-    return method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 985, in cmd_query
-    self._send_cmd(
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 514, in _send_cmd
-    self._socket.recv(read_timeout or self._read_timeout)
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/network.py", line 668, in recv
-    return self._netbroker.recv(self.sock, self.address)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/network.py", line 248, in recv
-    raise OperationalError(
-mysql.connector.errors.OperationalError: 2055: Lost connection to MySQL server at '192.168.1.166:3306', system error: Errno 9: Bad file descriptor
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-19 20:57:15.990856] Status: pending - {'action': 'pending', 'prediction_id': 43, 'remaining_minutes': 14.8}
-[EMSC] Fetched 287 earthquakes for last 1 day(s)
-Batch inserted 287 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Calculating global M4+ dt for 2 new records...
-Error batch calc_dt: bytearray index out of range
-Connection ping failed: bytearray index out of range, reconnecting...
-Traceback (most recent call last):
-  File "/var/www/syshuman/quake/DataClass.py", line 1113, in usgs2DB
-    self.mydb.commit()
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1456, in commit
-    self._execute_query("COMMIT")
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1475, in _execute_query
-    self.cmd_query(query)
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/opentelemetry/context_propagation.py", line 97, in wrapper
-    return method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 984, in cmd_query
-    result = self._handle_result(
-             ^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 737, in _handle_result
-    if packet[4] == OK_STATUS:
-       ~~~~~~^^^
-IndexError: bytearray index out of range
-Database connection established
-Calculating local M4+ dt (1000km) for 2 new records...
-Done calculating local M4+ dt for 2 records
-Computing moon features for 2 new records...
-Done computing moon features for 2 records
-[2026-02-19 20:59:17.117537] Status: pending - {'action': 'pending', 'prediction_id': 43, 'remaining_minutes': 12.8}
-[EMSC] Fetched 288 earthquakes for last 1 day(s)
-Batch inserted 288 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-Calculating global M4+ dt for 3 new records...
-Done calculating global M4+ dt for 3 records
-Calculating local M4+ dt (1000km) for 1 new records...
-Done calculating local M4+ dt for 1 records
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-19 21:01:16.656224] Status: pending - {'action': 'pending', 'prediction_id': 43, 'remaining_minutes': 10.8}
-[2026-02-19 21:02:58.474809] New checkpoint detected: eqModel_complex_20260219_210225.pth
-[2026-02-19 21:03:01.955922] Reloaded weights: eqModel_complex_20260219_210225.pth
-[EMSC] Fetched 287 earthquakes for last 1 day(s)
-Batch inserted 287 earthquakes
-Executed ins_quakes()
-Dedup: removed 10 duplicate reports
-[2026-02-19 21:03:09.669319] Status: pending - {'action': 'pending', 'prediction_id': 43, 'remaining_minutes': 8.9}
-[EMSC] Fetched 286 earthquakes for last 1 day(s)
-Batch inserted 286 earthquakes
-Executed ins_quakes()
-Dedup: removed 9 duplicate reports
-[2026-02-19 21:05:05.736462] Status: pending - {'action': 'pending', 'prediction_id': 43, 'remaining_minutes': 7.0}
-[EMSC] Fetched 287 earthquakes for last 1 day(s)
-Batch inserted 287 earthquakes
-Executed ins_quakes()
-Dedup: removed 9 duplicate reports
-Calculating global M4+ dt for 1 new records...
-Done calculating global M4+ dt for 1 records
-Calculating local M4+ dt (1000km) for 1 new records...
-Done calculating local M4+ dt for 1 records
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-19 21:07:16.728463] Status: pending - {'action': 'pending', 'prediction_id': 43, 'remaining_minutes': 4.8}
-[EMSC] Fetched 287 earthquakes for last 1 day(s)
-Batch inserted 287 earthquakes
-Executed ins_quakes()
-Dedup: removed 9 duplicate reports
-Calculating global M4+ dt for 1 new records...
-Done calculating global M4+ dt for 1 records
-Calculating local M4+ dt (1000km) for 1 new records...
-Done calculating local M4+ dt for 1 records
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-19 21:09:16.255911] Status: pending - {'action': 'pending', 'prediction_id': 43, 'remaining_minutes': 2.8}
-[EMSC] Fetched 286 earthquakes for last 1 day(s)
-Batch inserted 286 earthquakes
-Executed ins_quakes()
-Dedup: removed 9 duplicate reports
-[2026-02-19 21:11:05.595384] Status: pending - {'action': 'pending', 'prediction_id': 43, 'remaining_minutes': 1.0}
-[2026-02-19 21:12:20.615958] Prediction #43 window expired (dt=30min), marking MISSED...
-[2026-02-19 21:12:20.615958] Creating new prediction...
-[2026-02-19 21:12:27.943851] Prediction: lat=-5, lon=-13, dt=30min, mag=5.2 (id=44)
-[2026-02-19 21:12:27.946355] No subscribers within range for prediction #44 (lat=-5, lon=-13)
-[2026-02-19 21:12:58.474790] New checkpoint detected: eqModel_complex_20260219_211114.pth
-[2026-02-19 21:13:01.931596] Reloaded weights: eqModel_complex_20260219_211114.pth
-[EMSC] Fetched 287 earthquakes for last 1 day(s)
-Batch inserted 287 earthquakes
-Executed ins_quakes()
-Dedup: removed 9 duplicate reports
-Calculating global M4+ dt for 1 new records...
-Done calculating global M4+ dt for 1 records
-Calculating local M4+ dt (1000km) for 1 new records...
-Done calculating local M4+ dt for 1 records
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-19 21:13:20.026952] Status: pending - {'action': 'pending', 'prediction_id': 44, 'remaining_minutes': 29.1}
-[EMSC] Fetched 289 earthquakes for last 1 day(s)
-Batch inserted 289 earthquakes
-Executed ins_quakes()
-Dedup: removed 9 duplicate reports
-Calculating global M4+ dt for 2 new records...
-Done calculating global M4+ dt for 2 records
-Calculating local M4+ dt (1000km) for 2 new records...
-Done calculating local M4+ dt for 2 records
-Computing moon features for 2 new records...
-Done computing moon features for 2 records
-[2026-02-19 21:15:15.326948] Status: pending - {'action': 'pending', 'prediction_id': 44, 'remaining_minutes': 27.2}
-[EMSC] Fetched 289 earthquakes for last 1 day(s)
-Batch inserted 289 earthquakes
-Executed ins_quakes()
-Dedup: removed 9 duplicate reports
-[2026-02-19 21:17:05.366109] Status: pending - {'action': 'pending', 'prediction_id': 44, 'remaining_minutes': 25.4}
-[EMSC] Fetched 289 earthquakes for last 1 day(s)
-Batch inserted 289 earthquakes
-Executed ins_quakes()
-Dedup: removed 9 duplicate reports
-[2026-02-19 21:19:05.266000] Status: pending - {'action': 'pending', 'prediction_id': 44, 'remaining_minutes': 23.4}
-[2026-02-19 21:20:58.474762] New checkpoint detected: eqModel_complex_20260219_211948.pth
-[2026-02-19 21:21:02.045319] Reloaded weights: eqModel_complex_20260219_211948.pth
-[EMSC] Fetched 289 earthquakes for last 1 day(s)
-Batch inserted 289 earthquakes
-Executed ins_quakes()
-Connection ping failed: bytearray index out of range, reconnecting...
-Error dedup: bytearray index out of range
-Database connection established
-[2026-02-19 21:21:09.061087] Status: pending - {'action': 'pending', 'prediction_id': 44, 'remaining_minutes': 21.3}
+Dedup: removed 13 duplicate reports
+[2026-02-20 19:03:02.526987] Status: pending - {'action': 'pending', 'prediction_id': 3, 'remaining_minutes': 28.7}

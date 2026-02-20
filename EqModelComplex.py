@@ -1487,6 +1487,204 @@ class ResidualHead(nn.Module):
 
 
 # =============================================================================
+# Mixture Density Network (MDN) Output Heads
+# =============================================================================
+
+class SpatialMDNHead(nn.Module):
+    """Bivariate Gaussian Mixture for joint (latitude, longitude) prediction.
+
+    K components, each parameterized by:
+        π_k:     mixture weight
+        μ_lat_k: latitude mean  (degrees, -90 to +90)
+        μ_lon_k: longitude mean (degrees, -180 to +180)
+        σ_lat_k: latitude std   (degrees)
+        σ_lon_k: longitude std  (degrees)
+        ρ_k:     correlation coefficient
+
+    NLL handles date-line wrapping via shortest-distance on longitude.
+    """
+
+    def __init__(self, in_dim, K=20, hidden_dim=None):
+        super().__init__()
+        self.K = K
+        if hidden_dim is None:
+            hidden_dim = in_dim // 2
+
+        self.net = nn.Sequential(
+            nn.Linear(in_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.SiLU(),
+        )
+        self.pi_proj = nn.Linear(hidden_dim, K)
+        self.mu_proj = nn.Linear(hidden_dim, K * 2)
+        self.sigma_proj = nn.Linear(hidden_dim, K * 2)
+        self.rho_proj = nn.Linear(hidden_dim, K)
+
+        self._init_weights()
+
+    def _init_weights(self):
+        for proj in [self.pi_proj, self.mu_proj, self.sigma_proj, self.rho_proj]:
+            nn.init.normal_(proj.weight, std=0.01)
+            nn.init.zeros_(proj.bias)
+        # softplus(2.7) ≈ 15° — broad initial spatial coverage
+        nn.init.constant_(self.sigma_proj.bias, 2.7)
+
+    def forward(self, x):
+        h = self.net(x)
+        pi = FN.softmax(self.pi_proj(h), dim=-1)               # [*, K]
+        mu = self.mu_proj(h)                                     # [*, 2K]
+        mu_lat = mu[..., :self.K]                                # [*, K]
+        mu_lon = mu[..., self.K:]                                # [*, K]
+        sigma = FN.softplus(self.sigma_proj(h)) + 0.1            # [*, 2K] min 0.1°
+        sigma_lat = sigma[..., :self.K]                          # [*, K]
+        sigma_lon = sigma[..., self.K:]                          # [*, K]
+        rho = torch.tanh(self.rho_proj(h)) * 0.95                # [*, K] cap ±0.95
+        return {
+            'pi': pi,
+            'mu_lat': mu_lat, 'mu_lon': mu_lon,
+            'sigma_lat': sigma_lat, 'sigma_lon': sigma_lon,
+            'rho': rho,
+        }
+
+    @staticmethod
+    def nll_loss(params, lat_target, lon_target, reduce=True):
+        """Negative log-likelihood of bivariate Gaussian mixture.
+
+        Handles longitude date-line wrapping via shortest-distance.
+        """
+        pi = params['pi']                # [N, K]
+        mu_lat = params['mu_lat']        # [N, K]
+        mu_lon = params['mu_lon']        # [N, K]
+        s_lat = params['sigma_lat']      # [N, K]
+        s_lon = params['sigma_lon']      # [N, K]
+        rho = params['rho']              # [N, K]
+
+        d_lat = lat_target.unsqueeze(-1) - mu_lat  # [N, K]
+        d_lon = lon_target.unsqueeze(-1) - mu_lon  # [N, K]
+        # Shortest longitude distance (wraps at ±180°)
+        d_lon = d_lon - 360.0 * torch.round(d_lon / 360.0)
+
+        z_lat = d_lat / s_lat
+        z_lon = d_lon / s_lon
+
+        one_m_rho2 = torch.clamp(1.0 - rho ** 2, min=1e-6)
+
+        exponent = -0.5 / one_m_rho2 * (z_lat**2 + z_lon**2 - 2 * rho * z_lat * z_lon)
+        log_norm = (-math.log(2 * math.pi) - torch.log(s_lat) - torch.log(s_lon)
+                    - 0.5 * torch.log(one_m_rho2))
+
+        log_component = log_norm + exponent                      # [N, K]
+        log_pi = torch.log(pi + 1e-10)
+        log_prob = torch.logsumexp(log_pi + log_component, dim=-1)  # [N]
+
+        nll = -log_prob
+        return nll.mean() if reduce else nll
+
+    @staticmethod
+    def sample(params, temperature=0.8):
+        """Sample (lat, lon) from the mixture. Returns actual coordinates."""
+        pi = params['pi'][0]              # [K]
+        log_pi = torch.log(pi + 1e-10) / temperature
+        k = torch.multinomial(FN.softmax(log_pi, dim=-1), 1).item()
+
+        mu_lat = params['mu_lat'][0, k].item()
+        mu_lon = params['mu_lon'][0, k].item()
+        s_lat = params['sigma_lat'][0, k].item() * temperature
+        s_lon = params['sigma_lon'][0, k].item() * temperature
+        rho = params['rho'][0, k].item()
+
+        # Bivariate Gaussian via Cholesky: x = μ + L @ z
+        z1 = torch.randn(1).item()
+        z2 = torch.randn(1).item()
+        lat = mu_lat + s_lat * z1
+        lon = mu_lon + s_lon * (rho * z1 + math.sqrt(max(1 - rho**2, 1e-6)) * z2)
+
+        lat = max(-90.0, min(90.0, lat))
+        lon = ((lon + 180) % 360) - 180  # wrap to [-180, 180]
+        return lat, lon
+
+
+class MagnitudeMDNHead(nn.Module):
+    """Univariate Gaussian Mixture for magnitude prediction.
+
+    K components with optional Gutenberg-Richter prior regularization:
+    GR law says log10(N) = a - bM  ⟹  p(M) ∝ 10^(-bM), so the expected
+    magnitude for M ≥ 4.0 is  E[M] = 4.0 + 1/(b·ln10) ≈ 4.43.
+    """
+
+    def __init__(self, in_dim, K=8, hidden_dim=None):
+        super().__init__()
+        self.K = K
+        if hidden_dim is None:
+            hidden_dim = in_dim // 2
+
+        self.net = nn.Sequential(
+            nn.Linear(in_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.SiLU(),
+        )
+        self.pi_proj = nn.Linear(hidden_dim, K)
+        self.mu_proj = nn.Linear(hidden_dim, K)
+        self.sigma_proj = nn.Linear(hidden_dim, K)
+
+        self._init_weights()
+
+    def _init_weights(self):
+        for proj in [self.pi_proj, self.mu_proj, self.sigma_proj]:
+            nn.init.normal_(proj.weight, std=0.01)
+            nn.init.zeros_(proj.bias)
+        # softplus(-0.8) ≈ 0.37 mag units — reasonable uncertainty
+        nn.init.constant_(self.sigma_proj.bias, -0.8)
+        # Spread means across M4-M7 range
+        with torch.no_grad():
+            self.mu_proj.bias.copy_(torch.linspace(4.0, 7.0, self.K))
+
+    def forward(self, x):
+        h = self.net(x)
+        pi = FN.softmax(self.pi_proj(h), dim=-1)         # [*, K]
+        mu = self.mu_proj(h)                               # [*, K]
+        sigma = FN.softplus(self.sigma_proj(h)) + 0.05     # [*, K] min 0.05 mag
+        return {'pi': pi, 'mu': mu, 'sigma': sigma}
+
+    @staticmethod
+    def nll_loss(params, mag_target, reduce=True):
+        """NLL of univariate Gaussian mixture."""
+        pi = params['pi']        # [N, K]
+        mu = params['mu']        # [N, K]
+        sigma = params['sigma']  # [N, K]
+
+        t = mag_target.unsqueeze(-1)                                    # [N, 1]
+        log_comp = (-0.5 * math.log(2 * math.pi) - torch.log(sigma)
+                    - 0.5 * ((t - mu) / sigma) ** 2)                    # [N, K]
+        log_pi = torch.log(pi + 1e-10)
+        log_prob = torch.logsumexp(log_pi + log_comp, dim=-1)           # [N]
+
+        nll = -log_prob
+        return nll.mean() if reduce else nll
+
+    @staticmethod
+    def gr_prior_loss(params, b_value=1.0):
+        """Gutenberg-Richter regularization: penalizes deviation from E[M] ≈ 4.43."""
+        pi = params['pi']    # [N, K]
+        mu = params['mu']    # [N, K]
+        expected_mag = (pi * mu).sum(dim=-1)                            # [N]
+        gr_expected = 4.0 + 1.0 / (b_value * math.log(10))             # ≈ 4.434
+        return ((expected_mag - gr_expected) ** 2).mean()
+
+    @staticmethod
+    def sample(params, temperature=0.8):
+        """Sample magnitude from the mixture."""
+        pi = params['pi'][0]  # [K]
+        log_pi = torch.log(pi + 1e-10) / temperature
+        k = torch.multinomial(FN.softmax(log_pi, dim=-1), 1).item()
+
+        mu = params['mu'][0, k].item()
+        sigma = params['sigma'][0, k].item() * temperature
+        mag = mu + sigma * torch.randn(1).item()
+        return max(2.0, min(9.5, mag))
+
+
+# =============================================================================
 # EqModelComplex - Main Model Class
 # =============================================================================
 
@@ -1502,11 +1700,10 @@ class EqModelComplex(nn.Module):
     - Complex dropout
     - Complex layer normalization with complex variance
 
-    Predicts 4 values:
-    - Latitude (0-180 encoded, actual -90 to +90)
-    - Longitude (0-360 encoded, actual -180 to +180)
-    - Time difference (0-150 minutes)
-    - Magnitude (0-91 encoded, actual 0.0 to 9.1)
+    Predicts 3 values via Mixture Density Networks:
+    - Latitude  (actual -90 to +90)  — K=20 bivariate Gaussian mixture (joint with lon)
+    - Longitude (actual -180 to +180) — same bivariate mixture
+    - Magnitude (actual 2.0 to 9.5)  — K=8 univariate Gaussian mixture with G-R prior
     """
 
     def __init__(self, sizes, B, T, n_embed, n_heads, n_layer, dropout, device, use_rope=True, use_gpe=True):
@@ -1540,24 +1737,17 @@ class EqModelComplex(nn.Module):
         # Final layer norm
         self.ln_f = ComplexLayerNorm(n_embed)
 
-        # Output heads: lat, lon, mag (no dt — time prediction removed)
-        # ResidualHead: MLP(x) + Linear_skip(x) for better gradient flow (from TimesFM)
-        head_hidden = n_embed // 2
-        self.lat_head = ResidualHead(n_embed * 2, 181, head_hidden)
-        self.lon_head = ResidualHead(n_embed * 2, 361, head_hidden)
-        self.mag_head = ResidualHead(n_embed * 2, 92, head_hidden)
-
-        # Gaussian label smoothing parameters (physically motivated)
-        self.lat_smooth = {'epsilon': 0.3, 'sigma': 2.0}   # 2° ≈ 222km spatial blur
-        self.lon_smooth = {'epsilon': 0.3, 'sigma': 2.0}   # 2° spatial blur
-        self.mag_smooth = {'epsilon': 0.15, 'sigma': 2.0}  # ±0.2 mag uncertainty
+        # MDN output heads (replaces classification bins)
+        # SpatialMDN: K=20 bivariate Gaussian mixture for joint (lat, lon)
+        # MagnitudeMDN: K=8 univariate Gaussian mixture with G-R prior
+        self.spatial_head = SpatialMDNHead(n_embed * 2, K=20, hidden_dim=n_embed // 2)
+        self.mag_head = MagnitudeMDNHead(n_embed * 2, K=8, hidden_dim=n_embed // 2)
 
         self.apply(self._init_weights)
 
-        # Re-initialize output head final layers with near-zero weights
-        # so logits start near uniform (critical for stable early training)
-        for head in [self.lat_head, self.lon_head, self.mag_head]:
-            head.init_near_zero()
+        # Re-initialize MDN heads (self.apply overrides their custom init)
+        self.spatial_head._init_weights()
+        self.mag_head._init_weights()
 
     def _init_weights(self, module):
         # Skip nn.Embedding inside ComplexEmbedding — they have their own init
@@ -1571,288 +1761,200 @@ class EqModelComplex(nn.Module):
         elif isinstance(module, nn.Embedding):
             nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def _gaussian_smooth_loss(self, logits, targets, num_classes, epsilon, sigma, reduce=True, circular=False):
-        """Cross-entropy with Gaussian label smoothing.
+    def _haversine_loss_mdn(self, spatial_params, lat_target, lon_target):
+        """Haversine auxiliary loss from MDN expected position.
 
-        Instead of uniform smoothing (all wrong classes equally likely),
-        spread probability as a Gaussian centered on the true class.
-        Teaches the model that being spatially close is better than far.
+        Computes mixture-weighted expected (lat, lon), then great-circle
+        distance to the true position.  Uses circular mean for longitude
+        (handles date-line wrapping for Fiji/Tonga/Aleutians).
 
-        target_dist = (1 - epsilon) * one_hot + epsilon * Gaussian(true_class, sigma)
-        loss = -sum(target_dist * log_softmax(logits))
-
-        Args:
-            reduce: If True, return scalar mean. If False, return per-sample losses [N].
-            circular: If True, use wrap-around distance (for longitude where bin 0 ≡ bin 360).
+        Returns scalar loss in log-degrees (0 at perfect, ~5.2 at max).
         """
-        device = logits.device
-        log_probs = FN.log_softmax(logits, dim=-1)  # [N, C]
+        deg2rad = math.pi / 180.0
 
-        # One-hot component
-        one_hot = torch.zeros_like(log_probs).scatter_(1, targets.unsqueeze(1), 1.0)
+        pi = spatial_params['pi']            # [N, K]
+        mu_lat = spatial_params['mu_lat']    # [N, K]
+        mu_lon = spatial_params['mu_lon']    # [N, K]
 
-        # Gaussian component centered on true class
-        indices = torch.arange(num_classes, device=device, dtype=torch.float32)  # [C]
-        diff = indices.unsqueeze(0) - targets.float().unsqueeze(1)  # [N, C]
+        # Expected latitude: linear weighted mean
+        pred_lat = (pi * mu_lat).sum(dim=-1)  # [N]
 
-        if circular:
-            # Wrap-around distance for longitude (361 classes, period=360)
-            # Bin 0 ≡ bin 360 (both = ±180°), so distance wraps at 360
-            diff_abs = diff.abs()
-            diff = torch.min(diff_abs, 360.0 - diff_abs)
-
-        gaussian = torch.exp(-0.5 * (diff / sigma) ** 2)
-        gaussian = gaussian / gaussian.sum(dim=-1, keepdim=True)  # normalize
-
-        # Blend: (1-eps)*one_hot + eps*gaussian
-        smooth_target = (1 - epsilon) * one_hot + epsilon * gaussian
-
-        # Cross-entropy against smooth target
-        per_sample = -(smooth_target * log_probs).sum(dim=-1)  # [N]
-        if reduce:
-            return per_sample.mean()
-        return per_sample
-
-    def _haversine_loss(self, lat_logits, lon_logits, lat_tgt, lon_tgt):
-        """Auxiliary loss: penalizes geographic distance between predicted and true positions.
-
-        Computes differentiable expected lat/lon from softmax probabilities, then
-        great-circle distance via the haversine formula. Uses log1p for better
-        gradient behavior (small errors get proportionally stronger gradients).
-
-        Uses circular mean for longitude to handle date-line wrapping correctly.
-        Without this, earthquakes near ±180° (Fiji, Tonga, Aleutians) would have
-        their expected longitude averaged to 0° (wrong hemisphere).
-
-        Returns scalar loss in log-degrees (range: 0 at perfect, ~5.2 at max distance).
-        """
-        deg2rad = 3.141592653589793 / 180.0
-
-        # Softmax → probability distributions
-        lat_probs = FN.softmax(lat_logits, dim=-1)  # [N, 181]
-        lon_probs = FN.softmax(lon_logits, dim=-1)  # [N, 361]
-
-        # --- Latitude: linear mean (no wrap-around) ---
-        lat_bins = torch.arange(181, device=lat_logits.device, dtype=torch.float32) - 90.0
-        pred_lat = (lat_probs * lat_bins).sum(dim=-1)  # [N] degrees
-
-        # --- Longitude: circular mean (handles date-line wrapping) ---
-        lon_bins_deg = torch.arange(361, device=lon_logits.device, dtype=torch.float32) - 180.0
-        lon_bins_rad = lon_bins_deg * deg2rad
-        # Circular mean via sin/cos decomposition
-        sin_mean = (lon_probs * torch.sin(lon_bins_rad)).sum(dim=-1)  # [N]
-        cos_mean = (lon_probs * torch.cos(lon_bins_rad)).sum(dim=-1)  # [N]
-        pred_lon = torch.atan2(sin_mean, cos_mean) / deg2rad  # [N] degrees
-
-        # True position decoded from bin indices
-        true_lat = lat_tgt.float() - 90.0   # [N] degrees
-        true_lon = lon_tgt.float() - 180.0  # [N] degrees
-
-        # Convert to radians
-        lat1 = pred_lat * deg2rad
-        lat2 = true_lat * deg2rad
-        dlat = lat2 - lat1
-        dlon = (pred_lon - true_lon) * deg2rad
+        # Expected longitude: circular mean (date-line safe)
+        mu_lon_rad = mu_lon * deg2rad
+        sin_mean = (pi * torch.sin(mu_lon_rad)).sum(dim=-1)
+        cos_mean = (pi * torch.cos(mu_lon_rad)).sum(dim=-1)
+        pred_lon = torch.atan2(sin_mean, cos_mean) / deg2rad  # [N]
 
         # Haversine formula
+        lat1 = pred_lat * deg2rad
+        lat2 = lat_target * deg2rad
+        dlat = lat2 - lat1
+        dlon = (pred_lon - lon_target) * deg2rad
+
         a = torch.sin(dlat / 2) ** 2 + torch.cos(lat1) * torch.cos(lat2) * torch.sin(dlon / 2) ** 2
         a = torch.clamp(a, 0.0, 1.0)
-        dist_rad = 2 * torch.asin(torch.sqrt(a + 1e-8))  # eps for numerical stability
-
-        # Convert to degrees for interpretability
+        dist_rad = 2 * torch.asin(torch.sqrt(a + 1e-8))
         dist_deg = dist_rad / deg2rad
 
-        # log1p: rewards being close, tolerates being far (avoids gradient explosion)
         return torch.log1p(dist_deg).mean()
 
     def forward(self, idx, targets=None, label_smoothing=0.0, target_mask=None):
         """
-        Forward pass for 3-parameter prediction (lat, lon, mag).
+        Forward pass with Mixture Density Network outputs.
 
         Args:
-            idx: Input tensor [B, T, 8] - sequence of earthquakes
-            targets: Dict with 'lat', 'lon', 'mag' target tensors.
+            idx: Input tensor [B, T, 12] - sequence of earthquakes
+            targets: Dict with 'lat', 'lon', 'mag' target tensors (encoded).
                      Shape [B, T] if target_mask provided, [B] otherwise.
-            label_smoothing: When > 0, uses Gaussian label smoothing (training).
-                             When == 0, uses standard cross-entropy (validation).
+            label_smoothing: When > 0, training mode (magnitude weighting + aux losses).
+                             When == 0, validation mode (pure NLL).
             target_mask: Optional boolean tensor [B, T]. When provided, loss is computed at
                          all True positions (multi-position training).
 
         Returns:
-            logits: Dict with 'lat', 'lon', 'mag' logits [B, T, vocab]
+            mdn_params: Dict with 'spatial' and 'mag' MDN parameter dicts
             loss: Combined loss or None
-            loss_dict: Per-dimension losses or None
+            loss_dict: Per-component losses or None
         """
-        B_actual, T_actual = idx.shape[0], idx.shape[1]
-
         # Extract lat/lon for spatial attention bias
         lat = idx[:, :, 2] if self.use_gpe else None
         lon = idx[:, :, 3] if self.use_gpe else None
 
-        # Complex embedding
+        # Complex embedding → transformer → final norm
         x = self.embed(idx)
-
-        # Add positional encoding if not using RoPE
         if self.pos_enc is not None:
             x = self.pos_enc(x)
-
-        # Embedding dropout
         x = self.embed_dropout(x)
-
-        # Pass through transformer blocks with spatial attention bias
         for block in self.blocks:
             x = block(x, lat=lat, lon=lon)
-
-        # Final layer norm
         x = self.ln_f(x)
 
         # Combine real and imaginary for output heads
-        x_combined = torch.cat([x.real, x.imag], dim=-1)
+        x_combined = torch.cat([x.real, x.imag], dim=-1)  # [B, T, n_embed*2]
 
-        # Compute logits for each head (no dt — time prediction removed)
-        lat_logits = self.lat_head(x_combined)
-        lon_logits = self.lon_head(x_combined)
-        mag_logits = self.mag_head(x_combined)
+        # MDN parameters at every position
+        spatial_params = self.spatial_head(x_combined)     # each value [B, T, K]
+        mag_params = self.mag_head(x_combined)             # each value [B, T, K]
 
-        logits = {
-            'lat': lat_logits,
-            'lon': lon_logits,
-            'mag': mag_logits
-        }
+        mdn_params = {'spatial': spatial_params, 'mag': mag_params}
 
         if targets is None:
-            loss = None
-            loss_dict = None
+            return mdn_params, None, None
+
+        # --- Extract and mask target positions ---
+        K_sp = self.spatial_head.K
+        K_mg = self.mag_head.K
+
+        if target_mask is not None:
+            mask_flat = target_mask.reshape(-1)  # [B*T]
+            sp = {k: v.reshape(-1, K_sp)[mask_flat] for k, v in spatial_params.items()}
+            mp = {k: v.reshape(-1, K_mg)[mask_flat] for k, v in mag_params.items()}
+            lat_tgt = targets['lat'].reshape(-1)[mask_flat]
+            lon_tgt = targets['lon'].reshape(-1)[mask_flat]
+            mag_tgt = targets['mag'].reshape(-1)[mask_flat]
         else:
-            if target_mask is not None:
-                # Multi-position loss: compute at ALL M4+ positions in the sequence
-                mask_flat = target_mask.reshape(-1)  # [B*T]
+            sp = {k: v[:, -1, :] for k, v in spatial_params.items()}
+            mp = {k: v[:, -1, :] for k, v in mag_params.items()}
+            lat_tgt = targets['lat']
+            lon_tgt = targets['lon']
+            mag_tgt = targets['mag']
 
-                lat_flat = lat_logits.reshape(-1, lat_logits.size(-1))[mask_flat]
-                lon_flat = lon_logits.reshape(-1, lon_logits.size(-1))[mask_flat]
-                mag_flat = mag_logits.reshape(-1, mag_logits.size(-1))[mask_flat]
-                lat_tgt = targets['lat'].reshape(-1)[mask_flat]
-                lon_tgt = targets['lon'].reshape(-1)[mask_flat]
-                mag_tgt = targets['mag'].reshape(-1)[mask_flat]
-            else:
-                # Single-position loss (backward compat)
-                lat_flat = lat_logits[:, -1, :]
-                lon_flat = lon_logits[:, -1, :]
-                mag_flat = mag_logits[:, -1, :]
-                lat_tgt = targets['lat']
-                lon_tgt = targets['lon']
-                mag_tgt = targets['mag']
+        # Decode encoded targets to actual coordinates
+        lat_actual = lat_tgt.float() - 90.0    # -90 to +90
+        lon_actual = lon_tgt.float() - 180.0   # -180 to +180
+        mag_actual = mag_tgt.float() / 10.0    # 0.0 to 9.1
 
-            if label_smoothing > 0:
-                # --- Magnitude-weighted Gaussian label smoothing ---
-                # Per-sample losses (not reduced to scalar yet)
-                lat_loss_ps = self._gaussian_smooth_loss(lat_flat, lat_tgt, 181, reduce=False, **self.lat_smooth)
-                lon_loss_ps = self._gaussian_smooth_loss(lon_flat, lon_tgt, 361, reduce=False, circular=True, **self.lon_smooth)
-                mag_loss_ps = self._gaussian_smooth_loss(mag_flat, mag_tgt, 92, reduce=False, **self.mag_smooth)
+        if label_smoothing > 0:
+            # --- Training: magnitude-weighted NLL + auxiliary losses ---
+            spatial_nll_ps = SpatialMDNHead.nll_loss(sp, lat_actual, lon_actual, reduce=False)
+            mag_nll_ps = MagnitudeMDNHead.nll_loss(mp, mag_actual, reduce=False)
 
-                # Magnitude weighting: larger earthquakes matter more
-                # M4.0→1.0, M5.0→3.16, M6.0→10.0, M7.0→31.6
-                true_mag = mag_tgt.float() / 10.0
-                mag_w = torch.pow(10.0, 0.5 * (true_mag - 4.0))
-                mag_w = torch.clamp(mag_w, min=1.0)
-                mag_w = mag_w / mag_w.mean()  # normalize to mean=1
+            # Magnitude weighting: M4→1×, M5→3.16×, M6→10×, M7→31.6×
+            mag_w = torch.pow(10.0, 0.5 * (mag_actual - 4.0))
+            mag_w = torch.clamp(mag_w, min=1.0)
+            mag_w = mag_w / mag_w.mean()
 
-                lat_loss = (lat_loss_ps * mag_w).mean()
-                lon_loss = (lon_loss_ps * mag_w).mean()
-                mag_loss = (mag_loss_ps * mag_w).mean()
+            spatial_loss = (spatial_nll_ps * mag_w).mean()
+            mag_loss = (mag_nll_ps * mag_w).mean()
 
-                # Haversine auxiliary loss: direct geographic distance penalty
-                # Weight 1.0 makes it ~25% of total loss (was 0.5 = ~14%, too negligible)
-                hav_loss = self._haversine_loss(lat_flat, lon_flat, lat_tgt, lon_tgt)
+            # Auxiliary losses
+            hav_loss = self._haversine_loss_mdn(sp, lat_actual, lon_actual)
+            gr_loss = MagnitudeMDNHead.gr_prior_loss(mp)
 
-                loss = lat_loss + lon_loss + mag_loss + 1.0 * hav_loss
+            loss = spatial_loss + mag_loss + 1.0 * hav_loss + 0.1 * gr_loss
 
-                loss_dict = {
-                    'lat': lat_loss.item(),
-                    'lon': lon_loss.item(),
-                    'mag': mag_loss.item(),
-                    'hav': hav_loss.item()
-                }
-            else:
-                # Standard cross-entropy for validation (true generalization signal)
-                lat_loss = FN.cross_entropy(lat_flat, lat_tgt)
-                lon_loss = FN.cross_entropy(lon_flat, lon_tgt)
-                mag_loss = FN.cross_entropy(mag_flat, mag_tgt)
+            loss_dict = {
+                'spatial': spatial_loss.item(),
+                'mag': mag_loss.item(),
+                'hav': hav_loss.item(),
+                'gr': gr_loss.item(),
+            }
+        else:
+            # --- Validation: pure NLL (unweighted, no auxiliary) ---
+            spatial_loss = SpatialMDNHead.nll_loss(sp, lat_actual, lon_actual)
+            mag_loss = MagnitudeMDNHead.nll_loss(mp, mag_actual)
 
-                loss = lat_loss + lon_loss + mag_loss
+            loss = spatial_loss + mag_loss
 
-                loss_dict = {
-                    'lat': lat_loss.item(),
-                    'lon': lon_loss.item(),
-                    'mag': mag_loss.item()
-                }
+            loss_dict = {
+                'spatial': spatial_loss.item(),
+                'mag': mag_loss.item(),
+            }
 
-        return logits, loss, loss_dict
+        return mdn_params, loss, loss_dict
 
     @torch.no_grad()
-    def generate(self, x_test, temperature=0.8):
-        """Generate predictions for latitude, longitude, and magnitude.
+    def generate(self, x_test, temperature=0.8, mode='map'):
+        """Generate predictions from MDN output.
 
         Args:
-            x_test: Input tensor [B, T, 8]
-            temperature: Sampling temperature (higher = more random)
+            x_test: Input tensor [B, T, 12]
+            temperature: Sampling temperature (only used when mode='sample')
+            mode: 'map' = use highest-weight component mean (deterministic, best for matching)
+                  'sample' = random sample from mixture (stochastic)
 
         Returns:
-            dict with 'lat', 'lon', 'mag' encoded values
+            dict with 'lat', 'lon', 'mag' as actual values (not encoded)
         """
-        # Extract lat/lon for spatial attention bias
         lat = x_test[:, :, 2] if self.use_gpe else None
         lon = x_test[:, :, 3] if self.use_gpe else None
 
-        # Complex embedding
         x = self.embed(x_test)
-
-        # Add positional encoding if not using RoPE
         if self.pos_enc is not None:
             x = self.pos_enc(x)
-
-        # Embedding dropout (no-op in eval mode)
         x = self.embed_dropout(x)
-
-        # Pass through transformer blocks with spatial attention bias
         for block in self.blocks:
             x = block(x, lat=lat, lon=lon)
-
-        # Final layer norm
         x = self.ln_f(x)
 
-        # Get last position and combine real/imaginary
+        # Last position, combine real/imaginary
         x_last = torch.cat([x[:, -1, :].real, x[:, -1, :].imag], dim=-1)
 
-        # Get logits from each head
-        lat_logits = self.lat_head(x_last)
-        lon_logits = self.lon_head(x_last)
-        mag_logits = self.mag_head(x_last)
+        # MDN parameters
+        spatial_params = self.spatial_head(x_last)  # [1, K]
+        mag_params = self.mag_head(x_last)          # [1, K]
 
-        # Handle NaN/Inf
-        for logits in [lat_logits, lon_logits, mag_logits]:
-            if torch.isnan(logits).any() or torch.isinf(logits).any():
-                logits.copy_(torch.nan_to_num(logits, nan=0.0, posinf=100.0, neginf=-100.0))
+        if mode == 'map':
+            # MAP: use the highest-weight component's mean (no noise)
+            sp_k = spatial_params['pi'][0].argmax().item()
+            lat_val = spatial_params['mu_lat'][0, sp_k].item()
+            lon_val = spatial_params['mu_lon'][0, sp_k].item()
 
-        # Apply temperature and softmax
-        lat_probs = FN.softmax(lat_logits / temperature, dim=-1)
-        lon_probs = FN.softmax(lon_logits / temperature, dim=-1)
-        mag_probs = FN.softmax(mag_logits / temperature, dim=-1)
+            mg_k = mag_params['pi'][0].argmax().item()
+            mag_val = mag_params['mu'][0, mg_k].item()
 
-        # Sample from distributions
-        lat_pred = torch.multinomial(lat_probs, num_samples=1)
-        lon_pred = torch.multinomial(lon_probs, num_samples=1)
-        mag_pred = torch.multinomial(mag_probs, num_samples=1)
-
-        # Clamp to valid ranges
-        lat_val = min(max(lat_pred.item(), 0), 180)
-        lon_val = min(max(lon_pred.item(), 0), 360)
-        mag_val = min(max(mag_pred.item(), 0), 91)
+            lat_val = max(-90.0, min(90.0, lat_val))
+            lon_val = ((lon_val + 180) % 360) - 180
+            mag_val = max(2.0, min(9.5, mag_val))
+        else:
+            # Stochastic: sample from mixture
+            lat_val, lon_val = SpatialMDNHead.sample(spatial_params, temperature)
+            mag_val = MagnitudeMDNHead.sample(mag_params, temperature)
 
         return {
-            'lat': lat_val,
-            'lon': lon_val,
-            'mag': mag_val
+            'lat': lat_val,   # actual latitude  (-90 to +90)
+            'lon': lon_val,   # actual longitude (-180 to +180)
+            'mag': mag_val,   # actual magnitude (2.0 to 9.5)
         }
 
 

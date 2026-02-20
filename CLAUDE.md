@@ -16,7 +16,8 @@ The model uses true complex-valued operations throughout, maintaining coupling b
 - **ComplexLayerNorm/RMSNorm**: Normalization using complex variance
 - **ComplexMultiHeadAttention**: Hermitian inner product with QK-Norm, PerDimScale, RoPE
 - **ComplexGatedFeedForward**: SwiGLU-style with true complex multiplication
-- **ResidualHead**: Output heads with MLP + linear skip connection
+- **SpatialMDNHead**: K=20 bivariate Gaussian mixture for joint (lat, lon) prediction
+- **MagnitudeMDNHead**: K=8 univariate Gaussian mixture with Gutenberg-Richter prior
 - **4-norm transformer blocks**: Pre-norm (LayerNorm) + Post-norm (RMSNorm) per sublayer
 
 ### Feature Encoding & Decoding Reference
@@ -39,11 +40,15 @@ When making predictions, decode back to actual values using this table:
 | Moon Phase    | 0–29             | 0–29          | 30         | orbital mechanics    | 0=new, 15=full      |
 | Moon Distance | 0–9              | 0–9           | 10         | orbital mechanics    | 0=perigee, 9=apogee |
 
-**Prediction decoding in server.py** (line ~586):
+**Prediction output**: MDN `generate()` returns actual coordinates directly:
 ```python
-lat_actual = lat_encoded - 90     # 0-180 → -90 to +90
-lon_actual = lon_encoded - 180    # 0-360 → -180 to +180
-mag_actual = mag_encoded / 10.0   # 0-91  → 0.0 to 9.1
+lat_actual = predictions['lat']   # -90 to +90 (float)
+lon_actual = predictions['lon']   # -180 to +180 (float)
+mag_actual = predictions['mag']   # 2.0 to 9.5 (float)
+# Encode for DB storage:
+lat_encoded = int(round(lat_actual + 90))
+lon_encoded = int(round(lon_actual + 180))
+mag_encoded = int(round(mag_actual * 10))
 ```
 
 ### Global M4+ Time Difference (us_t) — Log-Binned

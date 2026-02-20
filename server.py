@@ -575,17 +575,18 @@ def make_prediction():
         with torch.no_grad():
             predictions = model.generate(x_test)
 
-        lat_encoded = predictions['lat']
-        lon_encoded = predictions['lon']
-        mag_encoded = predictions['mag']
+        # MDN generate() returns actual coordinates directly
+        lat_actual = predictions['lat']
+        lon_actual = predictions['lon']
+        mag_actual = predictions['mag']
 
         # Fixed 30-minute prediction window (M4+ happens every ~15min median)
         dt_minutes = 30
 
-        # Convert to actual coordinates
-        lat_actual = lat_encoded - 90
-        lon_actual = lon_encoded - 180
-        mag_actual = mag_encoded / 10.0
+        # Encode for DB storage (legacy format: lat+90, lon+180, mag*10)
+        lat_encoded = int(round(lat_actual + 90))
+        lon_encoded = int(round(lon_actual + 180))
+        mag_encoded = int(round(mag_actual * 10))
 
         # Get location name
         place = reverse_geocode(lat_actual, lon_actual)
@@ -594,7 +595,7 @@ def make_prediction():
         pr_id = dataC.save_prediction(lat_encoded, lon_encoded, dt_minutes, mag_encoded, place)
 
         place_str = f" near {place}" if place else ""
-        print(f"[{datetime.now()}] Prediction: lat={lat_actual}, lon={lon_actual}{place_str}, dt={dt_minutes}min, mag={mag_actual} (id={pr_id})")
+        print(f"[{datetime.now()}] Prediction: lat={lat_actual:.2f}, lon={lon_actual:.2f}{place_str}, dt={dt_minutes}min, mag={mag_actual:.1f} (id={pr_id})")
 
         # Notify email subscribers near prediction location
         if pr_id:

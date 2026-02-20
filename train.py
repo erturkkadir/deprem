@@ -245,7 +245,7 @@ def train():
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=0.01)
 
     # Learning rate scheduler: warmup + cosine decay (counted in optimizer steps)
-    WARMUP_STEPS = 2000   # Optimizer steps (not raw iterations)
+    WARMUP_STEPS = 500    # Optimizer steps (not raw iterations) — reduced for MDN
     MAX_STEPS = 500000
 
     def get_lr(opt_step):
@@ -261,7 +261,7 @@ def train():
     opt_step = 0
     running_loss = 0.0
     running_targets = 0.0
-    running_dim_loss = {'lat': 0.0, 'lon': 0.0, 'mag': 0.0, 'hav': 0.0}
+    running_dim_loss = {'spatial': 0.0, 'mag': 0.0, 'hav': 0.0, 'gr': 0.0}
     best_val_loss = float('inf')
     last_avg_loss = float('inf')
 
@@ -304,7 +304,7 @@ def train():
     print(f"\n[{datetime.now()}] Training started (MULTI-POSITION)...")
     print(f"LR schedule: warmup {WARMUP_STEPS} optimizer steps, cosine decay to {MAX_STEPS}")
     print(f"Gradient accumulation: {ACCUMULATION_STEPS} steps (effective batch={B*ACCUMULATION_STEPS})")
-    print(f"Label smoothing: {LABEL_SMOOTHING}")
+    print(f"Output: MDN (SpatialMDN K=20, MagnitudeMDN K=8)")
     print(f"Multi-position: loss at ALL M4+ positions per sequence\n")
 
     # Initialize gradient accumulation
@@ -369,7 +369,7 @@ def train():
                 # Compute validation loss WITHOUT label smoothing for true generalization signal
                 val_loss = compute_val_loss(model, dataC, B, T, num_batches=20, label_smoothing=0.0)
 
-                print(f"step {iteration:6d} | train {last_avg_loss:.4f} | val {val_loss:.4f} | lr {lr:.2e} | tgt {avg_targets:.0f} | lat {avg_dim['lat']:.2f} lon {avg_dim['lon']:.2f} mag {avg_dim['mag']:.2f} hav {avg_dim['hav']:.2f}")
+                print(f"step {iteration:6d} | train {last_avg_loss:.4f} | val {val_loss:.4f} | lr {lr:.2e} | tgt {avg_targets:.0f} | sp {avg_dim['spatial']:.2f} mag {avg_dim['mag']:.2f} hav {avg_dim['hav']:.2f} gr {avg_dim['gr']:.3f}")
 
                 # Update status file for server
                 update_training_status(iteration, last_avg_loss)
@@ -384,7 +384,7 @@ def train():
 
                 running_loss = 0.0
                 running_targets = 0.0
-                running_dim_loss = {'lat': 0.0, 'lon': 0.0, 'mag': 0.0, 'hav': 0.0}
+                running_dim_loss = {'spatial': 0.0, 'mag': 0.0, 'hav': 0.0, 'gr': 0.0}
 
             # Save checkpoint
             if iteration % CHECKPOINT_INTERVAL == 0:
