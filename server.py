@@ -592,7 +592,7 @@ def make_prediction():
         mag_enc = int(round(top_pred['mag'] * 10))
         pr_id_rank1 = dataC.save_prediction(
             lat_enc, lon_enc, PREDICTION_WINDOW_MINUTES, mag_enc,
-            place, group_id=None, rank=1
+            place, group_id=None, rank=1, pi=top_pred['pi']
         )
 
         if pr_id_rank1 is None:
@@ -618,7 +618,7 @@ def make_prediction():
             r_mag = int(round(pred['mag'] * 10))
             dataC.save_prediction(
                 r_lat, r_lon, PREDICTION_WINDOW_MINUTES, r_mag,
-                None, group_id=group_id, rank=pred['rank']
+                None, group_id=group_id, rank=pred['rank'], pi=pred['pi']
             )
 
         place_str = f" near {place}" if place else ""
@@ -1203,7 +1203,7 @@ def get_live_data():
             if gid:
                 members = dataC.get_active_group_predictions(gid)
                 for m in (members or []):
-                    m_pr_id, m_lat_enc, m_lon_enc, m_dt, m_mag_enc, m_ts, m_rank = m
+                    m_pr_id, m_lat_enc, m_lon_enc, m_dt, m_mag_enc, m_ts, m_rank, m_pi = m
                     if m_lat_enc is not None and m_lon_enc is not None:
                         active_group_predictions.append({
                             'id': m_pr_id,
@@ -1211,6 +1211,7 @@ def get_live_data():
                             'lat': m_lat_enc - 90,
                             'lon': m_lon_enc - 180,
                             'mag': (m_mag_enc / 10.0) if m_mag_enc else None,
+                            'pi': float(m_pi) if m_pi is not None else None,
                         })
 
         return jsonify({

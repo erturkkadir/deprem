@@ -371,22 +371,61 @@ function LiveDashboard() {
                 </div>
 
                 {/* Group Predictions - show all 5 MDN components */}
-                {active_group_predictions && active_group_predictions.length > 1 && !latest_prediction.verified && (
-                  <div className="px-3 pb-3">
-                    <div className="bg-zinc-800/30 rounded-lg p-2">
-                      <div className="text-[9px] text-zinc-500 uppercase mb-1.5">All {active_group_predictions.length} Candidate Locations (MDN components)</div>
+                {active_group_predictions && active_group_predictions.length > 1 && !latest_prediction.verified && (() => {
+                  const piSum = active_group_predictions.reduce((s, p) => s + (p.pi || 0), 0);
+                  return (
+                  <div className="card !p-3">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="text-[9px] text-zinc-500 uppercase">All {active_group_predictions.length} Candidate Locations (MDN components)</div>
+                        <a
+                          href={`/map.html?candidates=${encodeURIComponent(JSON.stringify(active_group_predictions.map(p => [p.lat, p.lon, p.rank])))}&pmag=${latest_prediction.predicted_mag || ''}&pdt=${latest_prediction.predicted_dt || ''}&pplace=${encodeURIComponent(latest_prediction.predicted_place || '')}&time=${encodeURIComponent(latest_prediction.prediction_time || '')}&wend=${encodeURIComponent(latest_prediction.window_end || '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 px-2 py-0.5 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/30 rounded text-[9px] transition-colors"
+                        >
+                          <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                          </svg>
+                          View All on Map
+                        </a>
+                      </div>
                       <div className="grid grid-cols-5 gap-1">
                         {active_group_predictions.map((p) => (
-                          <div key={p.id} className={`rounded p-1 text-center text-[9px] ${p.rank === 1 ? 'bg-orange-500/20 border border-orange-500/40' : 'bg-zinc-700/40'}`}>
+                          <a
+                            key={p.id}
+                            href={`/map.html?id=${p.id}&plat=${p.lat}&plon=${p.lon}&pmag=${latest_prediction.predicted_mag || ''}&pdt=${latest_prediction.predicted_dt || ''}&pplace=${encodeURIComponent(latest_prediction.predicted_place || '')}&time=${encodeURIComponent(latest_prediction.prediction_time || '')}&wend=${encodeURIComponent(latest_prediction.window_end || '')}&verified=false&correct=false`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`rounded p-1 text-center text-[9px] block transition-colors ${p.rank === 1 ? 'bg-orange-500/20 border border-orange-500/40 hover:bg-orange-500/30' : 'bg-zinc-700/40 hover:bg-zinc-700/70'}`}
+                          >
                             <div className={`font-semibold ${p.rank === 1 ? 'text-orange-400' : 'text-zinc-400'}`}>#{p.rank}</div>
                             <div className="text-zinc-300 font-mono">{p.lat?.toFixed(1)}°</div>
                             <div className="text-zinc-400 font-mono">{p.lon?.toFixed(1)}°</div>
-                          </div>
+                            {p.pi != null && (
+                              <div className="mt-1">
+                                <div className={`text-[8px] font-semibold mb-0.5 ${p.rank === 1 ? 'text-orange-400' : 'text-zinc-400'}`}>
+                                  {piSum > 0 ? ((p.pi / piSum) * 100).toFixed(0) : (p.pi * 100).toFixed(0)}%
+                                </div>
+                                <div className="w-full h-1 bg-zinc-700 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${p.rank === 1 ? 'bg-orange-500' : 'bg-zinc-500'}`}
+                                    style={{ width: `${piSum > 0 ? (p.pi / piSum) * 100 : p.pi * 100}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                            <div className={`mt-1 flex items-center justify-center gap-0.5 ${p.rank === 1 ? 'text-orange-400' : 'text-zinc-500'}`}>
+                              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                              </svg>
+                              <span>Map</span>
+                            </div>
+                          </a>
                         ))}
                       </div>
-                    </div>
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* Closest Match Indicator */}
                 {closestEq && !latest_prediction.verified && (

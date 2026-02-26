@@ -335,6 +335,8 @@ class DataC():
             "ALTER TABLE predictions ADD INDEX idx_group_id (pr_group_id)",
             # Backfill rank=1 for legacy single predictions
             "UPDATE predictions SET pr_rank = 1 WHERE pr_rank IS NULL",
+            # MDN mixture weight (confidence score)
+            "ALTER TABLE predictions ADD COLUMN pr_pi FLOAT DEFAULT NULL",
         ]
         for sql in migrations:
             try:
@@ -529,7 +531,7 @@ class DataC():
             print(f"Error getting alerts by email: {e}")
             return []
 
-    def save_prediction(self, lat_predicted, lon_predicted=None, dt_predicted=None, mag_predicted=None, place=None, group_id=None, rank=1):
+    def save_prediction(self, lat_predicted, lon_predicted=None, dt_predicted=None, mag_predicted=None, place=None, group_id=None, rank=1, pi=None):
         """Save a new prediction to database
 
         Args:
@@ -540,14 +542,15 @@ class DataC():
             place: Predicted location name (from reverse geocoding)
             group_id: Group ID linking related predictions from same cycle (rank-1 pr_id)
             rank: Prediction rank within group (1=highest confidence)
+            pi: MDN mixture weight (confidence score, 0.0-1.0)
         """
         sql = """
-        INSERT INTO predictions (pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted, pr_place, pr_group_id, pr_rank)
-        VALUES (NOW(), %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO predictions (pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted, pr_place, pr_group_id, pr_rank, pr_pi)
+        VALUES (NOW(), %s, %s, %s, %s, %s, %s, %s, %s)
         """
         try:
             with self._lock:
-                self._safe_execute(sql, (lat_predicted, lon_predicted, dt_predicted, mag_predicted, place, group_id, rank))
+                self._safe_execute(sql, (lat_predicted, lon_predicted, dt_predicted, mag_predicted, place, group_id, rank, pi))
                 self.mydb.commit()
                 return self.mycursor.lastrowid
         except Exception as e:
@@ -562,11 +565,11 @@ class DataC():
 
         Returns:
             List of tuples: (pr_id, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted,
-                             pr_mag_predicted, pr_timestamp, pr_rank)
+                             pr_mag_predicted, pr_timestamp, pr_rank, pr_pi)
         """
         sql = """
         SELECT pr_id, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted,
-               pr_mag_predicted, pr_timestamp, pr_rank
+               pr_mag_predicted, pr_timestamp, pr_rank, pr_pi
         FROM predictions
         WHERE (pr_group_id = %s OR pr_id = %s) AND pr_verified = FALSE
         ORDER BY pr_rank ASC

@@ -86,6 +86,7 @@
     .legend-dot.predicted { background: #f97316; }
     .legend-dot.matched { background: #22c55e; }
     .legend-dot.missed { background: #ef4444; }
+    .legend-dot.candidate { background: #a1a1aa; }
     .legend-circle {
       width: 20px;
       height: 10px;
@@ -135,10 +136,18 @@
   <div id="map"></div>
 
   <div class="legend">
-    <div class="legend-items">
-      <div class="legend-item">
+    <div class="legend-items" id="legend-items">
+      <div class="legend-item" id="legend-single-pred">
         <div class="legend-dot predicted"></div>
         <span>Predicted Location</span>
+      </div>
+      <div class="legend-item" id="legend-candidates" style="display:none;">
+        <div class="legend-dot predicted"></div>
+        <span>#1 Top Candidate</span>
+      </div>
+      <div class="legend-item" id="legend-candidates-rest" style="display:none;">
+        <div class="legend-dot candidate"></div>
+        <span>Other Candidates</span>
       </div>
       <div class="legend-item" id="actual-legend" style="display:none;">
         <div class="legend-dot" id="actual-dot"></div>
@@ -146,7 +155,7 @@
       </div>
       <div class="legend-item">
         <div class="legend-circle"></div>
-        <span>250 km Match Radius</span>
+        <span id="radius-label">500 km Radius</span>
       </div>
     </div>
     <div class="stats" id="stats"></div>
@@ -156,8 +165,16 @@
     // Parse URL parameters
     const params = new URLSearchParams(window.location.search);
     const predId = params.get('id');
-    const predLat = parseFloat(params.get('plat'));
-    const predLon = parseFloat(params.get('plon'));
+
+    // Multi-candidate mode
+    let candidates = null;
+    try {
+      const rawCandidates = params.get('candidates');
+      if (rawCandidates) candidates = JSON.parse(rawCandidates);
+    } catch(e) {}
+
+    const predLat = candidates ? candidates[0][0] : parseFloat(params.get('plat'));
+    const predLon = candidates ? candidates[0][1] : parseFloat(params.get('plon'));
     const predMag = parseFloat(params.get('pmag'));
     const predDt = params.get('pdt');
     const predPlace = params.get('pplace');
@@ -247,23 +264,15 @@
     } else {
       // Initialize map
       const hasActual = !isNaN(actLat) && !isNaN(actLon);
-      const bounds = [[predLat, predLon]];
+      const allPoints = candidates ? candidates.map(c => [c[0], c[1]]) : [[predLat, predLon]];
+      const bounds = [...allPoints];
       if (hasActual) bounds.push([actLat, actLon]);
 
-      const map = L.map('map').fitBounds(bounds, { padding: [50, 50], maxZoom: 6 });
+      const map = L.map('map').fitBounds(bounds, { padding: [80, 80], maxZoom: candidates ? 3 : 6 });
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
       }).addTo(map);
-
-      // Predicted marker (orange)
-      const predIcon = L.divIcon({
-        className: 'custom-marker',
-        html: '<div style="background:#f97316;width:24px;height:24px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div>',
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
-        popupAnchor: [0, -12]
-      });
 
       // Format datetime helper
       const formatDateTime = (isoStr) => {
@@ -280,28 +289,86 @@
       // Calculate window end if not provided
       const windowEndTime = windowEnd || (time && predDt ? new Date(new Date(time + 'Z').getTime() + parseInt(predDt) * 60000).toISOString() : '');
 
-      L.marker([predLat, predLon], { icon: predIcon })
-        .addTo(map)
-        .bindPopup(`
-          <div style="min-width:200px;">
-            <div style="font-weight:700;color:#ea580c;margin-bottom:8px;">Predicted Location</div>
-            <div><strong>Lat:</strong> ${predLat.toFixed(2)}°</div>
-            <div><strong>Lon:</strong> ${predLon.toFixed(2)}°</div>
-            ${!isNaN(predMag) ? `<div><strong>Mag:</strong> ${predMag.toFixed(1)}</div>` : ''}
-            ${windowEndTime ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #ddd;"><strong>Predicted Time:</strong> ${formatDateTime(windowEndTime)}</div>` : ''}
-            ${predPlace ? `<div style="margin-top:4px;color:#666;">${decodeURIComponent(predPlace)}</div>` : ''}
-          </div>
-        `);
+      // Candidate colors: #1 orange, rest grey shades
+      const candidateColors = ['#f97316', '#a78bfa', '#38bdf8', '#4ade80', '#fb7185'];
 
-      // 250 km radius circle
-      L.circle([predLat, predLon], {
-        radius: 250000, // 250 km in meters
-        color: '#f97316',
-        fillColor: '#f97316',
-        fillOpacity: 0.1,
-        weight: 2,
-        dashArray: '5, 5'
-      }).addTo(map);
+      if (candidates) {
+        // ── Multi-candidate mode ──
+        document.getElementById('legend-single-pred').style.display = 'none';
+        document.getElementById('legend-candidates').style.display = 'flex';
+        document.getElementById('legend-candidates-rest').style.display = 'flex';
+        document.getElementById('radius-label').textContent = '500 km Radius';
+        document.title = `All ${candidates.length} Candidates - Earthquake Map`;
+
+        candidates.forEach(([lat, lon, rank]) => {
+          const color = candidateColors[(rank - 1) % candidateColors.length];
+          const isTop = rank === 1;
+          const size = isTop ? 28 : 22;
+
+          const icon = L.divIcon({
+            className: 'custom-marker',
+            html: `<div style="background:${color};width:${size}px;height:${size}px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:${isTop?11:9}px;font-weight:700;color:white;">${rank}</div>`,
+            iconSize: [size, size],
+            iconAnchor: [size/2, size/2],
+            popupAnchor: [0, -size/2]
+          });
+
+          L.marker([lat, lon], { icon })
+            .addTo(map)
+            .bindPopup(`
+              <div style="min-width:180px;">
+                <div style="font-weight:700;color:${color};margin-bottom:8px;">Candidate #${rank}${isTop ? ' (Top)' : ''}</div>
+                <div><strong>Lat:</strong> ${lat.toFixed(3)}°</div>
+                <div><strong>Lon:</strong> ${lon.toFixed(3)}°</div>
+                ${!isNaN(predMag) ? `<div><strong>Pred Mag:</strong> M${predMag.toFixed(1)}</div>` : ''}
+                ${windowEndTime ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #ddd;font-size:0.8em;color:#555;"><strong>Window end:</strong> ${formatDateTime(windowEndTime)}</div>` : ''}
+              </div>
+            `);
+
+          // 500 km radius circle
+          L.circle([lat, lon], {
+            radius: 500000,
+            color: color,
+            fillColor: color,
+            fillOpacity: isTop ? 0.08 : 0.04,
+            weight: isTop ? 2 : 1,
+            dashArray: '5, 5'
+          }).addTo(map);
+        });
+
+      } else {
+        // ── Single-candidate mode (existing behaviour) ──
+        const predIcon = L.divIcon({
+          className: 'custom-marker',
+          html: '<div style="background:#f97316;width:24px;height:24px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div>',
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+          popupAnchor: [0, -12]
+        });
+
+        L.marker([predLat, predLon], { icon: predIcon })
+          .addTo(map)
+          .bindPopup(`
+            <div style="min-width:200px;">
+              <div style="font-weight:700;color:#ea580c;margin-bottom:8px;">Predicted Location</div>
+              <div><strong>Lat:</strong> ${predLat.toFixed(2)}°</div>
+              <div><strong>Lon:</strong> ${predLon.toFixed(2)}°</div>
+              ${!isNaN(predMag) ? `<div><strong>Mag:</strong> ${predMag.toFixed(1)}</div>` : ''}
+              ${windowEndTime ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #ddd;"><strong>Predicted Time:</strong> ${formatDateTime(windowEndTime)}</div>` : ''}
+              ${predPlace ? `<div style="margin-top:4px;color:#666;">${decodeURIComponent(predPlace)}</div>` : ''}
+            </div>
+          `);
+
+        // 500 km radius circle
+        L.circle([predLat, predLon], {
+          radius: 500000,
+          color: '#f97316',
+          fillColor: '#f97316',
+          fillOpacity: 0.1,
+          weight: 2,
+          dashArray: '5, 5'
+        }).addTo(map);
+      }
 
       // Actual marker if exists
       if (hasActual) {

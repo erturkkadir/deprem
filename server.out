@@ -139,3 +139,76 @@ Connection ping failed: bytearray index out of range, reconnecting...
 Error dedup: bytearray index out of range
 Database connection established
 [2026-02-26 00:12:55.518697] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 97.0, 'n_predictions': 5}
+[2026-02-26 00:13:59.471400] New checkpoint detected: eqModel_complex_20260226_001355.pth
+[2026-02-26 00:14:01.471691] Checkpoint still being written, skipping this cycle
+[EMSC] Fetched 273 earthquakes for last 1 day(s)
+Batch inserted 273 earthquakes
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+[2026-02-26 00:14:56.936970] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 95.0, 'n_predictions': 5}
+[2026-02-26 00:15:59.471386] New checkpoint detected: eqModel_complex_20260226_001355.pth
+[2026-02-26 00:16:02.955188] Reloaded weights: eqModel_complex_20260226_001355.pth
+[EMSC] Fetched 272 earthquakes for last 1 day(s)
+Batch inserted 272 earthquakes
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+Connection ping failed: bytearray index out of range, reconnecting...
+Error dedup: bytearray index out of range
+Database connection established
+[2026-02-26 00:16:58.088303] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 93.0, 'n_predictions': 5}
+[EMSC] Fetched 271 earthquakes for last 1 day(s)
+Batch insert error: bytearray index out of range
+Connection ping failed: bytearray index out of range, reconnecting...
+Database connection established
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+Connection ping failed: bytearray index out of range, reconnecting...
+Database connection established
+Error dedup: bytearray index out of range
+Connection ping failed: bytearray index out of range, reconnecting...
+Database connection established
+[2026-02-26 00:18:56.231641] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 91.0, 'n_predictions': 5}
+[EMSC] Fetched 272 earthquakes for last 1 day(s)
+Connection ping failed: bytearray index out of range, reconnecting...
+Batch insert error: bytearray index out of range
+Database connection established
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+[2026-02-26 00:20:55.385818] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 89.0, 'n_predictions': 5}
+[EMSC] Fetched 272 earthquakes for last 1 day(s)
+Batch inserted 272 earthquakes
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+Error dedup: bytearray index out of range
+Connection ping failed: bytearray index out of range, reconnecting...
+Database connection established
+[2026-02-26 00:22:54.534659] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 87.0, 'n_predictions': 5}
+[2026-02-26 00:23:59.471364] New checkpoint detected: eqModel_complex_20260226_002247.pth
+[2026-02-26 00:24:02.780969] Reloaded weights: eqModel_complex_20260226_002247.pth
+[EMSC] Fetched 273 earthquakes for last 1 day(s)
+Batch inserted 273 earthquakes
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+Connection ping failed: bytearray index out of range, reconnecting...
+Database connection established
+[2026-02-26 00:24:58.916973] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 85.0, 'n_predictions': 5}
+[EMSC] Fetched 273 earthquakes for last 1 day(s)
+Batch inserted 273 earthquakes
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+Connection ping failed: bytearray index out of range, reconnecting...
+Database connection established
+[2026-02-26 00:26:55.053843] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 83.0, 'n_predictions': 5}
+[EMSC] Fetched 274 earthquakes for last 1 day(s)
+Batch inserted 274 earthquakes
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+Connection ping failed: bytearray index out of range, reconnecting...
+Database connection established
+Connection ping failed: bytearray index out of range, reconnecting...
+Database connection established
+[2026-02-26 00:28:54.756820] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 81.0, 'n_predictions': 5}
+[EMSC] Fetched 275 earthquakes for last 1 day(s)
+Batch inserted 275 earthquakes
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+[2026-02-26 00:30:55.945782] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 79.0, 'n_predictions': 5}
+[2026-02-26 00:31:59.471385] New checkpoint detected: eqModel_complex_20260226_003123.pth
+[2026-02-26 00:32:02.946670] Reloaded weights: eqModel_complex_20260226_003123.pth
+[EMSC] Fetched 276 earthquakes for last 1 day(s)
+Batch inserted 276 earthquakes
+[2026-02-26 00:32:27 +0000] [1365087] [INFO] Handling signal: term
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+[2026-02-26 00:32:55 +0000] [1365088] [INFO] Worker exiting (pid: 1365088)
+[2026-02-26 00:32:57 +0000] [1365087] [INFO] Shutting down: Master
