@@ -1529,6 +1529,37 @@ class SpatialMDNHead(nn.Module):
         # softplus(2.7) ≈ 15° — broad initial spatial coverage
         nn.init.constant_(self.sigma_proj.bias, 2.7)
 
+        # Diverse mean init: spread K components across major seismic zones
+        # This prevents mode collapse (all-at-origin → winner-take-all)
+        seismic_zones = [
+            (  0.0, 100.0),  # Sumatra
+            ( 35.0, 140.0),  # Japan
+            (-35.0, -72.0),  # Chile
+            ( 38.0,  47.0),  # Turkey/Iran
+            ( 16.0, -98.0),  # Mexico
+            ( 28.0,  85.0),  # Nepal/Himalaya
+            (-6.0,  150.0),  # Papua New Guinea
+            ( 52.0, 160.0),  # Kamchatka
+            (-15.0, 167.0),  # Vanuatu
+            ( 12.0, 125.0),  # Philippines
+            ( 40.0,  20.0),  # Greece
+            (-22.0, -68.0),  # Argentina/Bolivia
+            ( 60.0, -150.0), # Alaska
+            (-8.0,  115.0),  # Indonesia/Bali
+            ( 30.0,  60.0),  # Iran
+            (-42.0, 173.0),  # New Zealand
+            (  5.0, 127.0),  # Mindanao
+            (-18.0, -175.0), # Tonga
+            ( 10.0, -85.0),  # Costa Rica
+            ( 42.0, 145.0),  # Hokkaido
+        ]
+        K = self.K
+        with torch.no_grad():
+            lats = torch.tensor([sz[0] for sz in seismic_zones[:K]])
+            lons = torch.tensor([sz[1] for sz in seismic_zones[:K]])
+            self.mu_proj.bias[:K].copy_(lats)        # lat biases
+            self.mu_proj.bias[K:2*K].copy_(lons)     # lon biases
+
     def forward(self, x):
         h = self.net(x)
         pi = FN.softmax(self.pi_proj(h), dim=-1)               # [*, K]
@@ -1579,6 +1610,15 @@ class SpatialMDNHead(nn.Module):
 
         nll = -log_prob
         return nll.mean() if reduce else nll
+
+    @staticmethod
+    def entropy_loss(params):
+        """Negative entropy of pi weights (encourages diverse component usage).
+        Returns a value to MINIMIZE: lower = more uniform pi = less mode collapse.
+        H(pi) = -sum(pi * log(pi)), so -H(pi) = sum(pi * log(pi)).
+        """
+        pi = params['pi']  # [N, K]
+        return (pi * torch.log(pi + 1e-10)).sum(dim=-1).mean()
 
     @staticmethod
     def sample(params, temperature=0.8):
@@ -1792,8 +1832,8 @@ class EqModelComplex(nn.Module):
         dlon = (pred_lon - lon_target) * deg2rad
 
         a = torch.sin(dlat / 2) ** 2 + torch.cos(lat1) * torch.cos(lat2) * torch.sin(dlon / 2) ** 2
-        a = torch.clamp(a, 0.0, 1.0)
-        dist_rad = 2 * torch.asin(torch.sqrt(a + 1e-8))
+        a = torch.clamp(a, 0.0, 1.0 - 1e-7)   # keep sqrt inside asin domain [0,1]
+        dist_rad = 2 * torch.asin(torch.sqrt(a))
         dist_deg = dist_rad / deg2rad
 
         return torch.log1p(dist_deg).mean()
@@ -1880,14 +1920,16 @@ class EqModelComplex(nn.Module):
             # Auxiliary losses
             hav_loss = self._haversine_loss_mdn(sp, lat_actual, lon_actual)
             gr_loss = MagnitudeMDNHead.gr_prior_loss(mp)
+            ent_loss = SpatialMDNHead.entropy_loss(sp)  # negative entropy → minimize = more uniform pi
 
-            loss = spatial_loss + mag_loss + 1.0 * hav_loss + 0.1 * gr_loss
+            loss = spatial_loss + mag_loss + 3.0 * hav_loss + 0.1 * gr_loss + 0.5 * ent_loss
 
             loss_dict = {
                 'spatial': spatial_loss.item(),
                 'mag': mag_loss.item(),
                 'hav': hav_loss.item(),
                 'gr': gr_loss.item(),
+                'ent': ent_loss.item(),
             }
         else:
             # --- Validation: pure NLL (unweighted, no auxiliary) ---
@@ -1904,17 +1946,19 @@ class EqModelComplex(nn.Module):
         return mdn_params, loss, loss_dict
 
     @torch.no_grad()
-    def generate(self, x_test, temperature=0.8, mode='map'):
+    def generate(self, x_test, temperature=0.8, mode='map', top_k=5):
         """Generate predictions from MDN output.
 
         Args:
             x_test: Input tensor [B, T, 12]
             temperature: Sampling temperature (only used when mode='sample')
-            mode: 'map' = use highest-weight component mean (deterministic, best for matching)
+            mode: 'map' = use top-k highest-weight components (deterministic)
                   'sample' = random sample from mixture (stochastic)
+            top_k: Number of spatial components to return (mode='map' only)
 
         Returns:
-            dict with 'lat', 'lon', 'mag' as actual values (not encoded)
+            List of dicts, each with 'lat', 'lon', 'mag', 'rank', 'pi'.
+            rank=1 is the highest-confidence prediction.
         """
         lat = x_test[:, :, 2] if self.use_gpe else None
         lon = x_test[:, :, 3] if self.use_gpe else None
@@ -1935,27 +1979,35 @@ class EqModelComplex(nn.Module):
         mag_params = self.mag_head(x_last)          # [1, K]
 
         if mode == 'map':
-            # MAP: use the highest-weight component's mean (no noise)
-            sp_k = spatial_params['pi'][0].argmax().item()
-            lat_val = spatial_params['mu_lat'][0, sp_k].item()
-            lon_val = spatial_params['mu_lon'][0, sp_k].item()
+            # Top-K MAP: return the top_k highest-weight spatial components
+            pi = spatial_params['pi'][0]  # [K_sp]
+            n_pred = min(top_k, pi.shape[0])
+            sorted_k = pi.argsort(descending=True)[:n_pred].tolist()
 
+            # Magnitude: use highest-weight mag component (shared across spatial preds)
             mg_k = mag_params['pi'][0].argmax().item()
-            mag_val = mag_params['mu'][0, mg_k].item()
-
-            lat_val = max(-90.0, min(90.0, lat_val))
-            lon_val = ((lon_val + 180) % 360) - 180
+            mag_val = float(mag_params['mu'][0, mg_k].item())
             mag_val = max(2.0, min(9.5, mag_val))
+
+            results = []
+            for rank, sp_k in enumerate(sorted_k, start=1):
+                lat_v = float(spatial_params['mu_lat'][0, sp_k].item())
+                lon_v = float(spatial_params['mu_lon'][0, sp_k].item())
+                lat_v = max(-90.0, min(90.0, lat_v))
+                lon_v = ((lon_v + 180) % 360) - 180
+                results.append({
+                    'lat': lat_v,
+                    'lon': lon_v,
+                    'mag': mag_val,
+                    'rank': rank,
+                    'pi': float(pi[sp_k].item()),
+                })
+            return results
         else:
-            # Stochastic: sample from mixture
+            # Stochastic: sample from mixture, return single-element list
             lat_val, lon_val = SpatialMDNHead.sample(spatial_params, temperature)
             mag_val = MagnitudeMDNHead.sample(mag_params, temperature)
-
-        return {
-            'lat': lat_val,   # actual latitude  (-90 to +90)
-            'lon': lon_val,   # actual longitude (-180 to +180)
-            'mag': mag_val,   # actual magnitude (2.0 to 9.5)
-        }
+            return [{'lat': lat_val, 'lon': lon_val, 'mag': mag_val, 'rank': 1, 'pi': 1.0}]
 
 
 # =============================================================================

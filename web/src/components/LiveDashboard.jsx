@@ -44,6 +44,7 @@ function LiveDashboard() {
   // Extract all data from backend response
   const {
     latest_prediction,
+    active_group_predictions,
     recent_earthquakes,
     stats,
     match_info,
@@ -368,6 +369,24 @@ function LiveDashboard() {
                     </div>
                   </div>
                 </div>
+
+                {/* Group Predictions - show all 5 MDN components */}
+                {active_group_predictions && active_group_predictions.length > 1 && !latest_prediction.verified && (
+                  <div className="px-3 pb-3">
+                    <div className="bg-zinc-800/30 rounded-lg p-2">
+                      <div className="text-[9px] text-zinc-500 uppercase mb-1.5">All {active_group_predictions.length} Candidate Locations (MDN components)</div>
+                      <div className="grid grid-cols-5 gap-1">
+                        {active_group_predictions.map((p) => (
+                          <div key={p.id} className={`rounded p-1 text-center text-[9px] ${p.rank === 1 ? 'bg-orange-500/20 border border-orange-500/40' : 'bg-zinc-700/40'}`}>
+                            <div className={`font-semibold ${p.rank === 1 ? 'text-orange-400' : 'text-zinc-400'}`}>#{p.rank}</div>
+                            <div className="text-zinc-300 font-mono">{p.lat?.toFixed(1)}°</div>
+                            <div className="text-zinc-400 font-mono">{p.lon?.toFixed(1)}°</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Closest Match Indicator */}
                 {closestEq && !latest_prediction.verified && (

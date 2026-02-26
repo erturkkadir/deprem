@@ -148,6 +148,7 @@ const initialState = {
   // Live data (for LiveDashboard)
   liveData: {
     latest_prediction: null,
+    active_group_predictions: [],  // all 5 predictions in current group
     recent_earthquakes: [],
     stats: null,
     timestamp: null,
@@ -228,7 +229,7 @@ const earthquakeSlice = createSlice({
             correctPredictions: parseInt(action.payload.stats.correct_predictions) || 0,
             lastUpdated: action.payload.stats.last_updated,
           };
-          state.predictions = action.payload.recent_predictions || [];
+          // recent_predictions from stats goes to liveData, not predictions table
         }
         state.lastFetchTime = Date.now();
       })
@@ -272,6 +273,7 @@ const earthquakeSlice = createSlice({
         if (action.payload.success) {
           state.liveData = {
             latest_prediction: action.payload.latest_prediction,
+            active_group_predictions: action.payload.active_group_predictions || [],
             recent_earthquakes: action.payload.recent_earthquakes || [],
             stats: action.payload.stats,
             match_info: action.payload.match_info,

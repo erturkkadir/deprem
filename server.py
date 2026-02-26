@@ -104,13 +104,15 @@ current_checkpoint = None  # Track which checkpoint is loaded
 MODEL_DIR = '/var/www/syshuman/quake'
 MODEL_PREFIX = 'eqModel_complex'
 
-# Matching criteria (from README.md)
-MATCH_RADIUS_KM = 250       # Haversine distance for matching (km)
+# Matching criteria
+MATCH_RADIUS_KM = 500       # Haversine distance for matching (km) — wider for multi-prediction
 MAGNITUDE_TOLERANCE = 0.75  # ±0.75 magnitude
 MIN_MAG_DISPLAY = 4.0       # Only show predictions with mag >= 4.0
 MIN_PREDICTION_WINDOW = 10  # minutes - reject predictions with window < 10 min
 LATE_SEARCH_HOURS = 72      # hours - continue searching after MISSED before closing
 EARTH_RADIUS_KM = 6371      # km
+PREDICTION_WINDOW_MINUTES = 120  # minutes per prediction cycle (M4+ median global gap ~96 min)
+TOP_K_PREDICTIONS = 5       # number of MDN components to use per prediction cycle
 
 
 def haversine_km(lat1, lon1, lat2, lon2):
@@ -548,7 +550,11 @@ def reload_if_new_checkpoint():
 
 
 def make_prediction():
-    """Make a prediction and save to database"""
+    """Make a multi-prediction group and save to database.
+    Generates TOP_K_PREDICTIONS from the highest-weight MDN components.
+    All are saved with the same group_id so matching checks all of them.
+    Returns the rank-1 (highest confidence) prediction ID.
+    """
     global model, dataC
 
     if model is None or dataC is None:
@@ -565,7 +571,6 @@ def make_prediction():
                 return existing['id']
 
         # IMPORTANT: Use getLastFromDB() to get FRESH data directly from database
-        # This ensures predictions use the most recent earthquakes, not stale cached data
         x_test = dataC.getLastFromDB(T, input_mag=INPUT_MAG)
         if x_test is None:
             print(f"[{datetime.now()}] Error: Could not get fresh data from database")
@@ -573,35 +578,59 @@ def make_prediction():
         x_test = x_test.to(device)
 
         with torch.no_grad():
-            predictions = model.generate(x_test)
+            pred_list = model.generate(x_test, top_k=TOP_K_PREDICTIONS)
 
-        # MDN generate() returns actual coordinates directly
-        lat_actual = predictions['lat']
-        lon_actual = predictions['lon']
-        mag_actual = predictions['mag']
+        # pred_list is a list of dicts: [{lat, lon, mag, rank, pi}, ...]
+        top_pred = pred_list[0]  # rank-1 = highest confidence
 
-        # Fixed 30-minute prediction window (M4+ happens every ~15min median)
-        dt_minutes = 30
+        # Reverse geocode only rank-1 (avoid rate limiting)
+        place = reverse_geocode(top_pred['lat'], top_pred['lon'])
 
-        # Encode for DB storage (legacy format: lat+90, lon+180, mag*10)
-        lat_encoded = int(round(lat_actual + 90))
-        lon_encoded = int(round(lon_actual + 180))
-        mag_encoded = int(round(mag_actual * 10))
+        # Save rank-1 first to get its pr_id (used as group_id for the batch)
+        lat_enc = int(round(top_pred['lat'] + 90))
+        lon_enc = int(round(top_pred['lon'] + 180))
+        mag_enc = int(round(top_pred['mag'] * 10))
+        pr_id_rank1 = dataC.save_prediction(
+            lat_enc, lon_enc, PREDICTION_WINDOW_MINUTES, mag_enc,
+            place, group_id=None, rank=1
+        )
 
-        # Get location name
-        place = reverse_geocode(lat_actual, lon_actual)
+        if pr_id_rank1 is None:
+            print(f"[{datetime.now()}] Error: Failed to save rank-1 prediction")
+            return None
 
-        # Save to database
-        pr_id = dataC.save_prediction(lat_encoded, lon_encoded, dt_minutes, mag_encoded, place)
+        # Use rank-1's pr_id as group_id; update rank-1 row to set its own group_id
+        group_id = pr_id_rank1
+        try:
+            with dataC._lock:
+                dataC._safe_execute(
+                    "UPDATE predictions SET pr_group_id = %s WHERE pr_id = %s",
+                    (group_id, pr_id_rank1)
+                )
+                dataC.mydb.commit()
+        except Exception as e:
+            print(f"[{datetime.now()}] Warning: Could not set group_id on rank-1: {e}")
+
+        # Save ranks 2–N with group_id referencing rank-1
+        for pred in pred_list[1:]:
+            r_lat = int(round(pred['lat'] + 90))
+            r_lon = int(round(pred['lon'] + 180))
+            r_mag = int(round(pred['mag'] * 10))
+            dataC.save_prediction(
+                r_lat, r_lon, PREDICTION_WINDOW_MINUTES, r_mag,
+                None, group_id=group_id, rank=pred['rank']
+            )
 
         place_str = f" near {place}" if place else ""
-        print(f"[{datetime.now()}] Prediction: lat={lat_actual:.2f}, lon={lon_actual:.2f}{place_str}, dt={dt_minutes}min, mag={mag_actual:.1f} (id={pr_id})")
+        print(f"[{datetime.now()}] Prediction group #{group_id} ({len(pred_list)} locations, dt={PREDICTION_WINDOW_MINUTES}min, mag={top_pred['mag']:.1f})")
+        print(f"  Rank-1: lat={top_pred['lat']:.2f}, lon={top_pred['lon']:.2f}{place_str} (pi={top_pred['pi']:.3f})")
+        for p in pred_list[1:]:
+            print(f"  Rank-{p['rank']}: lat={p['lat']:.2f}, lon={p['lon']:.2f} (pi={p['pi']:.3f})")
 
-        # Notify email subscribers near prediction location
-        if pr_id:
-            notify_subscribers(pr_id, lat_actual, lon_actual, mag_actual, dt_minutes, place)
+        # Notify email subscribers near rank-1 prediction location
+        notify_subscribers(pr_id_rank1, top_pred['lat'], top_pred['lon'], top_pred['mag'], PREDICTION_WINDOW_MINUTES, place)
 
-        return pr_id
+        return pr_id_rank1
 
     except Exception as e:
         print(f"Error making prediction: {e}")
@@ -611,11 +640,12 @@ def make_prediction():
 
 
 def auto_verify_predictions():
-    """72h late search: check missed predictions for late matches.
+    """72h late search: check missed prediction GROUPS for late matches.
 
-    Predictions marked as missed (verified=True, correct=False, no actual_id)
+    Groups marked as missed (verified=True, correct=False, no actual_id on rank-1)
     are re-checked for up to 72 hours after their predicted event time.
-    If a match is found → LATE CATCH. If 72h passes → MISSED FINAL (stays closed).
+    If any member of the group matches → LATE CATCH (group marked correct).
+    If 72h passes → MISSED FINAL (stays closed).
     """
     global dataC
 
@@ -623,62 +653,82 @@ def auto_verify_predictions():
         return
 
     try:
-        # Get predictions that are missed but might still get a late catch
+        # Get rank-1 predictions that are missed but might still get a late catch
         # These are: verified=True, correct=False, actual_id IS NULL, within 72h of predicted event
         sql = """
-            SELECT pr_id, pr_timestamp, pr_lat_predicted, pr_lon_predicted,
-                   pr_dt_predicted, pr_mag_predicted
+            SELECT DISTINCT COALESCE(pr_group_id, pr_id) as gid,
+                   pr_id, pr_timestamp, pr_dt_predicted
             FROM predictions
             WHERE pr_verified = 1 AND pr_correct = 0 AND pr_actual_id IS NULL
+              AND (pr_rank = 1 OR pr_rank IS NULL)
               AND pr_timestamp > DATE_SUB(NOW(), INTERVAL %s HOUR)
         """
-        missed_preds = dataC._safe_fetch(sql, (LATE_SEARCH_HOURS + 24,))
+        missed_groups = dataC._safe_fetch(sql, (LATE_SEARCH_HOURS + 24,)) or []
 
-        for pred in missed_preds:
-            pr_id, pr_timestamp, pr_lat, pr_lon, pr_dt, pr_mag = pred
+        now = datetime.now()
+        for row in missed_groups:
+            gid, pr_id, pr_timestamp, pr_dt = row
 
-            pred_lat_actual = (pr_lat - 90) if pr_lat is not None else None
-            pred_lon_actual = (pr_lon - 180) if pr_lon is not None else None
-            pred_mag_actual = (pr_mag / 10.0) if pr_mag is not None else 4.0
-
-            # Search window: from prediction time to prediction_time + dt + 72h
-            expected_event_time = pr_timestamp + timedelta(minutes=pr_dt or 60)
+            expected_event_time = pr_timestamp + timedelta(minutes=pr_dt or PREDICTION_WINDOW_MINUTES)
             late_search_end = expected_event_time + timedelta(hours=LATE_SEARCH_HOURS)
 
-            # Only search if we're still within the 72h window
-            now = datetime.now()
             if now > late_search_end:
                 continue  # Already past 72h - stays as MISSED FINAL
 
-            # Match = M4+ earthquake within 250km of predicted location
-            actuals = dataC.get_earthquakes_in_window(pr_timestamp, now, min_mag=4.0)
+            # Earthquakes that happened within the original prediction window
+            actuals = dataC.get_earthquakes_in_window(pr_timestamp, expected_event_time, min_mag=4.0)
+            if not actuals:
+                continue
 
-            for actual in (actuals or []):
+            # Check all group members against these earthquakes
+            group_members = dataC.get_active_group_predictions(gid) or []
+            if not group_members:
+                # Fallback: check just the rank-1 prediction (already in row above)
+                sql2 = """SELECT pr_id, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted,
+                                 pr_mag_predicted, pr_timestamp, pr_rank
+                          FROM predictions WHERE pr_id = %s"""
+                r = dataC._safe_fetch(sql2, (pr_id,))
+                group_members = r or []
+
+            found_match = False
+            for actual in actuals:
+                if found_match:
+                    break
                 us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = actual
-
                 eq_lat = us_x - 90
                 eq_lon = us_y - 180
-                dist_km = haversine_km(pred_lat_actual, pred_lon_actual, eq_lat, eq_lon) if pred_lat_actual is not None else None
 
-                if dist_km is not None and dist_km <= MATCH_RADIUS_KM:
-                    actual_dt = int((us_datetime - pr_timestamp).total_seconds() / 60)
-                    diff_dt = abs((pr_dt or 60) - actual_dt)
-                    diff_mag = abs(pred_mag_actual - us_mag) if us_mag else None
+                for member in group_members:
+                    m_pr_id, m_lat_enc, m_lon_enc, m_dt, m_mag_enc, m_ts, m_rank = member
+                    if m_lat_enc is None or m_lon_enc is None:
+                        continue
+                    m_lat = m_lat_enc - 90
+                    m_lon = m_lon_enc - 180
+                    m_mag = (m_mag_enc / 10.0) if m_mag_enc else 4.0
 
-                    print(f"[{now}] LATE CATCH for prediction #{pr_id}: M{us_mag} at {dist_km:.0f}km - {us_place}")
+                    dist_km = haversine_km(m_lat, m_lon, eq_lat, eq_lon)
+                    if dist_km <= MATCH_RADIUS_KM:
+                        actual_dt = int((us_datetime - pr_timestamp).total_seconds() / 60)
+                        diff_dt = abs((pr_dt or PREDICTION_WINDOW_MINUTES) - actual_dt)
+                        diff_mag = abs(m_mag - us_mag) if us_mag else None
 
-                    dataC.verify_prediction(
-                        pr_id=pr_id, actual_id=us_id,
-                        actual_lat=us_x, actual_lon=us_y,
-                        actual_dt=actual_dt,
-                        actual_mag=int(us_mag * 10) if us_mag else None,
-                        actual_time=us_datetime,
-                        diff_lat=int(abs(pr_lat - us_x)) if pr_lat else None,
-                        diff_lon=int(abs(pr_lon - us_y)) if pr_lon else None,
-                        diff_dt=int(diff_dt),
-                        diff_mag=diff_mag, correct=True
-                    )
-                    break  # First match wins
+                        print(f"[{now}] LATE CATCH! Group #{gid}, rank-{m_rank}: M{us_mag} at {dist_km:.0f}km - {us_place}")
+
+                        dataC.close_group_correct(
+                            group_id=gid,
+                            winner_pr_id=m_pr_id,
+                            actual_id=us_id,
+                            actual_lat=us_x, actual_lon=us_y,
+                            actual_dt=actual_dt,
+                            actual_mag=int(us_mag * 10) if us_mag else None,
+                            actual_time=us_datetime,
+                            diff_lat=int(abs(m_lat - eq_lat)),
+                            diff_lon=int(abs(m_lon - eq_lon)),
+                            diff_dt=int(diff_dt),
+                            diff_mag=diff_mag
+                        )
+                        found_match = True
+                        break
 
     except Exception as e:
         print(f"Error in auto-verification: {e}")
@@ -688,13 +738,14 @@ def auto_verify_predictions():
 
 def check_and_handle_prediction():
     """
-    Prediction cycle following README.md spec:
+    Group-aware prediction cycle:
 
-    Status flow: PENDING → MATCHED (green, closed)
-                        → MISSED (yellow) → search 72h → LATE CATCH (orange) or MISSED FINAL (red)
+    Status flow: PENDING group (N predictions) → any matches → MATCHED (green, all closed)
+                                                → window expires → MISSED (yellow, all closed)
+                                                → 72h late search via auto_verify_predictions()
 
-    When window expires (MISSED), immediately create a NEW prediction.
-    The old prediction continues its 72h late search in the background via auto_verify_predictions().
+    When window expires or a match is found, close all predictions in the group
+    and immediately create a new prediction group.
     """
     global dataC
 
@@ -717,89 +768,96 @@ def check_and_handle_prediction():
             make_prediction()
             return {'action': 'new_prediction', 'reason': 'previous_closed'}
 
-        # Active PENDING prediction
-        pr_id = latest['id']
+        # Active PENDING prediction group
+        group_id = latest.get('group_id') or latest['id']
         pr_timestamp = datetime.fromisoformat(latest['timestamp'])
-        pred_lat_actual = latest.get('predicted_lat')   # already decoded by get_latest_prediction()
-        pred_lon_actual = latest.get('predicted_lon')   # already decoded
-        pred_mag_actual = latest.get('predicted_mag') or 4.0  # already decoded
-        pr_dt = latest.get('predicted_dt') or 60
+        pr_dt = latest.get('predicted_dt') or PREDICTION_WINDOW_MINUTES
 
-        if pred_lat_actual is None or pred_lon_actual is None:
-            return None
-
-        # Prediction window
+        # Prediction window end (strict upper bound for matching)
         expected_event_time = pr_timestamp + timedelta(minutes=pr_dt)
 
-        # Match = first M4+ earthquake that occurred since the prediction
-        # Match = M4+ earthquake within 250km of predicted location AND within dt window
-        recent_quakes = dataC.get_earthquakes_in_window(pr_timestamp, now, min_mag=4.0)
+        # Get all pending predictions in this group
+        group_members = dataC.get_active_group_predictions(group_id)
+        if not group_members:
+            # Fallback: just use latest prediction as single member
+            pred_lat_actual = latest.get('predicted_lat')
+            pred_lon_actual = latest.get('predicted_lon')
+            group_members = [(latest['id'], int(round(pred_lat_actual + 90)) if pred_lat_actual is not None else None,
+                              int(round(pred_lon_actual + 180)) if pred_lon_actual is not None else None,
+                              pr_dt, None, pr_timestamp, 1)]
+
+        # Get earthquakes STRICTLY within the prediction window
+        recent_quakes = dataC.get_earthquakes_in_window(pr_timestamp, expected_event_time, min_mag=4.0)
 
         if recent_quakes:
             for us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place in recent_quakes:
                 eq_lat = us_x - 90
                 eq_lon = us_y - 180
-                dist_km = haversine_km(pred_lat_actual, pred_lon_actual, eq_lat, eq_lon)
 
-                if dist_km <= MATCH_RADIUS_KM:
-                    actual_dt = int((us_datetime - pr_timestamp).total_seconds() / 60)
-                    diff_dt = abs(pr_dt - actual_dt) if pr_dt else None
-                    diff_mag = abs(pred_mag_actual - us_mag) if us_mag else None
+                # Check ALL group predictions against this earthquake
+                for member in group_members:
+                    m_pr_id, m_lat_enc, m_lon_enc, m_dt, m_mag_enc, m_ts, m_rank = member
+                    if m_lat_enc is None or m_lon_enc is None:
+                        continue
+                    m_lat = m_lat_enc - 90
+                    m_lon = m_lon_enc - 180
+                    m_mag = (m_mag_enc / 10.0) if m_mag_enc else 4.0
 
-                    print(f"\n{'='*60}")
-                    print(f"[{now}] MATCHED! M{us_mag} within {dist_km:.0f}km")
-                    print(f"  Prediction #{pr_id}: {pred_lat_actual:.1f}°, {pred_lon_actual:.1f}°, M{pred_mag_actual:.1f}, dt={pr_dt}min")
-                    print(f"  Actual: {eq_lat:.1f}°, {eq_lon:.1f}° - M{us_mag} - {us_place}")
-                    print(f"{'='*60}\n")
+                    dist_km = haversine_km(m_lat, m_lon, eq_lat, eq_lon)
 
-                    dataC.verify_prediction(
-                        pr_id=pr_id, actual_id=us_id,
-                        actual_lat=us_x, actual_lon=us_y,
-                        actual_dt=actual_dt,
-                        actual_mag=int(us_mag * 10) if us_mag else None,
-                        actual_time=us_datetime,
-                        diff_lat=int(abs(pred_lat_actual - eq_lat)),
-                        diff_lon=int(abs(pred_lon_actual - eq_lon)),
-                        diff_dt=int(diff_dt) if diff_dt else None,
-                        diff_mag=diff_mag, correct=True
-                    )
+                    if dist_km <= MATCH_RADIUS_KM:
+                        actual_dt = int((us_datetime - pr_timestamp).total_seconds() / 60)
+                        diff_dt = abs(pr_dt - actual_dt) if pr_dt else None
+                        diff_mag = abs(m_mag - us_mag) if us_mag else None
 
-                    # Make new prediction immediately
-                    print(f"[{now}] Creating new prediction...")
-                    make_prediction()
-                    return {
-                        'action': 'matched',
-                        'prediction_id': pr_id,
-                        'earthquake_id': us_id,
-                        'distance_km': round(dist_km),
-                        'place': us_place,
-                        'mag': us_mag
-                    }
+                        print(f"\n{'='*60}")
+                        print(f"[{now}] MATCHED! Group #{group_id}, rank-{m_rank} prediction")
+                        print(f"  Prediction: {m_lat:.1f}°, {m_lon:.1f}°, M{m_mag:.1f}, dt={pr_dt}min")
+                        print(f"  Actual: {eq_lat:.1f}°, {eq_lon:.1f}° - M{us_mag} at {dist_km:.0f}km - {us_place}")
+                        print(f"{'='*60}\n")
+
+                        dataC.close_group_correct(
+                            group_id=group_id,
+                            winner_pr_id=m_pr_id,
+                            actual_id=us_id,
+                            actual_lat=us_x,
+                            actual_lon=us_y,
+                            actual_dt=actual_dt,
+                            actual_mag=int(us_mag * 10) if us_mag else None,
+                            actual_time=us_datetime,
+                            diff_lat=int(abs(m_lat - eq_lat)),
+                            diff_lon=int(abs(m_lon - eq_lon)),
+                            diff_dt=int(diff_dt) if diff_dt else None,
+                            diff_mag=diff_mag
+                        )
+
+                        print(f"[{now}] Creating new prediction group...")
+                        make_prediction()
+                        return {
+                            'action': 'matched',
+                            'group_id': group_id,
+                            'winner_rank': m_rank,
+                            'earthquake_id': us_id,
+                            'distance_km': round(dist_km),
+                            'place': us_place,
+                            'mag': us_mag
+                        }
 
         # No match found - check if window expired
         if now > expected_event_time:
-            # Window expired → MISSED status
-            # Mark as missed and immediately create new prediction
-            # The 72h late search continues via auto_verify_predictions()
-            print(f"[{now}] Prediction #{pr_id} window expired (dt={pr_dt}min), status: MISSED")
+            print(f"[{now}] Group #{group_id} window expired (dt={pr_dt}min), status: MISSED")
             print(f"  Late search continues for {LATE_SEARCH_HOURS}h via auto_verify")
 
-            dataC.verify_prediction(
-                pr_id=pr_id, actual_id=None,
-                actual_lat=None, actual_lon=None, actual_dt=None,
-                actual_mag=None, actual_time=None,
-                diff_lat=None, diff_lon=None, diff_dt=None,
-                diff_mag=None, correct=False
-            )
+            dataC.close_group_missed(group_id)
 
-            # Create new prediction right away
-            print(f"[{now}] Creating new prediction...")
+            print(f"[{now}] Creating new prediction group...")
             make_prediction()
-            return {'action': 'missed_new_prediction', 'prediction_id': pr_id}
+            return {'action': 'missed_new_prediction', 'group_id': group_id}
 
         # Still PENDING - show countdown
         remaining = (expected_event_time - now).total_seconds() / 60
-        return {'action': 'pending', 'prediction_id': pr_id, 'remaining_minutes': round(remaining, 1)}
+        n_members = len(group_members)
+        return {'action': 'pending', 'group_id': group_id, 'remaining_minutes': round(remaining, 1), 'n_predictions': n_members}
 
     except Exception as e:
         print(f"Error in check_and_handle_prediction: {e}")
@@ -1015,11 +1073,12 @@ def get_live_data():
                         if dist_km < min_distance_km:
                             min_distance_km = dist_km
 
-                    # Match = M4+ within 250km and after prediction time
+                    # Match = M4+ within MATCH_RADIUS_KM and STRICTLY within prediction window
                     eq_time_str = eq.get('time', '')
                     if eq_time_str and eq_mag >= MIN_MAG_DISPLAY and eq.get('distance_km') is not None:
                         eq_time = datetime.fromisoformat(eq_time_str.replace('Z', '+00:00')).replace(tzinfo=None)
-                        if eq_time >= pr_timestamp and eq['distance_km'] <= MATCH_RADIUS_KM:
+                        in_window = pr_timestamp <= eq_time <= expected_event_time
+                        if in_window and eq['distance_km'] <= MATCH_RADIUS_KM:
                             eq['is_match'] = True
                             if not matched_earthquake:
                                 matched_earthquake = eq
@@ -1056,25 +1115,40 @@ def get_live_data():
                         'mag': closest_m4.get('mag')
                     }
 
-            # AUTO-HANDLE: match found → verify and new prediction
+            # AUTO-HANDLE: match found → close group and new prediction
             if matched_earthquake:
+                group_id = latest_prediction.get('group_id') or pr_id
+                eq_id = matched_earthquake.get('id')
+                eq_lat_val = matched_earthquake.get('lat')
+                eq_lon_val = matched_earthquake.get('lon')
                 eq_mag = matched_earthquake.get('mag')
                 eq_dist = matched_earthquake.get('distance_km', 0)
+                eq_time_str = matched_earthquake.get('time', '')
+                eq_time = datetime.fromisoformat(eq_time_str.replace('Z', '+00:00')).replace(tzinfo=None) if eq_time_str else now
 
                 print(f"\n{'='*60}")
-                print(f"[{now}] MATCHED via /api/live!")
-                print(f"  Prediction #{pr_id}: {pred_lat_actual:.1f}°, {pred_lon_actual:.1f}°, M{pred_mag_actual:.1f}, dt={pr_dt}min")
+                print(f"[{now}] MATCHED via /api/live! Group #{group_id}")
+                print(f"  Prediction rank-1: {pred_lat_actual:.1f}°, {pred_lon_actual:.1f}°, M{pred_mag_actual:.1f}, dt={pr_dt}min")
                 print(f"  Actual: M{eq_mag} - {matched_earthquake.get('place')} ({eq_dist}km away)")
                 print(f"{'='*60}\n")
 
-                dataC.update_prediction_match(
-                    pr_id=pr_id,
-                    earthquake_id=matched_earthquake.get('id'),
-                    earthquake_lat=matched_earthquake.get('lat'),
-                    earthquake_lon=matched_earthquake.get('lon'),
-                    earthquake_mag=matched_earthquake.get('mag'),
-                    earthquake_time=matched_earthquake.get('time'),
-                    distance=eq_dist
+                actual_dt_val = int((eq_time - pr_timestamp).total_seconds() / 60)
+                eq_lat_enc = int(eq_lat_val + 90) if eq_lat_val is not None else None
+                eq_lon_enc = int(eq_lon_val + 180) if eq_lon_val is not None else None
+                eq_mag_enc = int(eq_mag * 10) if eq_mag else None
+
+                dataC.close_group_correct(
+                    group_id=group_id,
+                    winner_pr_id=pr_id,
+                    actual_id=eq_id,
+                    actual_lat=eq_lat_enc, actual_lon=eq_lon_enc,
+                    actual_dt=actual_dt_val,
+                    actual_mag=eq_mag_enc,
+                    actual_time=eq_time,
+                    diff_lat=int(abs(pred_lat_actual - eq_lat_val)) if eq_lat_val is not None else None,
+                    diff_lon=int(abs(pred_lon_actual - eq_lon_val)) if eq_lon_val is not None else None,
+                    diff_dt=int(abs(pr_dt - actual_dt_val)),
+                    diff_mag=abs(pred_mag_actual - eq_mag) if eq_mag else None
                 )
 
                 print(f"[{now}] Creating new prediction...")
@@ -1084,17 +1158,12 @@ def get_live_data():
                 recent_earthquakes = dataC.get_recent_earthquakes(limit=50, min_mag=2.0)
                 stats = dataC.get_prediction_stats()
 
-            # AUTO-HANDLE: window expired, no M4+ eq yet → MISSED
+            # AUTO-HANDLE: window expired, no M4+ eq yet → MISSED group
             elif is_expired:
-                print(f"[{now}] Prediction #{pr_id} window expired (dt={pr_dt}min), marking MISSED...")
+                group_id = latest_prediction.get('group_id') or pr_id
+                print(f"[{now}] Group #{group_id} window expired (dt={pr_dt}min), marking MISSED...")
 
-                dataC.verify_prediction(
-                    pr_id=pr_id, actual_id=None,
-                    actual_lat=None, actual_lon=None, actual_dt=None,
-                    actual_mag=None, actual_time=None,
-                    diff_lat=None, diff_lon=None, diff_dt=None,
-                    diff_mag=None, correct=False
-                )
+                dataC.close_group_missed(group_id)
 
                 print(f"[{now}] Creating new prediction...")
                 make_prediction()
@@ -1127,10 +1196,28 @@ def get_live_data():
                 'diff_lon': latest_prediction.get('diff_lon')
             }
 
+        # Include all active group members for multi-prediction display
+        active_group_predictions = []
+        if latest_prediction and not latest_prediction.get('verified'):
+            gid = latest_prediction.get('group_id') or latest_prediction.get('id')
+            if gid:
+                members = dataC.get_active_group_predictions(gid)
+                for m in (members or []):
+                    m_pr_id, m_lat_enc, m_lon_enc, m_dt, m_mag_enc, m_ts, m_rank = m
+                    if m_lat_enc is not None and m_lon_enc is not None:
+                        active_group_predictions.append({
+                            'id': m_pr_id,
+                            'rank': m_rank,
+                            'lat': m_lat_enc - 90,
+                            'lon': m_lon_enc - 180,
+                            'mag': (m_mag_enc / 10.0) if m_mag_enc else None,
+                        })
+
         return jsonify({
             'success': True,
             'server_time': now.isoformat(),
             'latest_prediction': latest_prediction,
+            'active_group_predictions': active_group_predictions,
             'recent_earthquakes': recent_earthquakes,
             'stats': stats,
             'match_info': match_info,
@@ -1527,15 +1614,15 @@ def get_training_info():
 
             # Parse from bottom up to find latest info
             for line in reversed(lines):
-                # Look for step line: "step 693200 | loss 16.3251"
+                # Look for step line: "step    200 | train 29.7989 | val 30.3806 | ..."
                 if line.startswith('step ') and training_info['latest_step'] is None:
                     parts = line.split('|')
                     if len(parts) >= 2:
-                        step_part = parts[0].strip()  # "step 693200"
-                        loss_part = parts[1].strip()  # "loss 16.3251"
+                        step_part = parts[0].strip()  # "step    200"
+                        loss_part = parts[1].strip()  # "train 29.7989"
                         try:
-                            training_info['latest_step'] = int(step_part.replace('step ', ''))
-                            training_info['latest_loss'] = float(loss_part.replace('loss ', ''))
+                            training_info['latest_step'] = int(step_part.replace('step', '').strip())
+                            training_info['latest_loss'] = float(loss_part.replace('train', '').strip())
                         except:
                             pass
 

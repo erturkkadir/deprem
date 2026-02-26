@@ -25,17 +25,18 @@ function App() {
     dispatch(fetchModelStatus());
     dispatch(fetchStats());
     dispatch(fetchLiveData());
-    dispatch(fetchPredictions({ limit: 20 }));
+    // PredictionsTable fetches its own data on mount with the correct filter
 
     // Poll for live data every 10 seconds
     const earthquakeInterval = setInterval(() => {
       dispatch(fetchLiveData());
     }, 10000);
 
-    // Poll stats & predictions table every 2 minutes
+    // Poll stats every 2 minutes
+    // Note: do NOT call fetchPredictions here — PredictionsTable owns its own
+    // paginated/filtered state; calling it here overwrites the user's active filter
     const statsInterval = setInterval(() => {
       dispatch(fetchStats());
-      dispatch(fetchPredictions({ limit: 20 }));
     }, 120000);
 
     // Check model status every 5 minutes

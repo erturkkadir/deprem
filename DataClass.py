@@ -329,13 +329,19 @@ class DataC():
             "ALTER TABLE predictions ADD COLUMN pr_diff_dt INT AFTER pr_diff_lon",
             "ALTER TABLE predictions ADD COLUMN pr_diff_mag FLOAT AFTER pr_diff_dt",
             "ALTER TABLE predictions ADD COLUMN pr_place VARCHAR(255) AFTER pr_mag_predicted",
+            # Multi-prediction group support
+            "ALTER TABLE predictions ADD COLUMN pr_group_id INT DEFAULT NULL",
+            "ALTER TABLE predictions ADD COLUMN pr_rank TINYINT DEFAULT 1",
+            "ALTER TABLE predictions ADD INDEX idx_group_id (pr_group_id)",
+            # Backfill rank=1 for legacy single predictions
+            "UPDATE predictions SET pr_rank = 1 WHERE pr_rank IS NULL",
         ]
         for sql in migrations:
             try:
                 self._safe_execute(sql)
                 self.mydb.commit()
             except Exception as e:
-                # Column likely already exists
+                # Column/index likely already exists
                 pass
 
     def _create_email_alerts_table(self):
@@ -523,7 +529,7 @@ class DataC():
             print(f"Error getting alerts by email: {e}")
             return []
 
-    def save_prediction(self, lat_predicted, lon_predicted=None, dt_predicted=None, mag_predicted=None, place=None):
+    def save_prediction(self, lat_predicted, lon_predicted=None, dt_predicted=None, mag_predicted=None, place=None, group_id=None, rank=1):
         """Save a new prediction to database
 
         Args:
@@ -532,19 +538,102 @@ class DataC():
             dt_predicted: Time difference in minutes (0-150)
             mag_predicted: Encoded magnitude (0-91, actual = value/10)
             place: Predicted location name (from reverse geocoding)
+            group_id: Group ID linking related predictions from same cycle (rank-1 pr_id)
+            rank: Prediction rank within group (1=highest confidence)
         """
         sql = """
-        INSERT INTO predictions (pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted, pr_place)
-        VALUES (NOW(), %s, %s, %s, %s, %s)
+        INSERT INTO predictions (pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted, pr_place, pr_group_id, pr_rank)
+        VALUES (NOW(), %s, %s, %s, %s, %s, %s, %s)
         """
         try:
             with self._lock:
-                self._safe_execute(sql, (lat_predicted, lon_predicted, dt_predicted, mag_predicted, place))
+                self._safe_execute(sql, (lat_predicted, lon_predicted, dt_predicted, mag_predicted, place, group_id, rank))
                 self.mydb.commit()
                 return self.mycursor.lastrowid
         except Exception as e:
             print(f"Error saving prediction: {e}")
             return None
+
+    def get_active_group_predictions(self, group_id):
+        """Get all PENDING predictions belonging to a group.
+
+        Args:
+            group_id: The group_id (pr_id of rank-1 prediction)
+
+        Returns:
+            List of tuples: (pr_id, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted,
+                             pr_mag_predicted, pr_timestamp, pr_rank)
+        """
+        sql = """
+        SELECT pr_id, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted,
+               pr_mag_predicted, pr_timestamp, pr_rank
+        FROM predictions
+        WHERE (pr_group_id = %s OR pr_id = %s) AND pr_verified = FALSE
+        ORDER BY pr_rank ASC
+        """
+        try:
+            return self._safe_fetch(sql, (group_id, group_id)) or []
+        except Exception as e:
+            print(f"Error getting active group predictions: {e}")
+            return []
+
+    def close_group_correct(self, group_id, winner_pr_id, actual_id, actual_lat, actual_lon,
+                            actual_dt, actual_mag, actual_time, diff_lat, diff_lon, diff_dt, diff_mag):
+        """Close a prediction group with a successful match.
+        Marks winner with actual data, marks rank-1 as correct (for stats).
+        All group members become verified=TRUE.
+        """
+        try:
+            with self._lock:
+                # Mark ALL group members as verified
+                self._safe_execute(
+                    "UPDATE predictions SET pr_verified = TRUE, pr_correct = FALSE "
+                    "WHERE pr_group_id = %s OR pr_id = %s",
+                    (group_id, group_id)
+                )
+                # Update the winning prediction with actual earthquake data
+                self._safe_execute(
+                    """UPDATE predictions SET
+                        pr_actual_id = %s, pr_lat_actual = %s, pr_lon_actual = %s,
+                        pr_dt_actual = %s, pr_mag_actual = %s, pr_actual_time = %s,
+                        pr_diff_lat = %s, pr_diff_lon = %s, pr_diff_dt = %s, pr_diff_mag = %s,
+                        pr_correct = TRUE
+                    WHERE pr_id = %s""",
+                    (actual_id, actual_lat, actual_lon, actual_dt, actual_mag, actual_time,
+                     diff_lat, diff_lon, diff_dt, diff_mag, winner_pr_id)
+                )
+                # Also update rank-1 with actual earthquake data for display,
+                # even if a lower-rank prediction was the geometric winner.
+                # This ensures the group representative (rank-1) shows the match in the UI.
+                self._safe_execute(
+                    """UPDATE predictions SET
+                        pr_actual_id = %s, pr_lat_actual = %s, pr_lon_actual = %s,
+                        pr_dt_actual = %s, pr_mag_actual = %s, pr_actual_time = %s,
+                        pr_correct = TRUE
+                    WHERE (pr_group_id = %s OR pr_id = %s) AND pr_rank = 1""",
+                    (actual_id, actual_lat, actual_lon, actual_dt, actual_mag, actual_time,
+                     group_id, group_id)
+                )
+                self.mydb.commit()
+            return True
+        except Exception as e:
+            print(f"Error closing group correct: {e}")
+            return False
+
+    def close_group_missed(self, group_id):
+        """Close a prediction group as missed (no earthquake matched within window)."""
+        try:
+            with self._lock:
+                self._safe_execute(
+                    "UPDATE predictions SET pr_verified = TRUE, pr_correct = FALSE "
+                    "WHERE pr_group_id = %s OR pr_id = %s",
+                    (group_id, group_id)
+                )
+                self.mydb.commit()
+            return True
+        except Exception as e:
+            print(f"Error closing group missed: {e}")
+            return False
 
     def get_unverified_predictions(self, older_than_hours=24):
         """Get predictions that haven't been verified yet"""
@@ -611,8 +700,9 @@ class DataC():
         WHERE pr_id = %s
         """
         try:
-            self._safe_execute(sql, (actual_id, actual_lat, actual_lon, actual_dt, actual_mag, actual_time, diff_lat, diff_lon, diff_dt, diff_mag, correct, pr_id))
-            self.mydb.commit()
+            with self._lock:
+                self._safe_execute(sql, (actual_id, actual_lat, actual_lon, actual_dt, actual_mag, actual_time, diff_lat, diff_lon, diff_dt, diff_mag, correct, pr_id))
+                self.mydb.commit()
             return True
         except Exception as e:
             print(f"Error verifying prediction: {e}")
@@ -632,8 +722,8 @@ class DataC():
         """
         encoded_mag = min_mag * 10
 
-        # Build WHERE clause based on filter
-        filter_clause = "p.pr_mag_predicted >= %s"
+        # Build WHERE clause based on filter — only show rank-1 (group leaders) per cycle
+        filter_clause = "p.pr_mag_predicted >= %s AND (p.pr_rank = 1 OR p.pr_rank IS NULL)"
         params = [encoded_mag]
 
         if filter_type == 'matched':
@@ -652,7 +742,7 @@ class DataC():
             print(f"Error counting predictions: {e}")
             total = 0
 
-        # Get paginated results (latest first)
+        # Get paginated results (latest first) — only group leaders (rank-1)
         sql = f"""
         SELECT
             p.pr_id,
@@ -673,7 +763,8 @@ class DataC():
             p.pr_verified,
             p.pr_correct,
             p.pr_actual_time,
-            u.us_place as actual_place
+            u.us_place as actual_place,
+            COALESCE(p.pr_group_id, p.pr_id) as group_id
         FROM predictions p
         LEFT JOIN usgs u ON p.pr_actual_id = u.us_id
         WHERE {filter_clause}
@@ -684,7 +775,7 @@ class DataC():
             rows = self._safe_fetch(sql, tuple(params + [limit, offset]))
             columns = ['id', 'prediction_time', 'predicted_lat', 'predicted_lon', 'predicted_dt', 'predicted_mag', 'predicted_place',
                       'actual_lat', 'actual_lon', 'actual_dt', 'actual_mag', 'diff_lat', 'diff_lon', 'diff_dt', 'diff_mag',
-                      'verified', 'correct', 'actual_time', 'actual_place']
+                      'verified', 'correct', 'actual_time', 'actual_place', 'group_id']
             predictions = [dict(zip(columns, row)) for row in rows]
             return {'predictions': predictions, 'total': total}
         except Exception as e:
@@ -692,7 +783,8 @@ class DataC():
             return {'predictions': [], 'total': 0}
 
     def get_latest_prediction(self, min_mag=4.0):
-        """Get the most recent prediction with magnitude >= min_mag"""
+        """Get the most recent rank-1 prediction with magnitude >= min_mag.
+        Returns the group leader (highest-confidence prediction per cycle)."""
         sql = """
         SELECT
             pr_id,
@@ -711,9 +803,10 @@ class DataC():
             pr_diff_dt,
             pr_diff_mag,
             pr_verified,
-            pr_correct
+            pr_correct,
+            COALESCE(pr_group_id, pr_id) as group_id
         FROM predictions
-        WHERE pr_mag_predicted >= %s
+        WHERE pr_mag_predicted >= %s AND (pr_rank = 1 OR pr_rank IS NULL)
         ORDER BY pr_timestamp DESC
         LIMIT 1
         """
@@ -738,7 +831,8 @@ class DataC():
                     'diff_dt': row[13],
                     'diff_mag': float(row[14]) if row[14] else None,
                     'verified': bool(row[15]),
-                    'correct': bool(row[16]) if row[16] is not None else None
+                    'correct': bool(row[16]) if row[16] is not None else None,
+                    'group_id': row[17],
                 }
             return None
         except Exception as e:
@@ -842,11 +936,12 @@ class DataC():
                 pr_correct = %s
             WHERE pr_id = %s
             """
-            self._safe_execute(sql, (
-                earthquake_id, eq_lat_encoded, eq_lon_encoded, actual_dt, eq_mag_encoded, eq_time,
-                diff_lat, diff_lon, diff_dt, diff_mag, correct, pr_id
-            ))
-            self.mydb.commit()
+            with self._lock:
+                self._safe_execute(sql, (
+                    earthquake_id, eq_lat_encoded, eq_lon_encoded, actual_dt, eq_mag_encoded, eq_time,
+                    diff_lat, diff_lon, diff_dt, diff_mag, correct, pr_id
+                ))
+                self.mydb.commit()
             print(f"Updated prediction {pr_id} with match: distance={distance:.1f}, correct={correct}")
             return True
 
@@ -857,12 +952,15 @@ class DataC():
             return False
 
     def get_prediction_stats(self, min_mag=4.0):
-        """Get prediction success statistics for predictions with magnitude >= min_mag"""
+        """Get prediction success statistics for predictions with magnitude >= min_mag.
+        Counts prediction GROUPS (cycles) not individual predictions.
+        A group is correct if any of its members matched an earthquake.
+        """
         sql = """
         SELECT
-            COUNT(*) as total,
-            SUM(CASE WHEN pr_verified = TRUE THEN 1 ELSE 0 END) as verified,
-            SUM(CASE WHEN pr_correct = TRUE THEN 1 ELSE 0 END) as correct
+            COUNT(DISTINCT COALESCE(pr_group_id, pr_id)) as total_groups,
+            COUNT(DISTINCT CASE WHEN pr_verified = TRUE THEN COALESCE(pr_group_id, pr_id) END) as verified_groups,
+            COUNT(DISTINCT CASE WHEN pr_correct = TRUE THEN COALESCE(pr_group_id, pr_id) END) as correct_groups
         FROM predictions
         WHERE pr_mag_predicted >= %s
         """

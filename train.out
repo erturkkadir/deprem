@@ -7,66 +7,34 @@ Batch: 2  |  Seq len: 512  |  Embed: 1176
 Print every: 200  |  Save every: 600
 Learning rate: 0.0001
 ============================================================
-[2026-02-20 18:03:44.580875] Loading hybrid data (M2.0+ input, M4.0+ targets)...
+[2026-02-25 23:48:18.586039] Loading hybrid data (M2.0+ input, M4.0+ targets)...
 Database connection established
-Loaded 1,489,936 records (M2.0+)
-  Training targets (M4.0+): 520,881 (35.0%)
+Loaded 1,490,888 records (M2.0+)
+  Training targets (M4.0+): 521,039 (34.9%)
   Earth-state features: hour[0-23], doy[0-365], moon_phase[0-29], moon_dist[0-9]
   Warning: depth max 651 exceeds model limit 200, will be clamped
 
-[2026-02-20 18:04:16.097213] Creating model with Geographic Positional Encoding (GPE)...
+[2026-02-25 23:48:55.881760] Creating model with Geographic Positional Encoding (GPE)...
 Model parameters: 268,858,832
 Starting from scratch
 
-[2026-02-20 18:04:25.065385] Training started (MULTI-POSITION)...
+[2026-02-25 23:49:03.768782] Training started (MULTI-POSITION)...
 LR schedule: warmup 500 optimizer steps, cosine decay to 500000
 Gradient accumulation: 16 steps (effective batch=32)
 Output: MDN (SpatialMDN K=20, MagnitudeMDN K=8)
 Multi-position: loss at ALL M4+ positions per sequence
 
-step    200 | train 888.7723 | val 885.4481 | lr 2.40e-06 | tgt 392 | sp 882.58 mag 1.42 hav 4.67 gr 1.029
+step    200 | train 37.1714 | val 30.5308 | lr 2.40e-06 | tgt 401 | sp 25.52 mag 1.38 hav 3.88 gr 1.161 ent -2.985
   -> New best val loss!
-step    400 | train 883.1138 | val 881.3571 | lr 4.80e-06 | tgt 407 | sp 876.90 mag 1.43 hav 4.67 gr 1.024
+step    400 | train 36.6219 | val 26.5704 | lr 4.80e-06 | tgt 401 | sp 25.03 mag 1.35 hav 3.87 gr 1.151 ent -2.985
   -> New best val loss!
-step    600 | train 873.6708 | val 849.9109 | lr 7.40e-06 | tgt 387 | sp 867.49 mag 1.41 hav 4.67 gr 1.006
+step    600 | train 36.8235 | val 29.6936 | lr 7.40e-06 | tgt 403 | sp 25.19 mag 1.35 hav 3.89 gr 1.133 ent -2.985
+[2026-02-25 23:57:14.811015] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260225_235707.pth (iter=600, loss=36.8235)
+step    800 | train 36.5028 | val 25.8639 | lr 9.80e-06 | tgt 398 | sp 24.90 mag 1.34 hav 3.88 gr 1.102 ent -2.986
   -> New best val loss!
-[2026-02-20 18:12:33.330111] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260220_181225.pth (iter=600, loss=873.6708)
-step    800 | train 847.7923 | val 822.8821 | lr 9.80e-06 | tgt 399 | sp 841.64 mag 1.38 hav 4.67 gr 0.984
+step   1000 | train 36.2693 | val 30.4214 | lr 1.24e-05 | tgt 396 | sp 24.74 mag 1.29 hav 3.88 gr 1.059 ent -2.986
+step   1200 | train 34.9866 | val 25.0884 | lr 1.48e-05 | tgt 402 | sp 23.56 mag 1.28 hav 3.84 gr 1.011 ent -2.986
   -> New best val loss!
-step   1000 | train 823.6314 | val 808.7390 | lr 1.24e-05 | tgt 395 | sp 817.50 mag 1.37 hav 4.66 gr 0.954
-  -> New best val loss!
-step   1200 | train 816.7592 | val 741.7790 | lr 1.48e-05 | tgt 402 | sp 810.66 mag 1.34 hav 4.67 gr 0.916
-  -> New best val loss!
-[2026-02-20 18:21:25.781478] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260220_182035.pth (iter=1200, loss=816.7592)
-step   1400 | train 797.0858 | val 765.0124 | lr 1.74e-05 | tgt 400 | sp 791.04 mag 1.28 hav 4.68 gr 0.877
-step   1600 | train 767.7208 | val 712.7644 | lr 1.98e-05 | tgt 392 | sp 761.70 mag 1.27 hav 4.67 gr 0.832
-  -> New best val loss!
-step   1800 | train 733.9726 | val 683.4936 | lr 2.24e-05 | tgt 402 | sp 727.99 mag 1.23 hav 4.67 gr 0.785
-  -> New best val loss!
-[2026-02-20 18:30:02.131816] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260220_182927.pth (iter=1800, loss=733.9726)
-step   2000 | train 698.5829 | val 697.3029 | lr 2.48e-05 | tgt 394 | sp 692.64 mag 1.19 hav 4.67 gr 0.732
-step   2200 | train 667.3081 | val 628.2468 | lr 2.74e-05 | tgt 400 | sp 661.43 mag 1.13 hav 4.68 gr 0.678
-  -> New best val loss!
-step   2400 | train 618.8879 | val 579.8385 | lr 2.98e-05 | tgt 404 | sp 613.06 mag 1.10 hav 4.67 gr 0.624
-  -> New best val loss!
-[2026-02-20 18:38:39.879480] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260220_183804.pth (iter=2400, loss=618.8879)
-step   2600 | train 592.5230 | val 542.5099 | lr 3.24e-05 | tgt 399 | sp 586.74 mag 1.06 hav 4.67 gr 0.568
-  -> New best val loss!
-step   2800 | train 552.8298 | val 500.5402 | lr 3.48e-05 | tgt 406 | sp 547.05 mag 1.05 hav 4.68 gr 0.514
-  -> New best val loss!
-step   3000 | train 511.4500 | val 477.2634 | lr 3.74e-05 | tgt 401 | sp 505.69 mag 1.04 hav 4.67 gr 0.468
-  -> New best val loss!
-[2026-02-20 18:47:17.810081] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260220_184641.pth (iter=3000, loss=511.4500)
-step   3200 | train 474.3809 | val 451.8858 | lr 3.98e-05 | tgt 395 | sp 468.66 mag 1.00 hav 4.67 gr 0.423
-  -> New best val loss!
-step   3400 | train 449.5481 | val 377.3772 | lr 4.24e-05 | tgt 394 | sp 443.83 mag 1.00 hav 4.68 gr 0.381
-  -> New best val loss!
-step   3600 | train 406.3798 | val 374.4340 | lr 4.48e-05 | tgt 400 | sp 400.70 mag 0.97 hav 4.67 gr 0.343
-  -> New best val loss!
-[2026-02-20 18:55:55.623582] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260220_185520.pth (iter=3600, loss=406.3798)
-step   3800 | train 377.7562 | val 358.2866 | lr 4.74e-05 | tgt 393 | sp 372.06 mag 0.99 hav 4.67 gr 0.316
-  -> New best val loss!
-step   4000 | train 343.7231 | val 322.9010 | lr 4.98e-05 | tgt 394 | sp 338.06 mag 0.95 hav 4.68 gr 0.297
-  -> New best val loss!
-step   4200 | train 311.2911 | val 283.0295 | lr 5.24e-05 | tgt 396 | sp 305.59 mag 1.00 hav 4.67 gr 0.286
-  -> New best val loss!
+[2026-02-26 00:05:51.376846] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260226_000518.pth (iter=1200, loss=34.9866)
+step   1400 | train 35.4153 | val 30.0725 | lr 1.74e-05 | tgt 399 | sp 23.93 mag 1.27 hav 3.87 gr 0.951 ent -2.986
+step   1600 | train 35.1899 | val 25.2529 | lr 1.98e-05 | tgt 394 | sp 23.77 mag 1.20 hav 3.88 gr 0.889 ent -2.986

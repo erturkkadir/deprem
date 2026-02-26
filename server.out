@@ -1,7 +1,7 @@
-[2026-02-20 18:03:43 +0000] [218390] [INFO] Starting gunicorn 23.0.0
-[2026-02-20 18:03:43 +0000] [218390] [INFO] Listening at: http://0.0.0.0:3000 (218390)
-[2026-02-20 18:03:43 +0000] [218390] [INFO] Using worker: sync
-[2026-02-20 18:03:43 +0000] [218392] [INFO] Booting worker with pid: 218392
+[2026-02-25 23:48:31 +0000] [1364021] [INFO] Starting gunicorn 23.0.0
+[2026-02-25 23:48:31 +0000] [1364021] [INFO] Listening at: http://0.0.0.0:3000 (1364021)
+[2026-02-25 23:48:31 +0000] [1364021] [INFO] Using worker: sync
+[2026-02-25 23:48:31 +0000] [1364022] [INFO] Booting worker with pid: 1364022
 ============================================================
 EARTHQUAKE PREDICTION SERVER
 ============================================================
@@ -11,289 +11,131 @@ Hybrid: M2.0+ input, M4.0+ targets
 
 Loading hybrid data...
 Database connection established
-Loaded 1,489,936 records (M2.0+)
-  Training targets (M4.0+): 520,881 (35.0%)
+Loaded 1,490,888 records (M2.0+)
+  Training targets (M4.0+): 521,039 (34.9%)
   Earth-state features: hour[0-23], doy[0-365], moon_phase[0-29], moon_dist[0-9]
   Warning: depth max 651 exceeds model limit 200, will be clamped
 
 Loading model...
-[2026-02-20 18:04:18.514661] Loading model...
+[2026-02-25 23:49:07.469725] Loading model...
 Database connection established
-Loaded 1,489,936 records (M2.0+)
-  Training targets (M4.0+): 520,881 (35.0%)
+Loaded 1,490,888 records (M2.0+)
+  Training targets (M4.0+): 521,039 (34.9%)
   Earth-state features: hour[0-23], doy[0-365], moon_phase[0-29], moon_dist[0-9]
   Warning: depth max 651 exceeds model limit 200, will be clamped
 No checkpoint found, using random weights
 
 Checking for active prediction...
-Active prediction found: #1 (26.2 minutes remaining)
+No active prediction found, creating initial prediction...
+[2026-02-25 23:49:57.047382] Prediction group #1 (5 locations, dt=120min, mag=5.5)
+  Rank-1: lat=-34.80, lon=-71.91 near Región del Libertador General Bernardo O'Higgins, Chile (pi=0.068)
+  Rank-2: lat=39.87, lon=19.82 (pi=0.066)
+  Rank-3: lat=60.07, lon=-149.87 (pi=0.059)
+  Rank-4: lat=5.08, lon=126.71 (pi=0.059)
+  Rank-5: lat=-22.07, lon=-68.18 (pi=0.056)
+
+Starting scheduler...
+[2026-02-25 23:49:57.051132] No subscribers within range for prediction #1 (lat=-34.79951095581055, lon=-71.90982818603516)
+Scheduler started: monitoring every 120 seconds
+============================================================
+Server ready! Monitoring every 120 seconds.
+============================================================
+[EMSC] Fetched 274 earthquakes for last 1 day(s)
+Batch inserted 274 earthquakes
+[2026-02-25 23:52:47 +0000] [1365087] [INFO] Starting gunicorn 23.0.0
+[2026-02-25 23:52:47 +0000] [1365087] [INFO] Listening at: http://0.0.0.0:3000 (1365087)
+[2026-02-25 23:52:47 +0000] [1365087] [INFO] Using worker: sync
+[2026-02-25 23:52:47 +0000] [1365088] [INFO] Booting worker with pid: 1365088
+============================================================
+EARTHQUAKE PREDICTION SERVER
+============================================================
+Device: cpu
+Model: n_embed=1176, T=512, heads=8, layers=6
+Hybrid: M2.0+ input, M4.0+ targets
+
+Loading hybrid data...
+Database connection established
+Loaded 1,490,888 records (M2.0+)
+  Training targets (M4.0+): 521,039 (34.9%)
+  Earth-state features: hour[0-23], doy[0-365], moon_phase[0-29], moon_dist[0-9]
+  Warning: depth max 651 exceeds model limit 200, will be clamped
+
+Loading model...
+[2026-02-25 23:53:22.834109] Loading model...
+Database connection established
+Loaded 1,490,888 records (M2.0+)
+  Training targets (M4.0+): 521,039 (34.9%)
+  Earth-state features: hour[0-23], doy[0-365], moon_phase[0-29], moon_dist[0-9]
+  Warning: depth max 651 exceeds model limit 200, will be clamped
+No checkpoint found, using random weights
+
+Checking for active prediction...
+Active prediction found: #1 (115.9 minutes remaining)
 
 Starting scheduler...
 Scheduler started: monitoring every 120 seconds
 ============================================================
 Server ready! Monitoring every 120 seconds.
 ============================================================
-[EMSC] Fetched 283 earthquakes for last 1 day(s)
-Batch inserted 283 earthquakes
-Executed ins_quakes()
-Dedup: removed 15 duplicate reports
-[2026-02-20 18:07:03.297349] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 24.1}
-[EMSC] Fetched 282 earthquakes for last 1 day(s)
-Batch inserted 282 earthquakes
-Executed ins_quakes()
-Dedup: removed 15 duplicate reports
-Calculating global M4+ dt for 1 new records...
-Done calculating global M4+ dt for 1 records
-Calculating local M4+ dt (1000km) for 1 new records...
-Done calculating local M4+ dt for 1 records
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-20 18:09:15.554044] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 21.9}
-[EMSC] Fetched 282 earthquakes for last 1 day(s)
-Batch inserted 282 earthquakes
-Executed ins_quakes()
-Dedup: removed 15 duplicate reports
-[2026-02-20 18:11:02.910272] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 20.1}
-[2026-02-20 18:12:55.600057] New checkpoint detected: eqModel_complex_20260220_181225.pth
-[2026-02-20 18:13:00.328532] Reloaded weights: eqModel_complex_20260220_181225.pth
-[EMSC] Fetched 282 earthquakes for last 1 day(s)
-Batch inserted 282 earthquakes
-Executed ins_quakes()
-Dedup: removed 15 duplicate reports
-[2026-02-20 18:13:07.744807] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 18.0}
-[EMSC] Fetched 282 earthquakes for last 1 day(s)
-Batch inserted 282 earthquakes
-Executed ins_quakes()
-Dedup: removed 15 duplicate reports
-[2026-02-20 18:15:03.043314] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 16.1}
-[EMSC] Fetched 283 earthquakes for last 1 day(s)
-Batch inserted 283 earthquakes
-Executed ins_quakes()
-Dedup: removed 15 duplicate reports
-Calculating global M4+ dt for 1 new records...
-Done calculating global M4+ dt for 1 records
-Calculating local M4+ dt (1000km) for 1 new records...
-Done calculating local M4+ dt for 1 records
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-20 18:17:14.501768] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 13.9}
-[EMSC] Fetched 283 earthquakes for last 1 day(s)
-Batch inserted 283 earthquakes
-Executed ins_quakes()
-Dedup: removed 15 duplicate reports
-[2026-02-20 18:19:02.102884] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 12.1}
-[2026-02-20 18:20:55.600055] New checkpoint detected: eqModel_complex_20260220_182035.pth
-[2026-02-20 18:20:59.114711] Reloaded weights: eqModel_complex_20260220_182035.pth
-[EMSC] Fetched 282 earthquakes for last 1 day(s)
-Batch inserted 282 earthquakes
-Executed ins_quakes()
-Dedup: removed 15 duplicate reports
-[2026-02-20 18:21:05.324742] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 10.1}
-[EMSC] Fetched 283 earthquakes for last 1 day(s)
-Batch inserted 283 earthquakes
-Executed ins_quakes()
-Dedup: removed 15 duplicate reports
-Calculating global M4+ dt for 2 new records...
-Done calculating global M4+ dt for 2 records
-Calculating local M4+ dt (1000km) for 2 new records...
-Done calculating local M4+ dt for 2 records
-Computing moon features for 2 new records...
-Done computing moon features for 2 records
-[2026-02-20 18:23:15.027734] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 7.9}
-[EMSC] Fetched 282 earthquakes for last 1 day(s)
-Batch inserted 282 earthquakes
-Executed ins_quakes()
-Dedup: removed 15 duplicate reports
-[2026-02-20 18:25:02.152090] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 6.1}
-[EMSC] Fetched 282 earthquakes for last 1 day(s)
-Batch inserted 282 earthquakes
-Executed ins_quakes()
-Dedup: removed 15 duplicate reports
-[2026-02-20 18:27:03.088681] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 4.1}
-[EMSC] Fetched 283 earthquakes for last 1 day(s)
-Batch inserted 283 earthquakes
-Executed ins_quakes()
-Dedup: removed 15 duplicate reports
-Calculating global M4+ dt for 1 new records...
-Done calculating global M4+ dt for 1 records
-Calculating local M4+ dt (1000km) for 1 new records...
-Done calculating local M4+ dt for 1 records
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-20 18:29:13.505904] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 1.9}
-[2026-02-20 18:30:55.600106] New checkpoint detected: eqModel_complex_20260220_182927.pth
-[2026-02-20 18:30:59.060954] Reloaded weights: eqModel_complex_20260220_182927.pth
-[EMSC] Fetched 283 earthquakes for last 1 day(s)
-Batch inserted 283 earthquakes
-Executed ins_quakes()
-Dedup: removed 15 duplicate reports
-[2026-02-20 18:31:06.859599] Status: pending - {'action': 'pending', 'prediction_id': 1, 'remaining_minutes': 0.0}
-[2026-02-20 18:31:18.829342] Prediction #1 window expired (dt=30min), marking MISSED...
-[2026-02-20 18:31:18.829342] Creating new prediction...
-[2026-02-20 18:31:26.937742] Prediction: lat=0.19, lon=0.17, dt=30min, mag=4.7 (id=2)
-[2026-02-20 18:31:26.940845] No subscribers within range for prediction #2 (lat=0.18718221783638, lon=0.16736061871051788)
-[EMSC] Fetched 282 earthquakes for last 1 day(s)
-Batch inserted 282 earthquakes
-Executed ins_quakes()
-Dedup: removed 15 duplicate reports
-[2026-02-20 18:33:03.082557] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 28.4}
-[EMSC] Fetched 282 earthquakes for last 1 day(s)
-Batch inserted 282 earthquakes
-Executed ins_quakes()
-Dedup: removed 15 duplicate reports
-Calculating global M4+ dt for 1 new records...
-Done calculating global M4+ dt for 1 records
-Calculating local M4+ dt (1000km) for 1 new records...
-Done calculating local M4+ dt for 1 records
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-20 18:35:14.298864] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 26.2}
-[EMSC] Fetched 282 earthquakes for last 1 day(s)
-Batch inserted 282 earthquakes
-Executed ins_quakes()
-Dedup: removed 15 duplicate reports
-[2026-02-20 18:37:03.156269] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 24.4}
-[2026-02-20 18:38:55.599950] New checkpoint detected: eqModel_complex_20260220_183804.pth
-[2026-02-20 18:38:59.090186] Reloaded weights: eqModel_complex_20260220_183804.pth
-[EMSC] Fetched 282 earthquakes for last 1 day(s)
-Batch inserted 282 earthquakes
-Executed ins_quakes()
-Dedup: removed 14 duplicate reports
-Calculating global M4+ dt for 1 new records...
-Done calculating global M4+ dt for 1 records
-Calculating local M4+ dt (1000km) for 1 new records...
-Done calculating local M4+ dt for 1 records
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-20 18:39:17.347333] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 22.1}
-[EMSC] Fetched 282 earthquakes for last 1 day(s)
-Batch inserted 282 earthquakes
-Executed ins_quakes()
-Dedup: removed 14 duplicate reports
-[2026-02-20 18:41:03.215304] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 20.4}
-[EMSC] Fetched 283 earthquakes for last 1 day(s)
-Batch inserted 283 earthquakes
-Executed ins_quakes()
-Dedup: removed 14 duplicate reports
-Calculating global M4+ dt for 1 new records...
+[EMSC] Fetched 274 earthquakes for last 1 day(s)
+Batch inserted 274 earthquakes
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+[2026-02-25 23:56:55.370472] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 113.0, 'n_predictions': 5}
+[2026-02-25 23:57:59.471341] New checkpoint detected: eqModel_complex_20260225_235707.pth
+[2026-02-25 23:58:04.134412] Reloaded weights: eqModel_complex_20260225_235707.pth
+[EMSC] Fetched 273 earthquakes for last 1 day(s)
+Batch inserted 273 earthquakes
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+[2026-02-25 23:58:59.868140] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 110.9, 'n_predictions': 5}
+[2026-02-25 23:58:59.885473] Warning: monitor_cycle took 60.4s
+[EMSC] Fetched 273 earthquakes for last 1 day(s)
+Batch inserted 273 earthquakes
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+[2026-02-26 00:01:03.431633] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 108.9, 'n_predictions': 5}
+[2026-02-26 00:01:03.438977] Warning: monitor_cycle took 64.0s
+[EMSC] Fetched 273 earthquakes for last 1 day(s)
+Batch inserted 273 earthquakes
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+[2026-02-26 00:02:55.491715] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 107.0, 'n_predictions': 5}
+[EMSC] Fetched 273 earthquakes for last 1 day(s)
+Batch inserted 273 earthquakes
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+Error dedup: bytearray index out of range
 Connection ping failed: bytearray index out of range, reconnecting...
 Database connection established
-Fetch failed (attempt 1): bytearray index out of range, reconnecting...
-Database connection established
-Connection ping failed: bytearray index out of range, reconnecting...
-Done calculating global M4+ dt for 1 records
-Database connection established
-Calculating local M4+ dt (1000km) for 1 new records...
-Done calculating local M4+ dt for 1 records
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-20 18:43:13.808962] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 18.2}
-[EMSC] Fetched 282 earthquakes for last 1 day(s)
-Batch inserted 282 earthquakes
-Executed ins_quakes()
-Dedup: removed 14 duplicate reports
-[2026-02-20 18:45:02.119148] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 16.4}
-[2026-02-20 18:46:55.600104] New checkpoint detected: eqModel_complex_20260220_184641.pth
-[2026-02-20 18:46:59.189637] Reloaded weights: eqModel_complex_20260220_184641.pth
-[EMSC] Fetched 282 earthquakes for last 1 day(s)
-Batch inserted 282 earthquakes
-Executed ins_quakes()
-Dedup: removed 14 duplicate reports
-[2026-02-20 18:47:06.880479] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 14.3}
-[EMSC] Fetched 283 earthquakes for last 1 day(s)
-Batch inserted 283 earthquakes
-Executed ins_quakes()
-Dedup: removed 14 duplicate reports
-Calculating global M4+ dt for 1 new records...
+[2026-02-26 00:04:55.444349] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 105.0, 'n_predictions': 5}
+[2026-02-26 00:05:59.471396] New checkpoint detected: eqModel_complex_20260226_000518.pth
+[2026-02-26 00:06:02.954087] Reloaded weights: eqModel_complex_20260226_000518.pth
+[EMSC] Fetched 274 earthquakes for last 1 day(s)
+Batch inserted 274 earthquakes
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
 Connection ping failed: bytearray index out of range, reconnecting...
 Database connection established
-Done calculating global M4+ dt for 1 records
-Calculating local M4+ dt (1000km) for 1 new records...
-Done calculating local M4+ dt for 1 records
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-20 18:49:20.137696] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 12.1}
-[EMSC] Fetched 281 earthquakes for last 1 day(s)
-Batch inserted 281 earthquakes
-Executed ins_quakes()
-Dedup: removed 14 duplicate reports
-[2026-02-20 18:51:03.061802] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 10.4}
-[EMSC] Fetched 280 earthquakes for last 1 day(s)
-Batch inserted 280 earthquakes
-Executed ins_quakes()
-Dedup: removed 13 duplicate reports
-[2026-02-20 18:53:02.921582] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 8.4}
-[EMSC] Fetched 280 earthquakes for last 1 day(s)
-Batch inserted 280 earthquakes
-Executed ins_quakes()
-Dedup: removed 13 duplicate reports
-[2026-02-20 18:55:02.440816] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 6.4}
-[2026-02-20 18:56:55.600021] New checkpoint detected: eqModel_complex_20260220_185520.pth
-[2026-02-20 18:56:59.050243] Reloaded weights: eqModel_complex_20260220_185520.pth
-[EMSC] Fetched 283 earthquakes for last 1 day(s)
-Batch inserted 283 earthquakes
-Executed ins_quakes()
-Dedup: removed 13 duplicate reports
-Calculating global M4+ dt for 3 new records...
-Error batch calc_dt: bytearray index out of range
-Connection ping failed: bytearray index out of range, reconnecting...
-Traceback (most recent call last):
-  File "/var/www/syshuman/quake/DataClass.py", line 1117, in usgs2DB
-    self.mydb.commit()
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1456, in commit
-    self._execute_query("COMMIT")
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 1475, in _execute_query
-    self.cmd_query(query)
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/opentelemetry/context_propagation.py", line 97, in wrapper
-    return method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 984, in cmd_query
-    result = self._handle_result(
-             ^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 89, in handle_cnx_method
-    raise err
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/_decorating.py", line 85, in handle_cnx_method
-    return cnx_method(cnx, *args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/var/www/syshuman/quake/venv/lib/python3.12/site-packages/mysql/connector/connection.py", line 737, in _handle_result
-    if packet[4] == OK_STATUS:
-       ~~~~~~^^^
-IndexError: bytearray index out of range
-Database connection established
-Calculating local M4+ dt (1000km) for 3 new records...
-Done calculating local M4+ dt for 3 records
-Computing moon features for 3 new records...
-Done computing moon features for 3 records
-[2026-02-20 18:57:17.181194] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 4.1}
-[EMSC] Fetched 284 earthquakes for last 1 day(s)
-Batch inserted 284 earthquakes
-Executed ins_quakes()
-Dedup: removed 13 duplicate reports
-Calculating global M4+ dt for 1 new records...
+[2026-02-26 00:06:59.359635] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 102.9, 'n_predictions': 5}
+[2026-02-26 00:06:59 +0000] [1365088] [WARNING] Invalid request from ip=194.195.215.176: Invalid HTTP request line: ''
+[2026-02-26 00:06:59 +0000] [1365088] [WARNING] Invalid request from ip=194.195.215.176: Invalid HTTP request line: 'HELP'
+[EMSC] Fetched 275 earthquakes for last 1 day(s)
+Batch inserted 275 earthquakes
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
 Connection ping failed: bytearray index out of range, reconnecting...
 Database connection established
-Done calculating global M4+ dt for 1 records
-Calculating local M4+ dt (1000km) for 1 new records...
-Done calculating local M4+ dt for 1 records
-Computing moon features for 1 new records...
-Done computing moon features for 1 records
-[2026-02-20 18:59:13.916805] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 2.2}
-[EMSC] Fetched 283 earthquakes for last 1 day(s)
-Batch inserted 283 earthquakes
-Executed ins_quakes()
-Dedup: removed 13 duplicate reports
-[2026-02-20 19:01:02.952530] Status: pending - {'action': 'pending', 'prediction_id': 2, 'remaining_minutes': 0.4}
-[2026-02-20 19:01:34.419033] Prediction #2 window expired (dt=30min), marking MISSED...
-[2026-02-20 19:01:34.419033] Creating new prediction...
-[2026-02-20 19:01:42.442945] Prediction: lat=0.69, lon=1.02, dt=30min, mag=4.5 (id=3)
-[2026-02-20 19:01:42.445878] No subscribers within range for prediction #3 (lat=0.6881781816482544, lon=1.0155670642852783)
-[EMSC] Fetched 283 earthquakes for last 1 day(s)
-Batch inserted 283 earthquakes
-Executed ins_quakes()
-Dedup: removed 13 duplicate reports
-[2026-02-20 19:03:02.526987] Status: pending - {'action': 'pending', 'prediction_id': 3, 'remaining_minutes': 28.7}
+[2026-02-26 00:08:55.236339] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 101.0, 'n_predictions': 5}
+[EMSC] Fetched 274 earthquakes for last 1 day(s)
+Batch inserted 274 earthquakes
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+Connection ping failed: bytearray index out of range, reconnecting...
+Database connection established
+Connection ping failed: bytearray index out of range, reconnecting...
+Database connection established
+[2026-02-26 00:10:55.634128] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 99.0, 'n_predictions': 5}
+[EMSC] Fetched 274 earthquakes for last 1 day(s)
+Batch inserted 274 earthquakes
+Connection ping failed: bytearray index out of range, reconnecting...
+Database connection established
+Error ins_quakes: 1205 (HY000): Lock wait timeout exceeded; try restarting transaction
+Connection ping failed: bytearray index out of range, reconnecting...
+Database connection established
+Connection ping failed: bytearray index out of range, reconnecting...
+Error dedup: bytearray index out of range
+Database connection established
+[2026-02-26 00:12:55.518697] Status: pending - {'action': 'pending', 'group_id': 1, 'remaining_minutes': 97.0, 'n_predictions': 5}
