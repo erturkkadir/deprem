@@ -337,6 +337,8 @@ class DataC():
             "UPDATE predictions SET pr_rank = 1 WHERE pr_rank IS NULL",
             # MDN mixture weight (confidence score)
             "ALTER TABLE predictions ADD COLUMN pr_pi FLOAT DEFAULT NULL",
+            # MDN spatial uncertainty radius in km
+            "ALTER TABLE predictions ADD COLUMN pr_sigma_km FLOAT DEFAULT NULL",
         ]
         for sql in migrations:
             try:
@@ -531,7 +533,7 @@ class DataC():
             print(f"Error getting alerts by email: {e}")
             return []
 
-    def save_prediction(self, lat_predicted, lon_predicted=None, dt_predicted=None, mag_predicted=None, place=None, group_id=None, rank=1, pi=None):
+    def save_prediction(self, lat_predicted, lon_predicted=None, dt_predicted=None, mag_predicted=None, place=None, group_id=None, rank=1, pi=None, sigma_km=None):
         """Save a new prediction to database
 
         Args:
@@ -543,14 +545,15 @@ class DataC():
             group_id: Group ID linking related predictions from same cycle (rank-1 pr_id)
             rank: Prediction rank within group (1=highest confidence)
             pi: MDN mixture weight (confidence score, 0.0-1.0)
+            sigma_km: MDN spatial uncertainty radius in km
         """
         sql = """
-        INSERT INTO predictions (pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted, pr_place, pr_group_id, pr_rank, pr_pi)
-        VALUES (NOW(), %s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO predictions (pr_timestamp, pr_lat_predicted, pr_lon_predicted, pr_dt_predicted, pr_mag_predicted, pr_place, pr_group_id, pr_rank, pr_pi, pr_sigma_km)
+        VALUES (NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         try:
             with self._lock:
-                self._safe_execute(sql, (lat_predicted, lon_predicted, dt_predicted, mag_predicted, place, group_id, rank, pi))
+                self._safe_execute(sql, (lat_predicted, lon_predicted, dt_predicted, mag_predicted, place, group_id, rank, pi, sigma_km))
                 self.mydb.commit()
                 return self.mycursor.lastrowid
         except Exception as e:
@@ -807,7 +810,8 @@ class DataC():
             pr_diff_mag,
             pr_verified,
             pr_correct,
-            COALESCE(pr_group_id, pr_id) as group_id
+            COALESCE(pr_group_id, pr_id) as group_id,
+            pr_sigma_km
         FROM predictions
         WHERE pr_mag_predicted >= %s AND (pr_rank = 1 OR pr_rank IS NULL)
         ORDER BY pr_timestamp DESC
@@ -836,6 +840,7 @@ class DataC():
                     'verified': bool(row[15]),
                     'correct': bool(row[16]) if row[16] is not None else None,
                     'group_id': row[17],
+                    'sigma_km': float(row[18]) if row[18] is not None else None,
                 }
             return None
         except Exception as e:
@@ -955,17 +960,14 @@ class DataC():
             return False
 
     def get_prediction_stats(self, min_mag=4.0):
-        """Get prediction success statistics for predictions with magnitude >= min_mag.
-        Counts prediction GROUPS (cycles) not individual predictions.
-        A group is correct if any of its members matched an earthquake.
-        """
+        """Get prediction success statistics for rank-1 predictions with magnitude >= min_mag."""
         sql = """
         SELECT
-            COUNT(DISTINCT COALESCE(pr_group_id, pr_id)) as total_groups,
-            COUNT(DISTINCT CASE WHEN pr_verified = TRUE THEN COALESCE(pr_group_id, pr_id) END) as verified_groups,
-            COUNT(DISTINCT CASE WHEN pr_correct = TRUE THEN COALESCE(pr_group_id, pr_id) END) as correct_groups
+            COUNT(*) as total,
+            SUM(CASE WHEN pr_verified = 1 THEN 1 ELSE 0 END) as verified,
+            SUM(CASE WHEN pr_correct = 1 THEN 1 ELSE 0 END) as correct
         FROM predictions
-        WHERE pr_mag_predicted >= %s
+        WHERE pr_mag_predicted >= %s AND (pr_rank = 1 OR pr_rank IS NULL)
         """
         try:
             # min_mag stored as encoded (mag * 10), so multiply threshold

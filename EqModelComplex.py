@@ -1802,41 +1802,39 @@ class EqModelComplex(nn.Module):
             nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def _haversine_loss_mdn(self, spatial_params, lat_target, lon_target):
-        """Haversine auxiliary loss from MDN expected position.
+        """Haversine auxiliary loss: min-k per-component distance.
 
-        Computes mixture-weighted expected (lat, lon), then great-circle
-        distance to the true position.  Uses circular mean for longitude
-        (handles date-line wrapping for Fiji/Tonga/Aleutians).
+        Computes haversine distance from each of the K Gaussian components
+        to the target, then takes the minimum across components.  This pulls
+        the *closest* component toward the target rather than pushing the
+        mixture mean — avoiding the mid-ocean bias when the MDN is multimodal.
 
         Returns scalar loss in log-degrees (0 at perfect, ~5.2 at max).
         """
         deg2rad = math.pi / 180.0
 
-        pi = spatial_params['pi']            # [N, K]
         mu_lat = spatial_params['mu_lat']    # [N, K]
         mu_lon = spatial_params['mu_lon']    # [N, K]
 
-        # Expected latitude: linear weighted mean
-        pred_lat = (pi * mu_lat).sum(dim=-1)  # [N]
+        # Expand targets for broadcasting over K components
+        lat2 = lat_target.unsqueeze(-1) * deg2rad   # [N, 1]
+        lon2 = lon_target.unsqueeze(-1) * deg2rad   # [N, 1]
 
-        # Expected longitude: circular mean (date-line safe)
-        mu_lon_rad = mu_lon * deg2rad
-        sin_mean = (pi * torch.sin(mu_lon_rad)).sum(dim=-1)
-        cos_mean = (pi * torch.cos(mu_lon_rad)).sum(dim=-1)
-        pred_lon = torch.atan2(sin_mean, cos_mean) / deg2rad  # [N]
+        lat1 = mu_lat * deg2rad   # [N, K]
+        lon1 = mu_lon * deg2rad   # [N, K]
 
-        # Haversine formula
-        lat1 = pred_lat * deg2rad
-        lat2 = lat_target * deg2rad
-        dlat = lat2 - lat1
-        dlon = (pred_lon - lon_target) * deg2rad
+        dlat = lat2 - lat1        # [N, K]
+        dlon = lon2 - lon1        # [N, K]
 
         a = torch.sin(dlat / 2) ** 2 + torch.cos(lat1) * torch.cos(lat2) * torch.sin(dlon / 2) ** 2
-        a = torch.clamp(a, 0.0, 1.0 - 1e-7)   # keep sqrt inside asin domain [0,1]
+        a = torch.clamp(a, 0.0, 1.0 - 1e-7)
         dist_rad = 2 * torch.asin(torch.sqrt(a))
-        dist_deg = dist_rad / deg2rad
+        dist_deg = dist_rad / deg2rad   # [N, K]
 
-        return torch.log1p(dist_deg).mean()
+        # Best component per sample: gradient flows only through closest component
+        min_dist, _ = dist_deg.min(dim=-1)   # [N]
+
+        return torch.log1p(min_dist).mean()
 
     def forward(self, idx, targets=None, label_smoothing=0.0, target_mask=None):
         """
@@ -1886,12 +1884,22 @@ class EqModelComplex(nn.Module):
         K_mg = self.mag_head.K
 
         if target_mask is not None:
+            B_sz, T_sz = target_mask.shape
             mask_flat = target_mask.reshape(-1)  # [B*T]
             sp = {k: v.reshape(-1, K_sp)[mask_flat] for k, v in spatial_params.items()}
             mp = {k: v.reshape(-1, K_mg)[mask_flat] for k, v in mag_params.items()}
             lat_tgt = targets['lat'].reshape(-1)[mask_flat]
             lon_tgt = targets['lon'].reshape(-1)[mask_flat]
             mag_tgt = targets['mag'].reshape(-1)[mask_flat]
+
+            # Omori temporal decay: positions near the end of sequence (most recent)
+            # receive higher weight — recency bias matching aftershock decay law 1/t
+            # pos=0 (oldest) → weight~0.05; pos=T-1 (newest) → weight=1.0
+            pos_norm = torch.arange(T_sz, device=target_mask.device).float() / max(T_sz - 1, 1)
+            omori_w = torch.exp(3.0 * (pos_norm - 1.0))           # [T] in (0.05, 1.0]
+            omori_w = omori_w.unsqueeze(0).expand(B_sz, T_sz)     # [B, T]
+            omori_w_flat = omori_w.reshape(-1)[mask_flat]          # [N_targets]
+            omori_w_flat = omori_w_flat / omori_w_flat.mean()      # keep scale stable
         else:
             sp = {k: v[:, -1, :] for k, v in spatial_params.items()}
             mp = {k: v[:, -1, :] for k, v in mag_params.items()}
@@ -1914,8 +1922,15 @@ class EqModelComplex(nn.Module):
             mag_w = torch.clamp(mag_w, min=1.0)
             mag_w = mag_w / mag_w.mean()
 
-            spatial_loss = (spatial_nll_ps * mag_w).mean()
-            mag_loss = (mag_nll_ps * mag_w).mean()
+            # Combine magnitude + Omori temporal decay weights (if multi-position)
+            if target_mask is not None:
+                combined_w = mag_w * omori_w_flat
+                combined_w = combined_w / combined_w.mean()
+            else:
+                combined_w = mag_w
+
+            spatial_loss = (spatial_nll_ps * combined_w).mean()
+            mag_loss = (mag_nll_ps * combined_w).mean()
 
             # Auxiliary losses
             hav_loss = self._haversine_loss_mdn(sp, lat_actual, lon_actual)
@@ -1995,12 +2010,17 @@ class EqModelComplex(nn.Module):
                 lon_v = float(spatial_params['mu_lon'][0, sp_k].item())
                 lat_v = max(-90.0, min(90.0, lat_v))
                 lon_v = ((lon_v + 180) % 360) - 180
+                # Uncertainty radius: RMS of per-axis std devs converted to km
+                s_lat = float(spatial_params['sigma_lat'][0, sp_k].item())
+                s_lon = float(spatial_params['sigma_lon'][0, sp_k].item())
+                sigma_km = 111.0 * math.sqrt((s_lat ** 2 + s_lon ** 2) / 2.0)
                 results.append({
                     'lat': lat_v,
                     'lon': lon_v,
                     'mag': mag_val,
                     'rank': rank,
                     'pi': float(pi[sp_k].item()),
+                    'sigma_km': round(sigma_km, 1),
                 })
             return results
         else:
