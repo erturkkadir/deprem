@@ -4,16 +4,113 @@ import { fetchLiveData } from '../store/earthquakeSlice';
 
 const MATCH_RADIUS_KM = 500;
 
+// ── Circular countdown clock ────────────────────────────────────────────────
+function CountdownClock({ totalSecs, remainingSecs, isExpired }) {
+  const cx = 50, cy = 50;
+  const trackR = 30;
+  const circ = 2 * Math.PI * trackR;
+
+  const progress = isExpired
+    ? 1
+    : Math.max(0, Math.min(1, 1 - remainingSecs / totalSecs));
+  const dashOffset = circ * (1 - progress);
+
+  const color = isExpired || remainingSecs < 300
+    ? '#ef4444'
+    : remainingSecs < 900 ? '#eab308' : '#22c55e';
+
+  const abs = Math.abs(remainingSecs || 0);
+  const h = Math.floor(abs / 3600);
+  const m = Math.floor((abs % 3600) / 60);
+  const s = abs % 60;
+  const timeStr = h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+  // 12 major tick marks
+  const majorTicks = Array.from({ length: 12 }, (_, i) => {
+    const a = (i / 12) * 2 * Math.PI - Math.PI / 2;
+    return {
+      x1: cx + 36 * Math.cos(a), y1: cy + 36 * Math.sin(a),
+      x2: cx + 44 * Math.cos(a), y2: cy + 44 * Math.sin(a),
+    };
+  });
+
+  // 60 minor tick marks (skip every 5th — already covered by major)
+  const minorTicks = Array.from({ length: 60 }, (_, i) => {
+    if (i % 5 === 0) return null;
+    const a = (i / 60) * 2 * Math.PI - Math.PI / 2;
+    return {
+      x1: cx + 40 * Math.cos(a), y1: cy + 40 * Math.sin(a),
+      x2: cx + 44 * Math.cos(a), y2: cy + 44 * Math.sin(a),
+    };
+  }).filter(Boolean);
+
+  return (
+    <div className="relative flex-shrink-0" style={{ width: 96, height: 96 }}>
+      <svg viewBox="0 0 100 100" style={{ width: 96, height: 96, transform: 'rotate(-90deg)' }}>
+        {/* Outer bezel circle */}
+        <circle cx={cx} cy={cy} r={44} fill="#18181b" stroke="#3f3f46" strokeWidth="1" />
+
+        {/* Minor ticks */}
+        {minorTicks.map((t, i) => (
+          <line key={i} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2}
+            stroke="#3f3f46" strokeWidth="1" strokeLinecap="round" />
+        ))}
+
+        {/* Major ticks */}
+        {majorTicks.map((t, i) => (
+          <line key={i} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2}
+            stroke="#71717a" strokeWidth="2" strokeLinecap="round" />
+        ))}
+
+        {/* Track ring */}
+        <circle cx={cx} cy={cy} r={trackR} fill="none" stroke="#27272a" strokeWidth="8" />
+
+        {/* Progress arc */}
+        <circle
+          cx={cx} cy={cy} r={trackR}
+          fill="none"
+          stroke={color}
+          strokeWidth="8"
+          strokeDasharray={circ}
+          strokeDashoffset={dashOffset}
+          strokeLinecap="round"
+          style={{ transition: 'stroke-dashoffset 0.9s linear, stroke 0.5s ease' }}
+        />
+
+        {/* Glowing center dot */}
+        <circle cx={cx} cy={cy} r={3} fill={color} opacity="0.8" />
+      </svg>
+
+      {/* Center text — unrotated overlay */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+        <span className="font-mono font-bold leading-none" style={{ fontSize: 11, color }}>
+          {timeStr}
+        </span>
+        <span className="text-zinc-600 leading-none mt-1" style={{ fontSize: 8 }}>
+          {isExpired ? 'expired' : 'left'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ──────────────────────────────────────────────────────────
 function LiveDashboard() {
   const dispatch = useDispatch();
   const { liveData } = useSelector((state) => state.earthquake);
   const [minMagFilter, setMinMagFilter] = useState(2);
   const [isFlashing, setIsFlashing] = useState(false);
-  const [, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
   const lastMatchState = useRef(false);
   const lastPredId = useRef(null);
 
-  // Tick every second for countdown
+  // Smooth countdown: track last server value + when we got it
+  const serverRemRef = useRef(null);
+  const serverRemAtRef = useRef(null);
+
+  // Tick every second for smooth clock
   useEffect(() => {
     const t = setInterval(() => setTick(n => n + 1), 1000);
     return () => clearInterval(t);
@@ -24,9 +121,24 @@ function LiveDashboard() {
     recent_earthquakes,
     stats,
     match_info,
-    closest_match,
     prediction_status,
   } = liveData || {};
+
+  // Update smooth countdown reference when server sends new value
+  const serverRemaining = prediction_status?.time_remaining_seconds;
+  useEffect(() => {
+    if (serverRemaining != null) {
+      serverRemRef.current = serverRemaining;
+      serverRemAtRef.current = Date.now();
+    }
+  }, [serverRemaining]);
+
+  // Compute locally-interpolated remaining (re-runs each tick)
+  const smoothRemaining = (() => {
+    if (serverRemRef.current == null) return serverRemaining ?? 0;
+    const elapsed = (Date.now() - serverRemAtRef.current) / 1000;
+    return Math.round(serverRemRef.current - elapsed);
+  })();
 
   // Flash on new match
   useEffect(() => {
@@ -44,29 +156,11 @@ function LiveDashboard() {
   }, [pred?.id, match_info]);
 
   // ── helpers ────────────────────────────────────────────────────
-  const fmtTime = (iso) => {
-    if (!iso) return '—';
-    return new Date(iso).toLocaleString('en-US', {
-      month: 'short', day: 'numeric',
-      hour: '2-digit', minute: '2-digit', second: '2-digit'
-    });
-  };
-
   const fmtTimeShort = (iso) => {
     if (!iso) return '—';
     return new Date(iso).toLocaleTimeString('en-US', {
       hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
-  };
-
-  const fmtCountdown = (secs) => {
-    if (secs == null) return '—';
-    const abs = Math.abs(secs);
-    const h = Math.floor(abs / 3600);
-    const m = Math.floor((abs % 3600) / 60);
-    const s = abs % 60;
-    const str = h > 0 ? `${h}h ${m}m ${s}s` : m > 0 ? `${m}m ${s}s` : `${s}s`;
-    return secs < 0 ? `Expired ${str} ago` : str;
   };
 
   const fmtAgo = (iso) => {
@@ -85,33 +179,32 @@ function LiveDashboard() {
     return 'text-yellow-400';
   };
 
-  const getMagBg = (mag, isMatch) => {
+  const getMagBg = (mag, inWindow, isMatch) => {
     if (isMatch) return 'bg-green-500/20 border border-green-500/40';
+    if (inWindow && mag >= 4) return 'bg-orange-900/20 border border-orange-500/30';
+    if (inWindow) return 'bg-zinc-800/60 border border-zinc-600/50';
     if (mag >= 7) return 'bg-purple-900/30 border border-purple-500/20';
     if (mag >= 6) return 'bg-red-900/30 border border-red-500/20';
-    if (mag >= 5) return 'bg-orange-900/20 border border-orange-500/20';
-    if (mag >= 4) return 'bg-yellow-900/10 border border-yellow-500/10';
-    return 'bg-zinc-800/30 border border-transparent';
+    if (mag >= 5) return 'bg-orange-900/10 border border-orange-500/10';
+    return 'bg-zinc-800/20 border border-zinc-800';
   };
-
-  // Countdown state
-  const remaining = prediction_status?.time_remaining_seconds;
-  const isExpired = prediction_status?.is_expired;
-  const countdownColor = isExpired ? 'text-red-400' :
-    (remaining < 300 ? 'text-red-400' : remaining < 900 ? 'text-yellow-400' : 'text-green-400');
 
   // Status
   const isMatch = match_info?.is_match || match_info?.verified_match;
   const isVerified = pred?.verified;
   const isCorrect = pred?.correct;
+  const isExpired = prediction_status?.is_expired || smoothRemaining < 0;
 
-  const statusLabel = isMatch || (isVerified && isCorrect) ? '✓ MATCHED' :
-    isVerified ? 'Missed' : 'Pending';
+  const statusLabel = isMatch || (isVerified && isCorrect) ? '✓ MATCHED'
+    : isVerified ? 'Missed' : 'Active';
   const statusClass = isMatch || (isVerified && isCorrect)
     ? 'bg-green-500 text-white animate-pulse'
     : isVerified
       ? 'bg-red-500/20 text-red-400'
-      : 'bg-yellow-500/20 text-yellow-400';
+      : 'bg-orange-500/20 text-orange-400';
+
+  // Clock params
+  const totalSecs = (pred?.predicted_dt || 120) * 60;
 
   // Stats
   const counts = useMemo(() => {
@@ -122,16 +215,24 @@ function LiveDashboard() {
     return { total, matched, pending: total - verified, missed: verified - matched, rate: parseFloat(stats.success_rate) || 0 };
   }, [stats]);
 
-  // Earthquakes in window
-  const quakesInWindow = useMemo(() => {
-    if (!recent_earthquakes || !prediction_status) return [];
-    const s = new Date(prediction_status.start_time);
-    const e = new Date(prediction_status.end_time);
+  // Window boundaries for badge marking
+  const windowStart = prediction_status?.start_time ? new Date(prediction_status.start_time) : null;
+  const windowEnd   = prediction_status?.end_time   ? new Date(prediction_status.end_time)   : null;
+
+  // All recent earthquakes filtered by mag — mark in-window ones
+  const recentQuakes = useMemo(() => {
+    if (!recent_earthquakes) return [];
     return recent_earthquakes
-      .filter(q => q.mag >= minMagFilter && new Date(q.time) >= s && new Date(q.time) <= e)
-      .map(q => ({ ...q, isMatch: q.is_match ?? false }))
+      .filter(q => q.mag >= minMagFilter)
+      .map(q => {
+        const t = new Date(q.time);
+        const inWindow = windowStart && windowEnd && t >= windowStart && t <= windowEnd;
+        return { ...q, inWindow, isMatch: q.is_match ?? false };
+      })
       .sort((a, b) => new Date(b.time) - new Date(a.time));
-  }, [recent_earthquakes, minMagFilter, prediction_status]);
+  }, [recent_earthquakes, minMagFilter, windowStart, windowEnd]);
+
+  const inWindowCount = recentQuakes.filter(q => q.inWindow).length;
 
   const mapUrl = (lat, lon) =>
     `/map.html?plat=${lat}&plon=${lon}&pmag=${pred?.predicted_mag || ''}&pdt=${pred?.predicted_dt || ''}&pplace=${encodeURIComponent(pred?.predicted_place || '')}&time=${encodeURIComponent(pred?.prediction_time || '')}&wend=${encodeURIComponent(pred?.window_end || '')}&id=${pred?.id || ''}&verified=${isVerified ? 'true' : 'false'}&correct=${isCorrect ? 'true' : 'false'}`;
@@ -154,7 +255,7 @@ function LiveDashboard() {
 
         <div className="grid lg:grid-cols-3 gap-3">
 
-          {/* ── LEFT: Prediction + Candidates + Stats ── */}
+          {/* ── LEFT: Prediction + Stats ── */}
           <div className="lg:col-span-2 space-y-3">
 
             {pred ? (
@@ -162,34 +263,51 @@ function LiveDashboard() {
                 {/* ── PREDICTION CARD ── */}
                 <div className={`card !p-0 overflow-hidden transition-all duration-500 ${isMatch || (isVerified && isCorrect) ? 'ring-2 ring-green-500/40' : ''} ${isFlashing ? 'animate-flash-match' : ''}`}>
 
-                  {/* Top bar: status + location + map btn */}
-                  <div className={`px-4 py-3 flex items-start justify-between gap-3 ${isMatch || (isVerified && isCorrect) ? 'bg-green-600/15' : 'bg-orange-600/10'}`}>
+                  {/* Top bar: status + location + clock + map */}
+                  <div className={`px-4 py-3 flex items-center gap-4 ${isMatch || (isVerified && isCorrect) ? 'bg-green-600/15' : 'bg-orange-600/10'}`}>
+
+                    {/* Left: status + place */}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${statusClass}`}>
                           {statusLabel}
                         </span>
                         <span className="text-zinc-500 text-xs">#{pred.id}</span>
-                        {!isVerified && (
-                          <span className={`font-mono text-sm font-bold ${countdownColor}`}>
-                            {isExpired ? fmtCountdown(remaining) : fmtCountdown(remaining)}
-                          </span>
-                        )}
                       </div>
                       <p className="text-white font-semibold text-sm truncate">
                         {pred.predicted_place || `${pred.predicted_lat?.toFixed(1)}°, ${pred.predicted_lon?.toFixed(1)}°`}
                       </p>
+                      <p className="text-zinc-500 text-[10px] mt-0.5 font-mono">
+                        {windowStart ? `${fmtTimeShort(prediction_status.start_time)} → ${fmtTimeShort(prediction_status.end_time)}` : ''}
+                      </p>
                     </div>
-                    <a
-                      href={mapUrl(pred.predicted_lat, pred.predicted_lon)}
-                      target="_blank" rel="noopener noreferrer"
-                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors text-xs font-medium"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                      </svg>
-                      Map
-                    </a>
+
+                    {/* Right: clock + map button */}
+                    <div className="flex-shrink-0 flex flex-col items-center gap-1.5">
+                      {!isVerified ? (
+                        <CountdownClock
+                          totalSecs={totalSecs}
+                          remainingSecs={smoothRemaining}
+                          isExpired={isExpired}
+                        />
+                      ) : (
+                        <div className={`w-24 h-24 rounded-full flex items-center justify-center border-2 ${isCorrect ? 'border-green-500 bg-green-500/10' : 'border-red-500 bg-red-500/10'}`}>
+                          <span className={`text-2xl font-bold ${isCorrect ? 'text-green-400' : 'text-red-400'}`}>
+                            {isCorrect ? '✓' : '✗'}
+                          </span>
+                        </div>
+                      )}
+                      <a
+                        href={mapUrl(pred.predicted_lat, pred.predicted_lon)}
+                        target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-2.5 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded-md transition-colors text-[11px] font-medium"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                        </svg>
+                        Map
+                      </a>
+                    </div>
                   </div>
 
                   {/* Details row */}
@@ -218,19 +336,9 @@ function LiveDashboard() {
                     </div>
                   </div>
 
-                  {/* Time window */}
-                  <div className="px-4 py-2 flex items-center gap-3 text-[11px] flex-wrap">
-                    <span className="text-zinc-500">Window:</span>
-                    <span className="text-green-400 font-mono">{fmtTimeShort(prediction_status?.start_time)}</span>
-                    <span className="text-zinc-600">→</span>
-                    <span className="text-red-400 font-mono">{fmtTimeShort(prediction_status?.end_time)}</span>
-                    <span className="text-zinc-600 text-[10px]">·</span>
-                    <span className="text-zinc-400 font-mono">Now: {fmtTimeShort(prediction_status?.current_time)}</span>
-                  </div>
-
-                  {/* Matched earthquake info (when correct) */}
+                  {/* Matched earthquake banner */}
                   {(isMatch || (isVerified && isCorrect)) && (
-                    <div className="px-4 pb-3">
+                    <div className="px-4 pb-3 pt-2">
                       <div className="bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2 flex items-center gap-2">
                         <svg className="w-4 h-4 text-green-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -276,14 +384,14 @@ function LiveDashboard() {
             )}
           </div>
 
-          {/* ── RIGHT: Quakes in Window ── */}
+          {/* ── RIGHT: Recent Earthquakes ── */}
           <div className="card !p-3">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
                 <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                Quakes in Window
+                Recent Earthquakes
               </h3>
               <select
                 value={minMagFilter}
@@ -298,50 +406,57 @@ function LiveDashboard() {
               </select>
             </div>
 
-            {prediction_status && (
-              <div className="text-[10px] text-zinc-500 mb-2 flex items-center gap-1 flex-wrap">
-                <span className="text-green-400 font-mono">{fmtTimeShort(prediction_status.start_time)}</span>
-                <span>→</span>
-                <span className="text-red-400 font-mono">{fmtTimeShort(prediction_status.end_time)}</span>
-                <span className="text-zinc-600">({quakesInWindow.length})</span>
+            {/* Window badge summary */}
+            {inWindowCount > 0 && (
+              <div className="text-[10px] text-orange-400 mb-2 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block"></span>
+                {inWindowCount} in prediction window
               </div>
             )}
 
-            <div className="space-y-1.5 max-h-[420px] overflow-y-auto custom-scrollbar pr-0.5">
-              {quakesInWindow.length > 0 ? quakesInWindow.map((eq, i) => (
-                <div key={eq.id || i} className={`p-2 rounded ${getMagBg(eq.mag, eq.isMatch)} ${eq.isMatch ? 'ring-1 ring-green-400' : ''}`}>
+            <div className="space-y-1.5 max-h-[440px] overflow-y-auto custom-scrollbar pr-0.5">
+              {recentQuakes.length > 0 ? recentQuakes.map((eq, i) => (
+                <div key={eq.id || i} className={`p-2 rounded ${getMagBg(eq.mag, eq.inWindow, eq.isMatch)} ${eq.isMatch ? 'ring-1 ring-green-400' : ''}`}>
                   <div className="flex items-center justify-between gap-1">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${eq.mag >= 6 ? 'bg-red-500 text-white' : eq.mag >= 5 ? 'bg-orange-500 text-white' : 'bg-yellow-500 text-black'}`}>
+                      <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${eq.mag >= 6 ? 'bg-red-500 text-white' : eq.mag >= 5 ? 'bg-orange-500 text-white' : 'bg-yellow-500/80 text-black'}`}>
                           M{eq.mag?.toFixed(1)}
                         </span>
                         <span className="text-zinc-500 text-[10px]">{fmtAgo(eq.time)}</span>
-                        {eq.isMatch && <span className="px-1 py-0.5 bg-green-500 text-white text-[9px] rounded-full font-bold">✓</span>}
+                        {eq.isMatch && (
+                          <span className="px-1 py-0.5 bg-green-500 text-white text-[9px] rounded-full font-bold">✓ match</span>
+                        )}
+                        {eq.inWindow && !eq.isMatch && (
+                          <span className="px-1 py-0.5 bg-orange-500/20 text-orange-300 border border-orange-500/30 text-[9px] rounded-full">window</span>
+                        )}
                       </div>
                       <p className="text-white text-xs truncate">{eq.place || 'Unknown'}</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-zinc-500 text-[10px] font-mono">{eq.lat?.toFixed(1)}°, {eq.lon?.toFixed(1)}°</span>
-                        <a href={`/map.html?plat=${eq.lat}&plon=${eq.lon}&pmag=${eq.mag || ''}&pplace=${encodeURIComponent(eq.place || '')}`}
+                        <a
+                          href={`/map.html?plat=${eq.lat}&plon=${eq.lon}&pmag=${eq.mag || ''}&pplace=${encodeURIComponent(eq.place || '')}`}
                           target="_blank" rel="noopener noreferrer"
-                          className="text-blue-400 hover:text-blue-300 text-[10px]" onClick={e => e.stopPropagation()}>
+                          className="text-blue-400 hover:text-blue-300 text-[10px]"
+                          onClick={e => e.stopPropagation()}
+                        >
                           map
                         </a>
                       </div>
                     </div>
                     {eq.distance != null && (
-                      <div className={`text-xs font-mono flex-shrink-0 ${eq.isMatch ? 'text-green-400' : eq.distance < MATCH_RADIUS_KM ? 'text-yellow-400' : 'text-zinc-500'}`}>
+                      <div className={`text-xs font-mono flex-shrink-0 ${eq.isMatch ? 'text-green-400' : eq.distance < MATCH_RADIUS_KM ? 'text-yellow-400' : 'text-zinc-600'}`}>
                         {eq.distance.toFixed(0)}km
                       </div>
                     )}
                   </div>
                 </div>
               )) : (
-                <div className="text-center py-6 text-zinc-600">
-                  <svg className="w-8 h-8 mx-auto mb-2 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                <div className="text-center py-8 text-zinc-600">
+                  <svg className="w-8 h-8 mx-auto mb-2 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
-                  <p className="text-xs">No quakes yet</p>
+                  <p className="text-xs">No recent earthquakes</p>
                 </div>
               )}
             </div>

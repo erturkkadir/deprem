@@ -66,12 +66,12 @@ const sections = [
     ),
     content: [
       {
-        heading: 'Complex-valued transformer (272M parameters)',
-        text: 'The architecture is a 6-layer transformer with 8 attention heads, operating entirely in complex number space. Each layer has complex multi-head attention (with QK-Norm and learned per-dimension scaling) and complex gated feed-forward networks, both wrapped in pre+post normalization. The model processes sequences of 512 earthquakes to predict the next significant event.',
+        heading: 'Complex-valued transformer (357M parameters)',
+        text: 'The architecture is an 8-layer transformer with 8 attention heads, operating entirely in complex number space. Each layer has complex multi-head attention (with QK-Norm and learned per-dimension scaling) and complex gated feed-forward networks, both wrapped in pre+post normalization. The model processes sequences of 512 earthquakes and predicts the next significant event through Mixture Density Network output heads.',
       },
       {
         heading: 'How input becomes prediction',
-        text: 'Each earthquake\'s 12 features are independently embedded into complex vectors (total embedding dimension: 1176), then concatenated. The sequence passes through transformer layers where earthquakes "attend" to each other — learning which past events are relevant for predicting the future. The final layer outputs probability distributions over latitude (181 classes), longitude (361 classes), and magnitude (92 classes).',
+        text: 'Each earthquake\'s 12 features are independently embedded into complex vectors (total embedding dimension: 1176), then concatenated. The sequence passes through 8 transformer layers. The final output goes through two Mixture Density Network heads: SpatialMDNHead (K=20 bivariate Gaussians for joint latitude/longitude) and MagnitudeMDNHead (K=8 univariate Gaussians). At inference, the highest-weight component is used as the prediction, along with a sigma_km uncertainty radius.',
       },
       {
         heading: 'Spatial attention bias',
@@ -101,24 +101,24 @@ const sections = [
         text: 'The model sees ALL earthquakes M2.0+ as input context (including small ones that form background seismicity patterns), but only predicts M4.0+ events as targets. This gives rich context — small foreshock patterns often precede significant events — while focusing learning on earthquakes that matter.',
       },
       {
-        heading: 'Multi-position training',
-        text: 'Traditional sequence models predict only at the end. Our model computes loss at every M4+ position within the sequence simultaneously (~400 target positions per batch). This dramatically increases training signal density — each batch provides hundreds of prediction targets instead of one.',
+        heading: 'Multi-position training with Omori decay',
+        text: 'The model computes loss at every M4+ position within the sequence simultaneously (~400 target positions per batch), dramatically increasing training signal density. Critically, each position is weighted by its recency using Omori\'s aftershock decay law: the most recent event in the sequence gets weight 1.0×, while the oldest gets ~0.05×. This focuses the model on predicting near-future events rather than ancient history.',
       },
       {
-        heading: 'Gaussian label smoothing',
-        text: 'Instead of telling the model "the earthquake was at exactly latitude bin 45", we say "it was mostly at bin 45, somewhat at 44 and 46, a little at 43 and 47..." using a Gaussian distribution. This teaches the model that being spatially close is better than being far — standard classification treats all wrong answers equally.',
+        heading: 'Mixture Density Network loss (NLL)',
+        text: 'The model outputs K=20 spatial Gaussians competing to explain each target. The loss is the negative log-likelihood of the true location under the mixture — this forces multiple components to cover different seismically active regions. Magnitude uses K=8 Gaussians with a Gutenberg-Richter prior (enforcing realistic b-value ~1.0 in the magnitude-frequency relationship). An entropy regularizer keeps components diverse rather than collapsing.',
       },
       {
         heading: 'Magnitude-weighted loss',
-        text: 'Not all earthquakes are equal. An M6.0 prediction is far more valuable than M4.0. The loss function weights each target by its magnitude: M4.0→1x, M5.0→3.2x, M6.0→10x, M7.0→31.6x. This forces the model to pay disproportionate attention to significant events.',
+        text: 'Not all earthquakes are equal. An M6.0 prediction is far more valuable than M4.0. The loss function weights each target by its magnitude: M4.0→1×, M5.0→3.2×, M6.0→10×, M7.0→31.6×. Combined with the Omori temporal weight, the total weight prioritizes large and recent events.',
       },
       {
-        heading: 'Haversine auxiliary loss',
-        text: 'Beyond classification accuracy, the model is also penalized by the actual geographic distance (in degrees) between its predicted location and the true location. Longitude uses a circular mean (sin/cos decomposition) to correctly handle earthquakes near the date line. The haversine loss is weighted at 1.0× (equal to each cross-entropy head), making geographic accuracy ~25% of total training signal.',
+        heading: 'Haversine loss: min-k modal approach',
+        text: 'An auxiliary haversine loss (3.0× weight) penalizes geographic distance. Crucially, we compute the distance from each of the K=20 Gaussian components to the target separately, then take the minimum. This pulls the CLOSEST component toward the target — encouraging geographic diversity across components — rather than pushing the mixture mean, which would average across all 20 and point at the ocean when the distribution is multimodal.',
       },
       {
         heading: 'Continuous learning',
-        text: 'Training runs 24/7 on GPU, saving checkpoints every 600 steps. The prediction server runs on CPU and automatically picks up new checkpoints. The model is regularly retrained from scratch when architectural improvements are made.',
+        text: 'Training runs 24/7 on GPU (RTX 4060 Ti), saving checkpoints every 600 steps. The prediction server runs on CPU and automatically picks up new checkpoints. The model is retrained from scratch when significant architectural changes are made.',
       },
     ],
   },
@@ -133,11 +133,11 @@ const sections = [
     content: [
       {
         heading: 'How predictions are made',
-        text: 'Every 5 minutes, the server feeds the latest 512 earthquakes into the model. The model outputs probability distributions over location and magnitude. The predicted position is the weighted average of the probability distribution (expected value), and the magnitude is the most probable bin.',
+        text: 'Every 5 minutes, the server feeds the latest 512 earthquakes into the model. The MDN outputs 20 spatial Gaussian components — the highest-weight component gives the predicted (lat, lon). The prediction also includes sigma_km: the uncertainty radius computed from the Gaussian\'s standard deviations (σ_lat, σ_lon), indicating how confident the model is spatially.',
       },
       {
-        heading: '30-minute prediction window',
-        text: 'Each prediction has a 30-minute validity window. During this window, the system monitors incoming earthquakes for a match. A prediction is considered successful if an M4+ earthquake occurs within 250km of the predicted location during the window. When a prediction expires, a new one is created immediately — expired predictions continue to be monitored in the background for late matches.',
+        heading: '120-minute prediction window',
+        text: 'Each prediction has a 120-minute validity window. During this window, the system monitors incoming earthquakes for a match. A prediction is considered successful if an M4+ earthquake occurs within 500km of the predicted location during the window. When a prediction expires, a new one is created immediately.',
       },
       {
         heading: 'Transparent verification',
@@ -287,89 +287,96 @@ x = dataC.getLastFromDB(T=512)  # → [1, 512, 12]`,
     ],
   },
   {
-    title: '5. Transformer Block (×6 stacked)',
+    title: '5. Transformer Block (×8 stacked)',
     shape: 'Pre-norm → Attn → Post-norm → Add → Pre-norm → FFN → Post-norm → Add',
-    idea: '6 blocks stacked, each with 4 norms (pre+post for both attention and FFN). Early blocks learn "these events are near each other", later blocks learn "this aftershock sequence is accelerating".',
+    idea: '8 blocks stacked, each with 4 norms (pre+post for both attention and FFN). Early blocks learn "these events are near each other", later blocks learn "this aftershock cascade is accelerating toward a larger event".',
     code: `class ComplexTransformerBlock(nn.Module):
     def forward(self, x, lat=None, lon=None):
-        # 4-norm design (from TimesFM/PaLM):
-        # pre-norm → sublayer → post-norm → residual add
+        # 4-norm design (pre-norm → sublayer → post-norm → residual)
 
         # Attention: mix information across sequence
         x = x + self.post_norm1(
             self.attn(self.norm1(x), lat, lon)
         )
 
-        # Feed-forward: process each position
+        # Feed-forward: process each position independently
         x = x + self.post_norm2(
             self.ffn(self.norm2(x))
         )
 
         return x
 
-# Main model stacks 6 blocks:
-for block in self.blocks:      # 6 layers
-    x = block(x, lat=lat, lon=lon)`,
+# Main model stacks 8 blocks (357M params total):
+for block in self.blocks:      # 8 layers
+    x = block(x, lat=lat, lon=lon)
+x = self.ln_f(x)               # final norm`,
     details: [
-      'Pre-norm (ComplexLayerNorm) + Post-norm (ComplexRMSNorm) — stabilizes residual stream',
-      'Residual connections: each layer learns only the CHANGE, not the full representation',
-      'Post-norms prevent the residual stream from growing unbounded through 6 layers',
+      'Pre-norm (ComplexLayerNorm) + Post-norm (ComplexRMSNorm) — 4-norm design stabilizes residual stream',
+      'Residual connections: each layer learns only the delta, not the full representation',
+      '8 layers at n_embed=1176 fits RTX 4060 Ti (16 GB) with expandable_segments:True — 14.5 GB VRAM used',
     ],
   },
   {
-    title: '6. Output: 3 Residual Prediction Heads',
-    shape: '[B, 512, 1176] complex → lat(181) + lon(361) + mag(92)',
-    idea: 'Complex representation is split into real + imaginary (→2,352 dims). Each head uses MLP + linear skip for better gradient flow. This is the only place the model leaves complex space.',
-    code: `# Combine real and imaginary for classification
-x_combined = torch.cat([x.real, x.imag], dim=-1)  # → 2352
+    title: '6. Output: Mixture Density Network Heads',
+    shape: '[B, T, 1176] complex → SpatialMDN(K=20) + MagnitudeMDN(K=8)',
+    idea: 'Complex representation is split into real + imaginary (→2,352 dims). Two MDN heads predict full probability distributions — not just a point estimate. At inference, the highest-weight Gaussian component becomes the prediction.',
+    code: `# Leave complex space: cat real and imaginary
+x_combined = torch.cat([x.real, x.imag], dim=-1)  # [B, T, 2352]
 
-# ResidualHead: MLP(x) + Linear_skip(x)
-# Skip connection gives direct gradient path from loss
-class ResidualHead(nn.Module):
-    def forward(self, x):
-        mlp = self.output(self.silu(self.norm(self.hidden(x))))
-        skip = self.skip(x)  # linear shortcut
-        return mlp + skip
+# SpatialMDNHead: K=20 bivariate Gaussians for (lat, lon)
+spatial_params = self.spatial_head(x_combined)
+# → {'pi': [B,T,20], 'mu_lat': [B,T,20], 'mu_lon': [B,T,20],
+#    'sigma_lat': [B,T,20], 'sigma_lon': [B,T,20], 'rho': [B,T,20]}
 
-lat_logits = self.lat_head(x_combined)  # → 181 classes
-lon_logits = self.lon_head(x_combined)  # → 361 classes
-mag_logits = self.mag_head(x_combined)  # → 92 classes`,
+# MagnitudeMDNHead: K=8 univariate Gaussians
+mag_params = self.mag_head(x_combined)
+# → {'pi': [B,T,8], 'mu': [B,T,8], 'sigma': [B,T,8]}
+
+# At inference: MAP decode (highest-weight component)
+top_k = pi.argsort(descending=True)[0]  # best component
+lat = mu_lat[top_k]; lon = mu_lon[top_k]
+# Uncertainty radius in km:
+sigma_km = 111 * sqrt((sigma_lat[top_k]**2 + sigma_lon[top_k]**2) / 2)`,
     details: [
-      'ResidualHead (from TimesFM): MLP path learns non-linear features, skip path ensures gradient flow',
-      'SiLU/Swish activation in MLP path — smooth gating, no dead neurons',
-      'Softmax gives probability distribution, expected value gives predicted position',
-      'Longitude uses circular mean (sin/cos) to handle date-line wrapping correctly',
+      'K=20 spatial components: each Gaussian covers a different seismically active zone (Pacific Ring, Alpide belt, etc.)',
+      'Bivariate Gaussian: σ_lat, σ_lon, ρ (correlation) — non-axis-aligned uncertainty ellipses',
+      'sigma_km: RMS of σ_lat and σ_lon converted to km (1°≈111km) — shown as ±NNN km in UI',
+      'Gutenberg-Richter prior in MagnitudeMDN enforces realistic b≈1.0 magnitude distribution',
+      'pi (mixture weight) is returned as a confidence score per prediction',
     ],
   },
   {
-    title: '7. Training Loss (3 signals)',
-    shape: 'loss = lat + lon + mag + 1.0 × haversine',
-    idea: 'Three simultaneous training signals: Gaussian smoothing teaches proximity (circular for longitude), magnitude weighting prioritizes big quakes, haversine penalizes geographic distance with circular mean.',
-    code: `# 1. Gaussian label smoothing (close bins get credit)
-lat_loss = gaussian_smooth_loss(lat_logits, lat_target, sigma=2.0)
-# Longitude: circular wrap (bin 0 ≡ bin 360 at date line)
-lon_loss = gaussian_smooth_loss(lon_logits, lon_target,
-    sigma=2.0, circular=True)  # wraps at ±180°
+    title: '7. Training Loss (5 signals)',
+    shape: 'loss = NLL_spatial + NLL_mag + 3.0×hav + 0.1×GR + 0.5×entropy',
+    idea: 'Five simultaneous training signals: MDN NLL teaches the full distribution, min-k haversine pulls the closest component toward targets, magnitude weighting prioritizes big quakes, Omori decay weights recent events more, GR prior and entropy keep the distribution well-behaved.',
+    code: `# 1. MDN negative log-likelihood (all K components compete)
+spatial_nll = SpatialMDNHead.nll_loss(sp, lat_actual, lon_actual)
+mag_nll = MagnitudeMDNHead.nll_loss(mp, mag_actual)
 
-# 2. Magnitude weighting (M6.0 = 10× weight of M4.0)
-mag_weight = 10 ** (0.5 * (true_mag - 4.0))
+# 2. Combined weight: magnitude × Omori temporal decay
+mag_w = 10 ** (0.5 * (mag_actual - 4.0))  # M6→10×, M7→31.6×
+omori_w = exp(3.0 * (pos/(T-1) - 1.0))    # newest→1.0×, oldest→0.05×
+combined_w = (mag_w * omori_w) / (mag_w * omori_w).mean()
 
-# 3. Haversine loss with circular mean for longitude
-pred_lat = (softmax(lat_logits) * lat_bins).sum()
-# Circular mean prevents wrong-hemisphere averaging:
-sin_mean = (softmax(lon_logits) * sin(lon_bins_rad)).sum()
-cos_mean = (softmax(lon_logits) * cos(lon_bins_rad)).sum()
-pred_lon = atan2(sin_mean, cos_mean)  # correct near ±180°
-hav_loss = log1p(haversine_dist(pred, true)).mean()
+# 3. Haversine loss: min-k (closest component wins)
+# dist from each of K=20 mu_k to target [N, K]
+hav_k = haversine(mu_lat, mu_lon, lat_tgt, lon_tgt)
+hav_loss = log1p(hav_k.min(dim=-1).values).mean()  # best component
 
-loss = lat_loss + lon_loss + mag_loss + 1.0 * hav_loss`,
+# 4. Gutenberg-Richter prior (b≈1.0 regularization)
+gr_loss = MagnitudeMDNHead.gr_prior_loss(mp)
+
+# 5. Entropy regularizer (keep 20 components diverse)
+ent_loss = SpatialMDNHead.entropy_loss(sp)  # max entropy = uniform pi
+
+loss = (spatial_nll + mag_nll) * combined_w + 3.0*hav_loss + 0.1*gr_loss + 0.5*ent_loss`,
     details: [
-      'Longitude circularity: Gaussian wraps around date line — bin 359 is close to bin 1, not 358 bins away',
-      'Circular mean: prevents expected value from averaging to wrong hemisphere for earthquakes near ±180°',
-      'Haversine weight 1.0× (was 0.5×) — geographic distance now ~25% of total loss signal',
-      'Gaussian smoothing: σ=2.0 means predicting 1° off is much better than 90° off',
-      'Magnitude weighting: M4.0→1×, M5.0→3.2×, M6.0→10×, M7.0→31.6×',
-      'Validation uses clean cross-entropy only — no tricks, pure generalization signal',
+      'Min-k haversine: gradient only flows through the CLOSEST component — creates geographic diversity, avoids mid-ocean averaging',
+      'Omori decay: pos=0 (oldest) → 0.05× weight; pos=T-1 (newest) → 1.0× weight — model focuses on near-future',
+      'Magnitude weights: M4.0→1×, M5.0→3.2×, M6.0→10×, M7.0→31.6×',
+      'GR prior: penalizes non-b≈1.0 magnitude distributions — prevents collapse to single magnitude',
+      'Entropy loss: prevents all 20 components from pointing at the same location',
+      'Validation: pure NLL only (no aux losses, no weighting) — true generalization signal',
     ],
   },
 ];
@@ -580,9 +587,9 @@ export default function HowItWorks() {
                         <span>→</span>
                         <span className="text-cyan-400">FFN</span>
                         <span>→</span>
-                        <span className="text-yellow-400">×6</span>
+                        <span className="text-yellow-400">×8</span>
                         <span>→</span>
-                        <span className="text-orange-400">Output</span>
+                        <span className="text-orange-400">MDN</span>
                         <span>→</span>
                         <span className="text-red-400">Loss</span>
                       </div>
@@ -662,17 +669,17 @@ export default function HowItWorks() {
           <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-4">Technical Specifications</h2>
           <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
             {[
-              { label: 'Parameters', value: '272M' },
+              { label: 'Parameters', value: '357M' },
               { label: 'Features', value: '12' },
               { label: 'Seq Length', value: '512' },
               { label: 'Embed Dim', value: '1,176' },
               { label: 'Heads', value: '8' },
-              { label: 'Layers', value: '6' },
-              { label: 'Outputs', value: '3' },
+              { label: 'Layers', value: '8' },
+              { label: 'Spatial MDN', value: 'K=20' },
+              { label: 'Mag MDN', value: 'K=8' },
               { label: 'Data', value: '1.5M+' },
               { label: 'Input', value: 'M2.0+' },
-              { label: 'Target', value: 'M4.0+' },
-              { label: 'Window', value: '30 min' },
+              { label: 'Window', value: '120 min' },
               { label: 'Source', value: 'EMSC' },
             ].map((spec, i) => (
               <div key={i} className="bg-zinc-800/60 rounded-lg p-2.5 border border-zinc-700/50 text-center">

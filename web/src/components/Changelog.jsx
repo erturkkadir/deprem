@@ -2,6 +2,39 @@ import { useState } from 'react';
 
 const releases = [
   {
+    version: 'v1.3',
+    date: '2026-02-27',
+    title: 'MDN Output, Larger Model & Loss Improvements',
+    type: 'architecture',
+    notes: [
+      'Replaced 3 ResidualHead classification outputs with Mixture Density Network (MDN) heads: SpatialMDNHead (K=20 bivariate Gaussians for joint lat/lon) and MagnitudeMDNHead (K=8 with Gutenberg-Richter prior)',
+      'MDN outputs a full probability distribution — not just a point estimate. The highest-weight Gaussian component is used as the prediction at inference time',
+      'sigma_km: uncertainty radius computed from MDN σ_lat and σ_lon, shown in the UI as ±NNN km',
+      'Model depth increased from 6→8 layers (357M parameters, was 272M). Fits RTX 4060 Ti (16 GB) using PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True — 14.5 GB VRAM',
+      'Haversine loss improved: now uses min-k per-component approach — computes distance from each of K=20 components to target, takes the minimum. This pulls the CLOSEST component toward the target rather than averaging across all components (which pointed to mid-ocean when multimodal)',
+      'Haversine loss weight increased to 3.0× (was 1.0×)',
+      'Omori temporal decay weighting: multi-position training weights recent positions more heavily — newest position in sequence (T-1) → 1.0×, oldest (0) → 0.05×, following exp(3*(t/(T-1)-1)) matching aftershock decay 1/t',
+      'Match criteria updated: 500km radius (was 250km), 120-minute window (was 30 min)',
+      'Reverse geocode fallback: ocean points now show coordinate format (24.0°S, 177.0°W) instead of null',
+      'Simplified to single prediction per cycle (removed multi-prediction group system)',
+      'UI: SVG countdown clock animation with tick marks replacing plain text timer; right panel shows all recent earthquakes with "window" badges',
+    ],
+  },
+  {
+    version: 'v1.2',
+    date: '2026-02-22',
+    title: 'Multi-Position Training & Geographic Encoding',
+    type: 'architecture',
+    notes: [
+      'Geographic Positional Encoding (GPE): replaces standard position embeddings with Spherical Harmonics + Fourier Features on Earth surface + Tectonic Zone classification + Relative Position encoding',
+      'GPE gives the model an intrinsic understanding of spherical geometry — longitude 179° and -179° are neighbors, not opposites',
+      'Multi-position training: loss computed at ALL M4+ positions within each sequence (~400 targets per batch) instead of only the last position — dramatically increases training signal density',
+      'Hybrid training: M2.0+ input context, M4.0+ targets — model sees all small earthquakes but only predicts significant ones',
+      'Local seismicity feature (us_lt): minutes since last M4+ within 1000km, log-binned into 26 bins — captures local aftershock cascades separately from global seismicity',
+      'Prediction system: automated cycle every 5 minutes, verification against incoming EMSC data, success rate tracking',
+    ],
+  },
+  {
     version: 'v1.1',
     date: '2026-02-19',
     title: 'TimesFM-Inspired Attention & Loss Improvements',

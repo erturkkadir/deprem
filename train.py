@@ -19,6 +19,9 @@ from DataClass import DataC
 from EqModelComplex import EqModelComplex
 import config
 
+# Reduce CUDA memory fragmentation — allows fitting larger models
+os.environ.setdefault('PYTORCH_CUDA_ALLOC_CONF', 'expandable_segments:True')
+
 # Force unbuffered output for real-time monitoring
 sys.stdout.reconfigure(line_buffering=True)
 
@@ -35,7 +38,7 @@ B = 2              # Batch size (reduced for memory)
 T = 512            # Sequence length (longer context for better predictions)
 n_embed = 1176     # Embedding size (divisible by 7 features and 8 heads)
 n_heads = 8
-n_layer = 6        # Reduced layers for memory
+n_layer = 8        # Increased from 6 — fits with expandable_segments (~357M params)
 dropout = 0.1      # Increased from 0.01 - prevents overfitting
 
 # Training hyperparameters
