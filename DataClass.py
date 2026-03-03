@@ -583,6 +583,37 @@ class DataC():
             print(f"Error getting active group predictions: {e}")
             return []
 
+    def get_group_predictions(self, group_id):
+        """Get all active (unverified) predictions in a group as decoded dicts.
+
+        Returns:
+            List of dicts: {'pr_id', 'lat', 'lon', 'rank', 'place', 'sigma_km', 'pi'}
+        """
+        sql = """
+        SELECT pr_id, pr_lat_predicted, pr_lon_predicted, pr_rank,
+               pr_place, pr_sigma_km, pr_pi
+        FROM predictions
+        WHERE (pr_group_id = %s OR pr_id = %s) AND pr_verified = FALSE
+        ORDER BY pr_rank ASC
+        """
+        try:
+            rows = self._safe_fetch(sql, (group_id, group_id)) or []
+            result = []
+            for pr_id, lat_enc, lon_enc, rank, place, sigma_km, pi in rows:
+                result.append({
+                    'pr_id': pr_id,
+                    'lat': (lat_enc - 90) if lat_enc is not None else None,
+                    'lon': (lon_enc - 180) if lon_enc is not None else None,
+                    'rank': rank or 1,
+                    'place': place,
+                    'sigma_km': float(sigma_km) if sigma_km is not None else None,
+                    'pi': float(pi) if pi is not None else None,
+                })
+            return result
+        except Exception as e:
+            print(f"Error getting group predictions: {e}")
+            return []
+
     def close_group_correct(self, group_id, winner_pr_id, actual_id, actual_lat, actual_lon,
                             actual_dt, actual_mag, actual_time, diff_lat, diff_lon, diff_dt, diff_mag):
         """Close a prediction group with a successful match.
@@ -608,17 +639,12 @@ class DataC():
                     (actual_id, actual_lat, actual_lon, actual_dt, actual_mag, actual_time,
                      diff_lat, diff_lon, diff_dt, diff_mag, winner_pr_id)
                 )
-                # Also update rank-1 with actual earthquake data for display,
-                # even if a lower-rank prediction was the geometric winner.
-                # This ensures the group representative (rank-1) shows the match in the UI.
+                # Mark rank-1 as correct for stats, but do NOT copy actual coordinates
+                # when rank-1 wasn't the geometric winner (avoids misleading map display).
                 self._safe_execute(
-                    """UPDATE predictions SET
-                        pr_actual_id = %s, pr_lat_actual = %s, pr_lon_actual = %s,
-                        pr_dt_actual = %s, pr_mag_actual = %s, pr_actual_time = %s,
-                        pr_correct = TRUE
-                    WHERE (pr_group_id = %s OR pr_id = %s) AND pr_rank = 1""",
-                    (actual_id, actual_lat, actual_lon, actual_dt, actual_mag, actual_time,
-                     group_id, group_id)
+                    "UPDATE predictions SET pr_correct = TRUE "
+                    "WHERE (pr_group_id = %s OR pr_id = %s) AND pr_rank = 1",
+                    (group_id, group_id)
                 )
                 self.mydb.commit()
             return True
@@ -979,7 +1005,7 @@ class DataC():
                 'total_predictions': total,
                 'verified_predictions': verified,
                 'correct_predictions': correct,
-                'success_rate': (correct / verified * 100) if verified > 0 else 0.0
+                'success_rate': round((correct / verified * 100) if verified > 0 else 0.0, 1)
             }
         except Exception as e:
             print(f"Error getting prediction stats: {e}")
@@ -1152,38 +1178,46 @@ class DataC():
                 print(f"Batch insert error: {e}")
 
         # Run stored procedure to merge into main table
+        # Use short lock timeout so it fails fast if training holds a read lock
         try:
+            self._safe_execute("SET SESSION innodb_lock_wait_timeout = 10")
             self._safe_execute("call ins_quakes()")
+            self._safe_execute("SET SESSION innodb_lock_wait_timeout = 50")
             print("Executed ins_quakes()")
         except Exception as e:
             print(f"Error ins_quakes: {e}")
+            self._safe_execute("SET SESSION innodb_lock_wait_timeout = 50")
 
         # Deduplicate: EMSC aggregates reports from multiple agencies (AFAD, KOERI, etc.)
         # so the same earthquake often appears twice with slightly different parameters.
         # Remove the later record when two events are within 10 sec, 0.1°, and 0.3 mag.
+        # Python-side dedup avoids CREATE TABLE ... AS SELECT self-join which can block
+        # indefinitely when training holds a shared read lock on the usgs table.
         try:
-            self._safe_execute("DROP TABLE IF EXISTS _tmp_dedup")
-            self._safe_execute("""
-                CREATE TABLE _tmp_dedup AS
-                SELECT b.us_id as dup_id
-                FROM usgs a
-                INNER JOIN usgs b
-                    ON b.us_id > a.us_id
-                    AND b.us_datetime BETWEEN a.us_datetime AND DATE_ADD(a.us_datetime, INTERVAL 10 SECOND)
-                    AND ABS(b.us_lat - a.us_lat) < 0.1
-                    AND ABS(b.us_lon - a.us_lon) < 0.1
-                    AND ABS(b.us_m - a.us_m) <= 3
-                WHERE a.us_datetime > DATE_SUB(NOW(), INTERVAL 2 DAY)
-            """)
-            self.mydb.commit()
-            count_result = self._safe_fetch("SELECT COUNT(*) FROM _tmp_dedup", fetch_one=True)
-            dedup_count = count_result[0] if count_result else 0
-            if dedup_count > 0:
-                self._safe_execute("DELETE FROM usgs WHERE us_id IN (SELECT dup_id FROM _tmp_dedup)")
-                self.mydb.commit()
-                print(f"Dedup: removed {dedup_count} duplicate reports")
-            self._safe_execute("DROP TABLE IF EXISTS _tmp_dedup")
-            self.mydb.commit()
+            rows = self._safe_fetch(
+                "SELECT us_id, us_datetime, us_lat, us_lon, us_m FROM usgs "
+                "WHERE us_datetime > DATE_SUB(NOW(), INTERVAL 2 DAY) ORDER BY us_id",
+                fetch_one=False)
+            if rows:
+                to_delete = []
+                keepers = []  # (us_id, datetime, lat, lon, mag)
+                for row in rows:
+                    us_id, dt, lat, lon, mag = row[0], row[1], float(row[2]), float(row[3]), float(row[4])
+                    dup = False
+                    for kid, kdt, klat, klon, kmag in keepers[-60:]:
+                        if abs((dt - kdt).total_seconds()) > 10:
+                            continue
+                        if abs(lat - klat) < 0.1 and abs(lon - klon) < 0.1 and abs(mag - kmag) <= 0.3:
+                            to_delete.append(us_id)
+                            dup = True
+                            break
+                    if not dup:
+                        keepers.append((us_id, dt, lat, lon, mag))
+                if to_delete:
+                    placeholders = ','.join(['%s'] * len(to_delete))
+                    self._safe_execute(f"DELETE FROM usgs WHERE us_id IN ({placeholders})", to_delete)
+                    self.mydb.commit()
+                    print(f"Dedup: removed {len(to_delete)} duplicate reports")
         except Exception as e:
             print(f"Error dedup: {e}")
 
@@ -1197,6 +1231,7 @@ class DataC():
                 print(f"Calculating global M4+ dt for {count} new records...")
 
                 # Step 1: Compute dt values into a temp table
+                self._safe_execute("SET SESSION innodb_lock_wait_timeout = 15")
                 self._safe_execute("DROP TABLE IF EXISTS _tmp_dt")
                 self._safe_execute("""
                     CREATE TABLE _tmp_dt AS
@@ -1221,9 +1256,11 @@ class DataC():
 
                 self._safe_execute("DROP TABLE IF EXISTS _tmp_dt")
                 self.mydb.commit()
+                self._safe_execute("SET SESSION innodb_lock_wait_timeout = 50")
                 print(f"Done calculating global M4+ dt for {count} records")
         except Exception as e:
             print(f"Error batch calc_dt: {e}")
+            self._safe_execute("SET SESSION innodb_lock_wait_timeout = 50")
             import traceback
             traceback.print_exc()
 

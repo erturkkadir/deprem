@@ -105,19 +105,20 @@ model = None
 dataC = None
 scheduler = None
 current_checkpoint = None  # Track which checkpoint is loaded
+_prediction_lock = threading.Lock()  # Prevents concurrent make_prediction() calls
 
 MODEL_DIR = '/var/www/syshuman/quake'
 MODEL_PREFIX = 'eqModel_complex'
 
 # Matching criteria
-MATCH_RADIUS_KM = 500       # Haversine distance for matching (km) — wider for multi-prediction
+MATCH_RADIUS_KM = 250       # Haversine distance for matching (km)
 MAGNITUDE_TOLERANCE = 0.75  # ±0.75 magnitude
 MIN_MAG_DISPLAY = 4.0       # Only show predictions with mag >= 4.0
 MIN_PREDICTION_WINDOW = 10  # minutes - reject predictions with window < 10 min
 LATE_SEARCH_HOURS = 72      # hours - continue searching after MISSED before closing
 EARTH_RADIUS_KM = 6371      # km
-PREDICTION_WINDOW_MINUTES = 120  # minutes per prediction cycle (M4+ median global gap ~96 min)
-TOP_K_PREDICTIONS = 5       # number of MDN components to use per prediction cycle
+PREDICTION_WINDOW_MINUTES = 1440  # minutes per prediction cycle (24-hour daily forecast)
+TOP_K_PREDICTIONS = 5             # number of MDN components to use per prediction cycle
 
 
 def haversine_km(lat1, lon1, lat2, lon2):
@@ -566,13 +567,17 @@ def make_prediction():
         print("Model or data not loaded")
         return None
 
+    if not _prediction_lock.acquire(blocking=False):
+        print(f"[{datetime.now()}] make_prediction() already running, skipping duplicate call")
+        return None
+
     try:
-        # RACE CONDITION PREVENTION: Don't create duplicate predictions within 30 seconds
+        # Double-check: if an active prediction was just created by a concurrent call, skip
         existing = dataC.get_latest_prediction(min_mag=4.0)
         if existing and not existing.get('verified'):
             pr_timestamp = datetime.fromisoformat(existing['timestamp'])
-            if (datetime.now() - pr_timestamp).total_seconds() < 30:
-                print(f"[{datetime.now()}] Skipping - prediction #{existing['id']} created {(datetime.now() - pr_timestamp).total_seconds():.0f}s ago")
+            if (datetime.now() - pr_timestamp).total_seconds() < 60:
+                print(f"[{datetime.now()}] Skipping - active prediction #{existing['id']} already exists")
                 return existing['id']
 
         # IMPORTANT: Use getLastFromDB() to get FRESH data directly from database
@@ -583,12 +588,12 @@ def make_prediction():
         x_test = x_test.to(device)
 
         with torch.no_grad():
-            pred_list = model.generate(x_test, top_k=1)
+            pred_list = model.generate(x_test, top_k=TOP_K_PREDICTIONS)
 
         top_pred = pred_list[0]
 
+        # Save rank-1 first to get the group_id
         place = reverse_geocode(top_pred['lat'], top_pred['lon'])
-
         lat_enc = int(round(top_pred['lat'] + 90))
         lon_enc = int(round(top_pred['lon'] + 180))
         mag_enc = int(round(top_pred['mag'] * 10))
@@ -599,11 +604,23 @@ def make_prediction():
         )
 
         if pr_id is None:
-            print(f"[{datetime.now()}] Error: Failed to save prediction")
+            print(f"[{datetime.now()}] Error: Failed to save rank-1 prediction")
             return None
 
+        # Save remaining predictions (rank 2..N) with the same group_id
+        for pred in pred_list[1:]:
+            p_place = reverse_geocode(pred['lat'], pred['lon'])
+            p_lat_enc = int(round(pred['lat'] + 90))
+            p_lon_enc = int(round(pred['lon'] + 180))
+            p_mag_enc = int(round(pred['mag'] * 10))
+            dataC.save_prediction(
+                p_lat_enc, p_lon_enc, PREDICTION_WINDOW_MINUTES, p_mag_enc,
+                p_place, group_id=pr_id, rank=pred['rank'], pi=pred['pi'],
+                sigma_km=pred.get('sigma_km')
+            )
+
         place_str = f" near {place}" if place else ""
-        print(f"[{datetime.now()}] Prediction #{pr_id}: lat={top_pred['lat']:.2f}, lon={top_pred['lon']:.2f}{place_str}, mag={top_pred['mag']:.1f}, dt={PREDICTION_WINDOW_MINUTES}min")
+        print(f"[{datetime.now()}] Group #{pr_id} ({len(pred_list)} predictions, {PREDICTION_WINDOW_MINUTES//60}h window): rank-1 lat={top_pred['lat']:.2f}, lon={top_pred['lon']:.2f}{place_str}, mag={top_pred['mag']:.1f}")
 
         notify_subscribers(pr_id, top_pred['lat'], top_pred['lon'], top_pred['mag'], PREDICTION_WINDOW_MINUTES, place)
 
@@ -614,6 +631,9 @@ def make_prediction():
         import traceback
         traceback.print_exc()
         return None
+
+    finally:
+        _prediction_lock.release()
 
 
 def auto_verify_predictions():
@@ -646,32 +666,49 @@ def auto_verify_predictions():
             if now > expected_event_time + timedelta(hours=LATE_SEARCH_HOURS):
                 continue
 
-            pred_lat = (lat_enc - 90) if lat_enc is not None else None
-            pred_lon = (lon_enc - 180) if lon_enc is not None else None
             pred_mag = (mag_enc / 10.0) if mag_enc else 4.0
-            if pred_lat is None or pred_lon is None:
-                continue
+
+            # Load all members of this group (pr_id is rank-1 so also serves as group_id)
+            group_preds = dataC.get_group_predictions(pr_id)
+            if not group_preds:
+                pred_lat = (lat_enc - 90) if lat_enc is not None else None
+                pred_lon = (lon_enc - 180) if lon_enc is not None else None
+                if pred_lat is None or pred_lon is None:
+                    continue
+                group_preds = [{'pr_id': pr_id, 'lat': pred_lat, 'lon': pred_lon, 'rank': 1}]
 
             actuals = dataC.get_earthquakes_in_window(pr_timestamp, expected_event_time, min_mag=4.0)
+            matched = False
             for actual in (actuals or []):
                 us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = actual
                 eq_lat = us_x - 90
                 eq_lon = us_y - 180
-                dist_km = haversine_km(pred_lat, pred_lon, eq_lat, eq_lon)
-                if dist_km <= MATCH_RADIUS_KM:
+                best_match = None
+                for gp in group_preds:
+                    if gp.get('lat') is None or gp.get('lon') is None:
+                        continue
+                    dist_km = haversine_km(gp['lat'], gp['lon'], eq_lat, eq_lon)
+                    if dist_km <= MATCH_RADIUS_KM:
+                        if best_match is None or dist_km < best_match['dist_km']:
+                            best_match = {'pr_id': gp['pr_id'], 'dist_km': dist_km,
+                                         'lat': gp['lat'], 'lon': gp['lon'], 'rank': gp['rank']}
+                if best_match:
                     actual_dt = int((us_datetime - pr_timestamp).total_seconds() / 60)
-                    print(f"[{now}] LATE CATCH! Prediction #{pr_id}: M{us_mag} at {dist_km:.0f}km - {us_place}")
+                    print(f"[{now}] LATE CATCH! Group #{pr_id}, rank-{best_match['rank']} (pred #{best_match['pr_id']}): M{us_mag} at {best_match['dist_km']:.0f}km - {us_place}")
                     dataC.close_group_correct(
-                        group_id=pr_id, winner_pr_id=pr_id,
+                        group_id=pr_id, winner_pr_id=best_match['pr_id'],
                         actual_id=us_id, actual_lat=us_x, actual_lon=us_y,
                         actual_dt=actual_dt,
                         actual_mag=int(us_mag * 10) if us_mag else None,
                         actual_time=us_datetime,
-                        diff_lat=int(abs(pred_lat - eq_lat)),
-                        diff_lon=int(abs(pred_lon - eq_lon)),
+                        diff_lat=int(abs(best_match['lat'] - eq_lat)),
+                        diff_lon=int(abs(best_match['lon'] - eq_lon)),
                         diff_dt=abs(pr_dt - actual_dt) if pr_dt else None,
                         diff_mag=abs(pred_mag - us_mag) if us_mag else None
                     )
+                    matched = True
+                    break
+                if matched:
                     break
 
     except Exception as e:
@@ -712,53 +749,70 @@ def check_and_handle_prediction():
             make_prediction()
             return {'action': 'new_prediction', 'reason': 'previous_closed'}
 
-        # Active PENDING prediction
+        # Active PENDING prediction group
         pr_id = latest['id']
+        group_id = latest.get('group_id') or pr_id
         pr_timestamp = datetime.fromisoformat(latest['timestamp'])
         pr_dt = latest.get('predicted_dt') or PREDICTION_WINDOW_MINUTES
-        pred_lat = latest.get('predicted_lat')
-        pred_lon = latest.get('predicted_lon')
         pred_mag = latest.get('predicted_mag') or 4.0
 
         expected_event_time = pr_timestamp + timedelta(minutes=pr_dt)
 
+        # Load ALL predictions in this group to check against earthquakes
+        group_preds = dataC.get_group_predictions(group_id)
+        if not group_preds:
+            # Fallback to rank-1 only
+            group_preds = [{'pr_id': pr_id,
+                            'lat': latest.get('predicted_lat'),
+                            'lon': latest.get('predicted_lon'),
+                            'rank': 1}]
+
         # Get earthquakes strictly within the prediction window
         recent_quakes = dataC.get_earthquakes_in_window(pr_timestamp, expected_event_time, min_mag=4.0)
 
-        if recent_quakes and pred_lat is not None and pred_lon is not None:
+        if recent_quakes:
             for us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place in recent_quakes:
                 eq_lat = us_x - 90
                 eq_lon = us_y - 180
-                dist_km = haversine_km(pred_lat, pred_lon, eq_lat, eq_lon)
 
-                if dist_km <= MATCH_RADIUS_KM:
+                # Check every prediction in the group
+                best_match = None
+                for gp in group_preds:
+                    if gp.get('lat') is None or gp.get('lon') is None:
+                        continue
+                    dist_km = haversine_km(gp['lat'], gp['lon'], eq_lat, eq_lon)
+                    if dist_km <= MATCH_RADIUS_KM:
+                        if best_match is None or dist_km < best_match['dist_km']:
+                            best_match = {'pr_id': gp['pr_id'], 'dist_km': dist_km, 'rank': gp['rank']}
+
+                if best_match:
                     actual_dt = int((us_datetime - pr_timestamp).total_seconds() / 60)
                     diff_dt = abs(pr_dt - actual_dt) if pr_dt else None
                     diff_mag = abs(pred_mag - us_mag) if us_mag else None
+                    winner_id = best_match['pr_id']
 
                     print(f"\n{'='*60}")
-                    print(f"[{now}] MATCHED! Prediction #{pr_id}")
-                    print(f"  Prediction: {pred_lat:.1f}°, {pred_lon:.1f}°, M{pred_mag:.1f}")
-                    print(f"  Actual: {eq_lat:.1f}°, {eq_lon:.1f}° - M{us_mag} at {dist_km:.0f}km - {us_place}")
+                    print(f"[{now}] MATCHED! Group #{group_id}, winner rank-{best_match['rank']} (pred #{winner_id})")
+                    print(f"  Actual: {eq_lat:.1f}°, {eq_lon:.1f}° - M{us_mag} at {best_match['dist_km']:.0f}km - {us_place}")
                     print(f"{'='*60}\n")
 
                     dataC.close_group_correct(
-                        group_id=pr_id,
-                        winner_pr_id=pr_id,
+                        group_id=group_id,
+                        winner_pr_id=winner_id,
                         actual_id=us_id,
                         actual_lat=us_x,
                         actual_lon=us_y,
                         actual_dt=actual_dt,
                         actual_mag=int(us_mag * 10) if us_mag else None,
                         actual_time=us_datetime,
-                        diff_lat=int(abs(pred_lat - eq_lat)),
-                        diff_lon=int(abs(pred_lon - eq_lon)),
+                        diff_lat=int(abs(latest.get('predicted_lat', eq_lat) - eq_lat)),
+                        diff_lon=int(abs(latest.get('predicted_lon', eq_lon) - eq_lon)),
                         diff_dt=int(diff_dt) if diff_dt else None,
                         diff_mag=diff_mag
                     )
 
                     make_prediction()
-                    return {'action': 'matched', 'prediction_id': pr_id, 'distance_km': round(dist_km), 'place': us_place, 'mag': us_mag}
+                    return {'action': 'matched', 'prediction_id': winner_id, 'distance_km': round(best_match['dist_km']), 'place': us_place, 'mag': us_mag}
 
         # No match - check if window expired
         if now > expected_event_time:
@@ -1119,10 +1173,18 @@ def get_live_data():
                 except Exception:
                     pass
 
+        # Fetch all zones (group members) for the active prediction
+        group_zones = []
+        if latest_prediction and not latest_prediction.get('verified'):
+            gid = latest_prediction.get('group_id') or latest_prediction.get('id')
+            if gid:
+                group_zones = dataC.get_group_predictions(gid)
+
         return jsonify({
             'success': True,
             'server_time': now.isoformat(),
             'latest_prediction': latest_prediction,
+            'group_zones': group_zones,
             'recent_earthquakes': recent_earthquakes,
             'stats': stats,
             'match_info': match_info,
@@ -1406,6 +1468,33 @@ def get_prediction_detail(prediction_id):
             'correct': bool(row[16]),
             'actual_time': row[17].isoformat() if row[17] else None,
         }
+
+        # If rank-1 has no actual data but is correct, find the winning zone in the group
+        prediction['winner_rank'] = None
+        prediction['winner_lat'] = None
+        prediction['winner_lon'] = None
+        prediction['winner_place'] = None
+        if prediction['correct'] and prediction['actual_lat'] is None:
+            group_id = row[0]
+            winner_row = dataC._safe_fetch("""
+                SELECT p.pr_id, p.pr_rank, p.pr_lat_predicted, p.pr_lon_predicted, p.pr_place,
+                       p.pr_lat_actual, p.pr_lon_actual, p.pr_mag_actual, p.pr_actual_time,
+                       u.us_place
+                FROM predictions p
+                LEFT JOIN usgs u ON p.pr_actual_id = u.us_id
+                WHERE (p.pr_group_id = %s OR p.pr_id = %s) AND p.pr_actual_id IS NOT NULL
+                ORDER BY p.pr_rank ASC LIMIT 1
+            """, (group_id, group_id), fetch_one=True)
+            if winner_row:
+                prediction['winner_rank'] = winner_row[1]
+                prediction['winner_lat'] = (winner_row[2] - 90) if winner_row[2] else None
+                prediction['winner_lon'] = (winner_row[3] - 180) if winner_row[3] else None
+                prediction['winner_place'] = winner_row[4]
+                prediction['actual_lat'] = (winner_row[5] - 90) if winner_row[5] else None
+                prediction['actual_lon'] = (winner_row[6] - 180) if winner_row[6] else None
+                prediction['actual_mag'] = winner_row[7] / 10.0 if winner_row[7] else None
+                prediction['actual_time'] = winner_row[8].isoformat() if winner_row[8] else None
+                prediction['actual_place'] = winner_row[9]
 
         # Calculate prediction window
         window_end = pr_timestamp + timedelta(minutes=pr_dt) if pr_timestamp else None

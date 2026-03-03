@@ -200,11 +200,25 @@ export default function PredictionDetail() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 Actual {prediction.verified ? '' : '(Pending)'}
+                {prediction.winner_rank && prediction.winner_rank > 1 && (
+                  <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                    matched by zone #{prediction.winner_rank}
+                  </span>
+                )}
               </h3>
               {prediction.verified && prediction.correct ? (
                 <div className="space-y-2 text-sm">
+                  {prediction.winner_rank && prediction.winner_rank > 1 && (
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-zinc-500">Zone #{prediction.winner_rank} predicted</span>
+                      <span className="text-orange-300 font-mono">
+                        {prediction.winner_lat?.toFixed(1)}°, {prediction.winner_lon?.toFixed(1)}°
+                        {prediction.winner_place ? ` (${prediction.winner_place.split(',')[0]})` : ''}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
-                    <span className="text-zinc-500">Location</span>
+                    <span className="text-zinc-500">Actual location</span>
                     <span className="text-white font-mono">
                       {prediction.actual_lat?.toFixed(1)}°, {prediction.actual_lon?.toFixed(1)}°
                     </span>

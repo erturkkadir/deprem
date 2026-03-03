@@ -274,6 +274,7 @@ const earthquakeSlice = createSlice({
           state.liveData = {
             latest_prediction: action.payload.latest_prediction,
             active_group_predictions: action.payload.active_group_predictions || [],
+            group_zones: action.payload.group_zones || [],
             recent_earthquakes: action.payload.recent_earthquakes || [],
             stats: action.payload.stats,
             match_info: action.payload.match_info,

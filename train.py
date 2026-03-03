@@ -264,7 +264,7 @@ def train():
     opt_step = 0
     running_loss = 0.0
     running_targets = 0.0
-    running_dim_loss = {'spatial': 0.0, 'mag': 0.0, 'hav': 0.0, 'gr': 0.0, 'ent': 0.0}
+    running_dim_loss = {'spatial': 0.0, 'mag': 0.0, 'hav': 0.0, 'gr': 0.0, 'ent': 0.0, 'sig': 0.0}
     best_val_loss = float('inf')
     last_avg_loss = float('inf')
 
@@ -372,7 +372,7 @@ def train():
                 # Compute validation loss WITHOUT label smoothing for true generalization signal
                 val_loss = compute_val_loss(model, dataC, B, T, num_batches=20, label_smoothing=0.0)
 
-                print(f"step {iteration:6d} | train {last_avg_loss:.4f} | val {val_loss:.4f} | lr {lr:.2e} | tgt {avg_targets:.0f} | sp {avg_dim['spatial']:.2f} mag {avg_dim['mag']:.2f} hav {avg_dim['hav']:.2f} gr {avg_dim['gr']:.3f} ent {avg_dim['ent']:.3f}")
+                print(f"step {iteration:6d} | train {last_avg_loss:.4f} | val {val_loss:.4f} | lr {lr:.2e} | tgt {avg_targets:.0f} | sp {avg_dim['spatial']:.2f} mag {avg_dim['mag']:.2f} hav {avg_dim['hav']:.2f} gr {avg_dim['gr']:.3f} ent {avg_dim['ent']:.3f} sig {avg_dim['sig']:.3f}")
 
                 # Update status file for server
                 update_training_status(iteration, last_avg_loss)
@@ -387,7 +387,7 @@ def train():
 
                 running_loss = 0.0
                 running_targets = 0.0
-                running_dim_loss = {'spatial': 0.0, 'mag': 0.0, 'hav': 0.0, 'gr': 0.0, 'ent': 0.0}
+                running_dim_loss = {'spatial': 0.0, 'mag': 0.0, 'hav': 0.0, 'gr': 0.0, 'ent': 0.0, 'sig': 0.0}
 
             # Save checkpoint
             if iteration % CHECKPOINT_INTERVAL == 0:

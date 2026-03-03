@@ -1566,7 +1566,7 @@ class SpatialMDNHead(nn.Module):
         mu = self.mu_proj(h)                                     # [*, 2K]
         mu_lat = mu[..., :self.K]                                # [*, K]
         mu_lon = mu[..., self.K:]                                # [*, K]
-        sigma = FN.softplus(self.sigma_proj(h)) + 0.1            # [*, 2K] min 0.1°
+        sigma = torch.clamp(FN.softplus(self.sigma_proj(h)) + 0.1, 0.1, 12.0)  # [*, 2K] 0.1°–12° (≈1330km max)
         sigma_lat = sigma[..., :self.K]                          # [*, K]
         sigma_lon = sigma[..., self.K:]                          # [*, K]
         rho = torch.tanh(self.rho_proj(h)) * 0.95                # [*, K] cap ±0.95
@@ -1936,8 +1936,11 @@ class EqModelComplex(nn.Module):
             hav_loss = self._haversine_loss_mdn(sp, lat_actual, lon_actual)
             gr_loss = MagnitudeMDNHead.gr_prior_loss(mp)
             ent_loss = SpatialMDNHead.entropy_loss(sp)  # negative entropy → minimize = more uniform pi
+            # Sigma regularization: penalize average sigma above 3° (≈333km) to prevent blowup
+            sigma_mean = (sp['sigma_lat'].mean() + sp['sigma_lon'].mean()) / 2.0
+            sigma_reg = torch.clamp(sigma_mean - 3.0, min=0.0)
 
-            loss = spatial_loss + mag_loss + 3.0 * hav_loss + 0.1 * gr_loss + 0.5 * ent_loss
+            loss = spatial_loss + mag_loss + 3.0 * hav_loss + 0.1 * gr_loss + 0.5 * ent_loss + 0.1 * sigma_reg
 
             loss_dict = {
                 'spatial': spatial_loss.item(),
@@ -1945,6 +1948,7 @@ class EqModelComplex(nn.Module):
                 'hav': hav_loss.item(),
                 'gr': gr_loss.item(),
                 'ent': ent_loss.item(),
+                'sig': sigma_reg.item(),
             }
         else:
             # --- Validation: pure NLL (unweighted, no auxiliary) ---

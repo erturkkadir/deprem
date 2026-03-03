@@ -118,6 +118,7 @@ function LiveDashboard() {
 
   const {
     latest_prediction: pred,
+    group_zones,
     recent_earthquakes,
     stats,
     match_info,
@@ -335,6 +336,33 @@ function LiveDashboard() {
                       </div>
                     </div>
                   </div>
+
+                  {/* ── GROUP ZONES ── */}
+                  {group_zones && group_zones.length > 1 && (
+                    <div className="px-4 py-2.5 border-b border-zinc-800">
+                      <div className="text-[9px] text-zinc-500 uppercase mb-1.5 tracking-wider">
+                        Prediction Zones ({group_zones.length})
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {group_zones.map((z) => (
+                          <a
+                            key={z.pr_id}
+                            href={`/map.html?plat=${z.lat}&plon=${z.lon}&pmag=${pred?.predicted_mag || ''}&pdt=${pred?.predicted_dt || ''}&pplace=${encodeURIComponent(z.place || '')}&time=${encodeURIComponent(pred?.prediction_time || '')}&wend=${encodeURIComponent(pred?.window_end || '')}&id=${pred?.id || ''}`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-zinc-700 bg-zinc-800/60 hover:border-orange-500/50 hover:bg-zinc-700/60 transition-colors cursor-pointer"
+                            title={`Rank ${z.rank}: ${z.lat?.toFixed(1)}°, ${z.lon?.toFixed(1)}°${z.sigma_km ? ` ±${Math.round(z.sigma_km)}km` : ''}`}
+                          >
+                            <span className="text-orange-500 font-bold text-[9px]">#{z.rank}</span>
+                            <span className="text-zinc-300 text-[10px] truncate max-w-[120px]">
+                              {z.place
+                                ? z.place.split(',')[0]
+                                : `${z.lat?.toFixed(1)}°, ${z.lon?.toFixed(1)}°`}
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Matched earthquake banner */}
                   {(isMatch || (isVerified && isCorrect)) && (
