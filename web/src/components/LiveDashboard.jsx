@@ -196,16 +196,29 @@ function LiveDashboard() {
   const isCorrect = pred?.correct;
   const isExpired = prediction_status?.is_expired || smoothRemaining < 0;
 
-  const statusLabel = isMatch || (isVerified && isCorrect) ? '✓ MATCHED'
-    : isVerified ? 'Missed' : 'Active';
-  const statusClass = isMatch || (isVerified && isCorrect)
-    ? 'bg-green-500 text-white animate-pulse'
-    : isVerified
-      ? 'bg-red-500/20 text-red-400'
-      : 'bg-orange-500/20 text-orange-400';
+  // A "Late Catch" = verified+correct but the actual event was after the window end
+  const predWindowEnd = prediction_status?.end_time ? new Date(prediction_status.end_time) : null;
+  const actualTime = pred?.actual_time ? new Date(pred.actual_time) : null;
+  const isLateCatch = isVerified && isCorrect && actualTime && predWindowEnd && actualTime > predWindowEnd;
+
+  const statusLabel = isLateCatch ? '⏱ LATE CATCH'
+    : isMatch || (isVerified && isCorrect) ? '✓ MATCHED'
+    : isVerified && isExpired ? 'Missed — checking 24h'
+    : isVerified ? 'Missed'
+    : isExpired ? 'Expired — next starting'
+    : 'Active';
+  const statusClass = isLateCatch
+    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+    : isMatch || (isVerified && isCorrect)
+      ? 'bg-green-500 text-white animate-pulse'
+      : isVerified
+        ? 'bg-red-500/20 text-red-400'
+        : isExpired
+          ? 'bg-yellow-500/20 text-yellow-400'
+          : 'bg-orange-500/20 text-orange-400';
 
   // Clock params
-  const totalSecs = (pred?.predicted_dt || 120) * 60;
+  const totalSecs = (pred?.predicted_dt || 60) * 60;
 
   // Stats
   const counts = useMemo(() => {
@@ -327,7 +340,9 @@ function LiveDashboard() {
                     </div>
                     <div>
                       <div className="text-[9px] text-zinc-500 uppercase mb-0.5">Window</div>
-                      <div className="text-purple-400 font-bold">{pred.predicted_dt || 120}m</div>
+                      <div className="text-purple-400 font-bold">
+                        {(() => { const m = pred.predicted_dt || 60; return m >= 60 ? `${(m/60).toFixed(0)}h` : `${m}m`; })()}
+                      </div>
                     </div>
                     <div>
                       <div className="text-[9px] text-zinc-500 uppercase mb-0.5">Uncertainty</div>
@@ -397,6 +412,18 @@ function LiveDashboard() {
                       <div className="text-zinc-500 text-[10px] mt-0.5">{label}</div>
                     </div>
                   ))}
+                </div>
+
+                {/* ── HOW IT WORKS ── */}
+                <div className="flex items-start gap-2 px-3 py-2 bg-zinc-800/30 rounded-lg border border-zinc-700/50 text-[10px] text-zinc-500">
+                  <svg className="w-3 h-3 mt-0.5 flex-shrink-0 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>
+                    Each cycle predicts <span className="text-zinc-400">5 zones</span> for the next <span className="text-zinc-400">1 hour</span> within <span className="text-zinc-400">250 km</span>.
+                    If no M4+ hits, the group is marked <span className="text-yellow-500">Missed</span> and a new cycle starts immediately.
+                    Missed groups continue checking for <span className="text-zinc-400">up to 24 h</span> — a late match counts as a <span className="text-green-500">Late Catch</span>.
+                  </span>
                 </div>
               </>
             ) : (

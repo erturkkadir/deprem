@@ -1188,11 +1188,14 @@ class DataC():
             print(f"Error ins_quakes: {e}")
             self._safe_execute("SET SESSION innodb_lock_wait_timeout = 50")
 
-        # Deduplicate: EMSC aggregates reports from multiple agencies (AFAD, KOERI, etc.)
-        # so the same earthquake often appears twice with slightly different parameters.
-        # Remove the later record when two events are within 10 sec, 0.1°, and 0.3 mag.
+        # Deduplicate: EMSC + USGS both report the same earthquake from multiple agencies.
+        # Same event typically differs by up to 30s, 0.3° lat/lon, and 0.5 mag between agencies.
+        # Remove the later record (higher us_id) when two events are within these tolerances.
         # Python-side dedup avoids CREATE TABLE ... AS SELECT self-join which can block
         # indefinitely when training holds a shared read lock on the usgs table.
+        DEDUP_TIME_SEC  = 30   # max seconds between same-event reports from different agencies
+        DEDUP_DIST_DEG  = 0.3  # max lat/lon degree difference
+        DEDUP_MAG_DELTA = 0.5  # max magnitude difference
         try:
             rows = self._safe_fetch(
                 "SELECT us_id, us_datetime, us_lat, us_lon, us_m FROM usgs "
@@ -1204,10 +1207,12 @@ class DataC():
                 for row in rows:
                     us_id, dt, lat, lon, mag = row[0], row[1], float(row[2]), float(row[3]), float(row[4])
                     dup = False
-                    for kid, kdt, klat, klon, kmag in keepers[-60:]:
-                        if abs((dt - kdt).total_seconds()) > 10:
+                    for kid, kdt, klat, klon, kmag in keepers[-120:]:
+                        if abs((dt - kdt).total_seconds()) > DEDUP_TIME_SEC:
                             continue
-                        if abs(lat - klat) < 0.1 and abs(lon - klon) < 0.1 and abs(mag - kmag) <= 0.3:
+                        if (abs(lat - klat) < DEDUP_DIST_DEG and
+                                abs(lon - klon) < DEDUP_DIST_DEG and
+                                abs(mag - kmag) <= DEDUP_MAG_DELTA):
                             to_delete.append(us_id)
                             dup = True
                             break

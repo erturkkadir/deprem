@@ -115,10 +115,10 @@ MATCH_RADIUS_KM = 250       # Haversine distance for matching (km)
 MAGNITUDE_TOLERANCE = 0.75  # ±0.75 magnitude
 MIN_MAG_DISPLAY = 4.0       # Only show predictions with mag >= 4.0
 MIN_PREDICTION_WINDOW = 10  # minutes - reject predictions with window < 10 min
-LATE_SEARCH_HOURS = 72      # hours - continue searching after MISSED before closing
+LATE_SEARCH_HOURS = 24      # hours - keep checking a MISSED group (late catch window)
 EARTH_RADIUS_KM = 6371      # km
-PREDICTION_WINDOW_MINUTES = 1440  # minutes per prediction cycle (24-hour daily forecast)
-TOP_K_PREDICTIONS = 5             # number of MDN components to use per prediction cycle
+PREDICTION_WINDOW_MINUTES = 60    # minutes per prediction cycle (1-hour window)
+TOP_K_PREDICTIONS = 5             # number of MDN zones predicted per cycle
 
 
 def haversine_km(lat1, lon1, lat2, lon2):
