@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { fetchPredictions } from '../store/earthquakeSlice';
+import AllPredictionsMap from './AllPredictionsMap';
 
 const FILTERS = [
   { key: '', label: 'All' },
@@ -221,6 +222,7 @@ export default function PredictionsTable() {
   const [filter, setFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [, setTick] = useState(0);
+  const [showAllMap, setShowAllMap] = useState(false);
 
   // Fetch predictions on mount and when filter/page changes
   useEffect(() => {
@@ -323,6 +325,7 @@ export default function PredictionsTable() {
 
   return (
     <section className="py-4">
+      {showAllMap && <AllPredictionsMap onClose={() => setShowAllMap(false)} />}
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <div className="flex items-center gap-3">
@@ -331,16 +334,28 @@ export default function PredictionsTable() {
               {pagination.total} total
             </span>
           </div>
-          <div className="flex gap-1.5">
-            {FILTERS.map(f => (
-              <FilterButton
-                key={f.key}
-                active={filter === f.key}
-                label={f.label}
-                onClick={() => handleFilterChange(f.key)}
-                colorClass={filterColors[f.key]}
-              />
-            ))}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowAllMap(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-900/50 hover:bg-blue-800/70 text-blue-400 hover:text-blue-300 border border-blue-700 transition-colors text-xs font-medium"
+              title="View all predictions on one map"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              </svg>
+              Map All
+            </button>
+            <div className="flex gap-1.5">
+              {FILTERS.map(f => (
+                <FilterButton
+                  key={f.key}
+                  active={filter === f.key}
+                  label={f.label}
+                  onClick={() => handleFilterChange(f.key)}
+                  colorClass={filterColors[f.key]}
+                />
+              ))}
+            </div>
           </div>
         </div>
 
