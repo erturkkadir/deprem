@@ -519,7 +519,7 @@ class SpatialAttentionBias(nn.Module):
 
         a = torch.sin(dlat/2)**2 + torch.cos(lat1) * torch.cos(lat2) * torch.sin(dlon/2)**2
         # Angular distance in degrees (0 to 180)
-        distance_deg = 2 * torch.asin(torch.sqrt(torch.clamp(a, 0, 1))) * (180.0 / math.pi)
+        distance_deg = 2 * torch.asin(torch.sqrt(torch.clamp(a, 0.0, 1.0 - 1e-6))) * (180.0 / math.pi)
 
         # Log-distance features (smooth, handles zero distance)
         log_dist = torch.log1p(distance_deg)  # [B, T, T]
@@ -1081,7 +1081,7 @@ class RelativeLocationEncoding(nn.Module):
         dlon = lon2_rad - lon1_rad
 
         a = torch.sin(dlat/2)**2 + torch.cos(lat1_rad) * torch.cos(lat2_rad) * torch.sin(dlon/2)**2
-        c = 2 * torch.asin(torch.sqrt(torch.clamp(a, 0, 1)))
+        c = 2 * torch.asin(torch.sqrt(torch.clamp(a, 0.0, 1.0 - 1e-6)))
 
         return R * c
 
@@ -1827,7 +1827,7 @@ class EqModelComplex(nn.Module):
         dlon = lon2 - lon1        # [N, K]
 
         a = torch.sin(dlat / 2) ** 2 + torch.cos(lat1) * torch.cos(lat2) * torch.sin(dlon / 2) ** 2
-        a = torch.clamp(a, 0.0, 1.0 - 1e-7)
+        a = torch.clamp(a, 0.0, 1.0 - 1e-6)
         dist_rad = 2 * torch.asin(torch.sqrt(a))
         dist_deg = dist_rad / deg2rad   # [N, K]
 
@@ -1934,19 +1934,18 @@ class EqModelComplex(nn.Module):
 
             # Auxiliary losses
             hav_loss = self._haversine_loss_mdn(sp, lat_actual, lon_actual)
-            gr_loss = MagnitudeMDNHead.gr_prior_loss(mp)
             ent_loss = SpatialMDNHead.entropy_loss(sp)  # negative entropy → minimize = more uniform pi
             # Sigma regularization: penalize average sigma above 3° (≈333km) to prevent blowup
             sigma_mean = (sp['sigma_lat'].mean() + sp['sigma_lon'].mean()) / 2.0
             sigma_reg = torch.clamp(sigma_mean - 3.0, min=0.0)
 
-            loss = spatial_loss + mag_loss + 3.0 * hav_loss + 0.1 * gr_loss + 0.5 * ent_loss + 0.1 * sigma_reg
+            loss = spatial_loss + mag_loss + 3.0 * hav_loss + 0.5 * ent_loss + 0.1 * sigma_reg
 
             loss_dict = {
                 'spatial': spatial_loss.item(),
                 'mag': mag_loss.item(),
                 'hav': hav_loss.item(),
-                'gr': gr_loss.item(),
+                'gr': 0.0,
                 'ent': ent_loss.item(),
                 'sig': sigma_reg.item(),
             }

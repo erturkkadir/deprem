@@ -91,21 +91,6 @@ export const recordMatch = createAsyncThunk(
   }
 );
 
-export const verifyPrediction = createAsyncThunk(
-  'earthquake/verifyPrediction',
-  async ({ predictionId, actualLat, tolerance }) => {
-    const response = await fetch(`${API_BASE}/api/verify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prediction_id: predictionId,
-        actual_lat: actualLat,
-        tolerance: tolerance || 5,
-      }),
-    });
-    return response.json();
-  }
-);
 
 const initialState = {
   // Model status
@@ -319,16 +304,6 @@ const earthquakeSlice = createSlice({
       .addCase(triggerCycle.rejected, (state, action) => {
         state.isCycling = false;
         state.error = action.error.message;
-      })
-
-      // Verify
-      .addCase(verifyPrediction.fulfilled, (state, action) => {
-        if (action.payload.success) {
-          state.stats = {
-            ...state.stats,
-            ...action.payload.stats,
-          };
-        }
       })
 
       // Record Match

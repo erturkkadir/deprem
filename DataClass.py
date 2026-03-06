@@ -85,9 +85,9 @@ class DataC():
             moon_dist_bin: int array 0-9 (0=perigee/closest, 9=apogee/farthest)
         """
         SYNODIC_PERIOD = 29.530588853       # days (new moon to new moon)
-        REF_NEW_MOON = 947182440            # Jan 6, 2000 18:14 UTC (known new moon)
+        REF_NEW_MOON = 1704974220           # Jan 11, 2024 11:57 UTC (known new moon)
         ANOMALISTIC_PERIOD = 27.554551      # days (perigee to perigee)
-        REF_PERIGEE = 948019200             # Jan 16, 2000 ~00:00 UTC (approximate perigee)
+        REF_PERIGEE = 1705125600            # Jan 13, 2024 06:00 UTC (approximate perigee)
 
         ts = np.asarray(unix_timestamps, dtype=np.float64)
 
@@ -1134,7 +1134,7 @@ class DataC():
                 # Encode for model
                 x = lat + 90
                 y = lon + 180
-                d = dep / 10
+                d = min(int(dep), 200)
                 m = mag * 10
 
                 all_values.append((code, dat, tim, dtm, lat, lon, dep, mag, plc, typ, magType, x, y, d, m))
@@ -1198,7 +1198,7 @@ class DataC():
         DEDUP_MAG_DELTA = 0.5  # max magnitude difference
         try:
             rows = self._safe_fetch(
-                "SELECT us_id, us_datetime, us_lat, us_lon, us_m FROM usgs "
+                "SELECT us_id, us_datetime, us_lat, us_lon, us_mag FROM usgs "
                 "WHERE us_datetime > DATE_SUB(NOW(), INTERVAL 2 DAY) ORDER BY us_id",
                 fetch_one=False)
             if rows:

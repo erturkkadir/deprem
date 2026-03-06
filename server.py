@@ -106,6 +106,7 @@ dataC = None
 scheduler = None
 current_checkpoint = None  # Track which checkpoint is loaded
 _prediction_lock = threading.Lock()  # Prevents concurrent make_prediction() calls
+_cycle_lock = threading.Lock()       # Prevents concurrent check_and_handle_prediction() calls
 
 MODEL_DIR = '/var/www/syshuman/quake'
 MODEL_PREFIX = 'eqModel_complex'
@@ -677,7 +678,9 @@ def auto_verify_predictions():
                     continue
                 group_preds = [{'pr_id': pr_id, 'lat': pred_lat, 'lon': pred_lon, 'rank': 1}]
 
-            actuals = dataC.get_earthquakes_in_window(pr_timestamp, expected_event_time, min_mag=4.0)
+            # Search the full late-catch window (up to LATE_SEARCH_HOURS after prediction)
+            late_end_time = pr_timestamp + timedelta(hours=LATE_SEARCH_HOURS)
+            actuals = dataC.get_earthquakes_in_window(pr_timestamp, late_end_time, min_mag=4.0)
             matched = False
             for actual in (actuals or []):
                 us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = actual
@@ -731,6 +734,10 @@ def check_and_handle_prediction():
     global dataC
 
     if dataC is None:
+        return None
+
+    if not _cycle_lock.acquire(blocking=False):
+        print(f"[{datetime.now()}] check_and_handle_prediction() already running, skipping")
         return None
 
     try:
@@ -829,6 +836,9 @@ def check_and_handle_prediction():
         import traceback
         traceback.print_exc()
         return None
+
+    finally:
+        _cycle_lock.release()
 
 
 def refresh_data(full_refresh=False):
@@ -1116,8 +1126,8 @@ def get_live_data():
                     diff_mag=abs(pred_mag_actual - eq_mag) if eq_mag else None
                 )
 
-                print(f"[{now}] Creating new prediction...")
-                make_prediction()
+                print(f"[{now}] Creating new prediction (background)...")
+                threading.Thread(target=make_prediction, daemon=True).start()
 
                 latest_prediction = dataC.get_latest_prediction()
                 recent_earthquakes = dataC.get_recent_earthquakes(limit=50, min_mag=2.0)
@@ -1130,8 +1140,8 @@ def get_live_data():
 
                 dataC.close_group_missed(group_id)
 
-                print(f"[{now}] Creating new prediction...")
-                make_prediction()
+                print(f"[{now}] Creating new prediction (background)...")
+                threading.Thread(target=make_prediction, daemon=True).start()
 
                 latest_prediction = dataC.get_latest_prediction()
                 recent_earthquakes = dataC.get_recent_earthquakes(limit=50, min_mag=2.0)
@@ -1701,9 +1711,11 @@ def get_training_loss():
         return jsonify({'error': 'Data not loaded'}), 500
 
     try:
-        # Get limit parameter (default 500 points for graph)
-        limit = request.args.get('limit', 500, type=int)
+        # Get limit parameter (default 500, hard cap 500 — larger queries block on training writes)
+        limit = min(request.args.get('limit', 500, type=int), 500)
 
+        # Short lock timeout so training writes don't block the server
+        dataC._safe_execute("SET SESSION innodb_lock_wait_timeout = 3")
         # Query loss history from database
         sql = """
         SELECT step, train_loss, val_loss, timestamp

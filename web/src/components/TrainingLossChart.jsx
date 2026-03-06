@@ -17,7 +17,7 @@ function TrainingLossChart() {
   useEffect(() => {
     const fetchLossData = async () => {
       try {
-        const response = await axios.get('/api/training-loss?limit=2000');
+        const response = await axios.get('/api/training-loss?limit=500');
         setLossData(response.data.loss_history || []);
         setError(null);
       } catch (err) {
