@@ -1621,6 +1621,41 @@ class SpatialMDNHead(nn.Module):
         return (pi * torch.log(pi + 1e-10)).sum(dim=-1).mean()
 
     @staticmethod
+    def diversity_loss(params, tau_deg=30.0):
+        """Component repulsion loss: penalizes spatial components being too close.
+
+        Forces K Gaussian components to spread to different geographic zones
+        rather than all collapsing to the same high-density region (e.g. Fiji/Tonga).
+
+        tau_deg: repulsion range in degrees (~3300km at tau=30°). Components
+                 closer than tau will be penalized exponentially.
+        """
+        mu_lat = params['mu_lat']  # [N, K]
+        mu_lon = params['mu_lon']  # [N, K]
+        N, K = mu_lat.shape
+
+        # Pairwise great-circle distances between all component means [N, K, K]
+        deg2rad = math.pi / 180.0
+        lat1 = mu_lat.unsqueeze(2) * deg2rad   # [N, K, 1]
+        lat2 = mu_lat.unsqueeze(1) * deg2rad   # [N, 1, K]
+        lon1 = mu_lon.unsqueeze(2) * deg2rad
+        lon2 = mu_lon.unsqueeze(1) * deg2rad
+
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a = torch.sin(dlat / 2) ** 2 + torch.cos(lat1) * torch.cos(lat2) * torch.sin(dlon / 2) ** 2
+        a = torch.clamp(a, 1e-6, 1.0 - 1e-6)  # clamp both ends: a≈0 gives ∞ grad in asin
+        dist_deg = 2 * torch.asin(torch.sqrt(a)) / deg2rad  # [N, K, K]
+
+        # Upper-triangle pairs only (avoid double-counting and self-pairs)
+        mask = torch.triu(torch.ones(K, K, device=mu_lat.device, dtype=torch.bool), diagonal=1)
+        pair_dists = dist_deg[:, mask]  # [N, num_pairs]
+
+        # Gaussian repulsion: 1 when dist=0, 0 when dist >> tau
+        repulsion = torch.exp(-pair_dists ** 2 / (2.0 * tau_deg ** 2))
+        return repulsion.mean()
+
+    @staticmethod
     def sample(params, temperature=0.8):
         """Sample (lat, lon) from the mixture. Returns actual coordinates."""
         pi = params['pi'][0]              # [K]
@@ -1934,12 +1969,13 @@ class EqModelComplex(nn.Module):
 
             # Auxiliary losses
             hav_loss = self._haversine_loss_mdn(sp, lat_actual, lon_actual)
-            ent_loss = SpatialMDNHead.entropy_loss(sp)  # negative entropy → minimize = more uniform pi
+            ent_loss = SpatialMDNHead.entropy_loss(sp)   # encourages uniform pi weights
+            div_loss = SpatialMDNHead.diversity_loss(sp) # pushes component means apart geographically
             # Sigma regularization: penalize average sigma above 3° (≈333km) to prevent blowup
             sigma_mean = (sp['sigma_lat'].mean() + sp['sigma_lon'].mean()) / 2.0
             sigma_reg = torch.clamp(sigma_mean - 3.0, min=0.0)
 
-            loss = spatial_loss + mag_loss + 3.0 * hav_loss + 0.5 * ent_loss + 0.1 * sigma_reg
+            loss = spatial_loss + mag_loss + 3.0 * hav_loss + 1.0 * ent_loss + 1.0 * div_loss + 0.1 * sigma_reg
 
             loss_dict = {
                 'spatial': spatial_loss.item(),
@@ -1947,6 +1983,7 @@ class EqModelComplex(nn.Module):
                 'hav': hav_loss.item(),
                 'gr': 0.0,
                 'ent': ent_loss.item(),
+                'div': div_loss.item(),
                 'sig': sigma_reg.item(),
             }
         else:

@@ -21,6 +21,7 @@ import config
 
 # Reduce CUDA memory fragmentation — allows fitting larger models
 os.environ.setdefault('PYTORCH_CUDA_ALLOC_CONF', 'expandable_segments:True')
+os.environ.setdefault('PYTORCH_ALLOC_CONF', 'expandable_segments:True')
 
 # Force unbuffered output for real-time monitoring
 sys.stdout.reconfigure(line_buffering=True)
@@ -34,16 +35,16 @@ CHECKPOINT_INTERVAL = 600  # Save every N iterations
 KEEP_CHECKPOINTS = 5       # Keep last N checkpoints
 
 # Model hyperparameters
-B = 2              # Batch size (reduced for memory)
-T = 512            # Sequence length (longer context for better predictions)
-n_embed = 1176     # Embedding size (divisible by 7 features and 8 heads)
+B = 1              # Batch size (1 to share GPU with Ollama)
+T = 384            # Sequence length (reduced to share GPU with Ollama)
+n_embed = 1024     # Embedding size (reduced from 1176 to fit GPU alongside Ollama)
 n_heads = 8
-n_layer = 8        # Increased from 6 — fits with expandable_segments (~357M params)
+n_layer = 6        # Reduced from 8 to fit GPU alongside Ollama
 dropout = 0.1      # Increased from 0.01 - prevents overfitting
 
 # Training hyperparameters
 LEARNING_RATE = 1e-4
-ACCUMULATION_STEPS = 16  # Effective batch size = B * ACCUMULATION_STEPS = 32
+ACCUMULATION_STEPS = 32  # Effective batch size = B * ACCUMULATION_STEPS = 32 (B=1)
 LABEL_SMOOTHING = 0.1   # Reduces overconfidence
 INPUT_MAG = 2.0    # Min magnitude for input context
 TARGET_MAG = 4.0   # Min magnitude for targets
@@ -264,7 +265,7 @@ def train():
     opt_step = 0
     running_loss = 0.0
     running_targets = 0.0
-    running_dim_loss = {'spatial': 0.0, 'mag': 0.0, 'hav': 0.0, 'gr': 0.0, 'ent': 0.0, 'sig': 0.0}
+    running_dim_loss = {'spatial': 0.0, 'mag': 0.0, 'hav': 0.0, 'gr': 0.0, 'ent': 0.0, 'div': 0.0, 'sig': 0.0}
     best_val_loss = float('inf')
     last_avg_loss = float('inf')
 
@@ -372,7 +373,7 @@ def train():
                 # Compute validation loss WITHOUT label smoothing for true generalization signal
                 val_loss = compute_val_loss(model, dataC, B, T, num_batches=20, label_smoothing=0.0)
 
-                print(f"step {iteration:6d} | train {last_avg_loss:.4f} | val {val_loss:.4f} | lr {lr:.2e} | tgt {avg_targets:.0f} | sp {avg_dim['spatial']:.2f} mag {avg_dim['mag']:.2f} hav {avg_dim['hav']:.2f} gr {avg_dim['gr']:.3f} ent {avg_dim['ent']:.3f} sig {avg_dim['sig']:.3f}")
+                print(f"step {iteration:6d} | train {last_avg_loss:.4f} | val {val_loss:.4f} | lr {lr:.2e} | tgt {avg_targets:.0f} | sp {avg_dim['spatial']:.2f} mag {avg_dim['mag']:.2f} hav {avg_dim['hav']:.2f} ent {avg_dim['ent']:.3f} div {avg_dim['div']:.3f} sig {avg_dim['sig']:.3f}")
 
                 # Update status file for server
                 update_training_status(iteration, last_avg_loss)
@@ -387,7 +388,7 @@ def train():
 
                 running_loss = 0.0
                 running_targets = 0.0
-                running_dim_loss = {'spatial': 0.0, 'mag': 0.0, 'hav': 0.0, 'gr': 0.0, 'ent': 0.0, 'sig': 0.0}
+                running_dim_loss = {'spatial': 0.0, 'mag': 0.0, 'hav': 0.0, 'gr': 0.0, 'ent': 0.0, 'div': 0.0, 'sig': 0.0}
 
             # Save checkpoint
             if iteration % CHECKPOINT_INTERVAL == 0:
