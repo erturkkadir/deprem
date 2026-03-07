@@ -7,17 +7,17 @@ Batch: 1  |  Seq len: 384  |  Embed: 1024
 Print every: 200  |  Save every: 600
 Learning rate: 0.0001
 ============================================================
-[2026-03-06 19:35:00.003641] Loading hybrid data (M2.0+ input, M4.0+ targets)...
+[2026-03-07 18:07:10.977086] Loading hybrid data (M2.0+ input, M4.0+ targets)...
 Database connection established
-Loaded 1,498,242 records (M2.0+)
-  Training targets (M4.0+): 521,900 (34.8%)
+Loaded 1,498,536 records (M2.0+)
+  Training targets (M4.0+): 521,952 (34.8%)
   Earth-state features: hour[0-23], doy[0-365], moon_phase[0-29], moon_dist[0-9]
 
-[2026-03-06 19:35:31.969660] Creating model with Geographic Positional Encoding (GPE)...
+[2026-03-07 18:07:44.293818] Creating model with Geographic Positional Encoding (GPE)...
 Model parameters: 203,889,152
 Starting from scratch
 
-[2026-03-06 19:35:37.161007] Training started (MULTI-POSITION)...
+[2026-03-07 18:07:53.406286] Training started (MULTI-POSITION)...
 LR schedule: warmup 500 optimizer steps, cosine decay to 500000
 Gradient accumulation: 32 steps (effective batch=32)
 Output: MDN (SpatialMDN K=20, MagnitudeMDN K=8)

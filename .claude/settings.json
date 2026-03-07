@@ -2,6 +2,9 @@
   "permissions": {
     "additionalDirectories": [
       "/var/www/syshuman/quake"
+    ],
+    "allow": [
+      "Read(//var/www/syshuman/quake/**)"
     ]
   }
 }
