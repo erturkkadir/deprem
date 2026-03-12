@@ -21,10 +21,10 @@ const createIcon = (color) => new L.DivIcon({
 
 const matchedIcon = createIcon('#22c55e');
 
-export default function AllPredictionsMap({ onClose }) {
+export default function AllPredictionsMap({ onClose, initialFilter = 'all' }) {
   const [predictions, setPredictions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // all | matched | missed | pending
+  const [filter, setFilter] = useState(initialFilter); // all | matched | missed | pending
 
   useEffect(() => {
     axios.get('/api/predictions?limit=100&page=1')
