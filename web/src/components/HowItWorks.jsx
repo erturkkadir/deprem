@@ -66,12 +66,12 @@ const sections = [
     ),
     content: [
       {
-        heading: 'Complex-valued transformer (357M parameters)',
-        text: 'The architecture is an 8-layer transformer with 8 attention heads, operating entirely in complex number space. Each layer has complex multi-head attention (with QK-Norm and learned per-dimension scaling) and complex gated feed-forward networks, both wrapped in pre+post normalization. The model processes sequences of 512 earthquakes and predicts the next significant event through Mixture Density Network output heads.',
+        heading: 'Complex-valued transformer (203M parameters)',
+        text: 'The architecture is a 6-layer transformer with 8 attention heads, operating entirely in complex number space. Each layer has complex multi-head attention (with QK-Norm and learned per-dimension scaling) and complex gated feed-forward networks, both wrapped in pre+post normalization. The model processes sequences of 384 earthquakes and predicts the next significant event through Mixture Density Network output heads.',
       },
       {
         heading: 'How input becomes prediction',
-        text: 'Each earthquake\'s 12 features are independently embedded into complex vectors (total embedding dimension: 1176), then concatenated. The sequence passes through 8 transformer layers. The final output goes through two Mixture Density Network heads: SpatialMDNHead (K=20 bivariate Gaussians for joint latitude/longitude) and MagnitudeMDNHead (K=8 univariate Gaussians). At inference, the highest-weight component is used as the prediction, along with a sigma_km uncertainty radius.',
+        text: 'Each earthquake\'s 12 features are independently embedded into complex vectors (total embedding dimension: 1024), then concatenated. The sequence passes through 6 transformer layers. The final output goes through two Mixture Density Network heads: SpatialMDNHead (K=20 bivariate Gaussians for joint latitude/longitude) and MagnitudeMDNHead (K=8 univariate Gaussians). At inference, the highest-weight component is used as the prediction, along with a sigma_km uncertainty radius.',
       },
       {
         heading: 'Spatial attention bias',
@@ -106,7 +106,7 @@ const sections = [
       },
       {
         heading: 'Mixture Density Network loss (NLL)',
-        text: 'The model outputs K=20 spatial Gaussians competing to explain each target. The loss is the negative log-likelihood of the true location under the mixture — this forces multiple components to cover different seismically active regions. Magnitude uses K=8 Gaussians with a Gutenberg-Richter prior (enforcing realistic b-value ~1.0 in the magnitude-frequency relationship). An entropy regularizer keeps components diverse rather than collapsing.',
+        text: 'The model outputs K=20 spatial Gaussians competing to explain each target. The loss is the negative log-likelihood of the true location under the mixture — this forces multiple components to cover different seismically active regions. Magnitude uses K=8 Gaussians. An entropy regularizer keeps components diverse rather than collapsing. A diversity loss (Gaussian repulsion, τ=30°) prevents all 20 spatial components from collapsing to a single seismic zone.',
       },
       {
         heading: 'Magnitude-weighted loss',
@@ -136,8 +136,8 @@ const sections = [
         text: 'Every 5 minutes, the server feeds the latest 512 earthquakes into the model. The MDN outputs 20 spatial Gaussian components — the highest-weight component gives the predicted (lat, lon). The prediction also includes sigma_km: the uncertainty radius computed from the Gaussian\'s standard deviations (σ_lat, σ_lon), indicating how confident the model is spatially.',
       },
       {
-        heading: '120-minute prediction window',
-        text: 'Each prediction has a 120-minute validity window. During this window, the system monitors incoming earthquakes for a match. A prediction is considered successful if an M4+ earthquake occurs within 500km of the predicted location during the window. When a prediction expires, a new one is created immediately.',
+        heading: '90-minute prediction window',
+        text: 'Each prediction has a 90-minute validity window. During this window, the system monitors incoming earthquakes for a match. A prediction is considered successful if an M4+ earthquake occurs within 250km of the predicted location during the window. When a prediction expires, a new one is created immediately. Missed predictions are rechecked for up to 48 hours (late catch) — a match in that window is recorded as a Late Catch.',
       },
       {
         heading: 'Transparent verification',
@@ -181,13 +181,13 @@ const sections = [
 const archLayers = [
   {
     title: '1. Input: Earthquake Sequence',
-    shape: '[Batch, 512, 12]',
-    idea: 'The model reads a sequence of 512 earthquakes, each described by 12 features. Like reading a paragraph of seismic events to predict the next sentence.',
+    shape: '[Batch, 384, 12]',
+    idea: 'The model reads a sequence of 384 earthquakes, each described by 12 features. Like reading a paragraph of seismic events to predict the next sentence.',
     code: `# 12 features per earthquake:
 # [year, month, lat, lon, mag, depth,
 #  global_dt, local_dt, hour, doy,
 #  moon_phase, moon_dist]
-x = dataC.getLastFromDB(T=512)  # → [1, 512, 12]`,
+x = dataC.getLastFromDB(T=384)  # → [1, 384, 12]`,
     details: [
       'Features 0-1: Year (0-60) and Month (0-11) — long-term trends and seasonal patterns',
       'Features 2-3: Latitude (0-180) and Longitude (0-360) — encoded location on Earth',
@@ -199,8 +199,8 @@ x = dataC.getLastFromDB(T=512)  # → [1, 512, 12]`,
   },
   {
     title: '2. Complex Embedding',
-    shape: '[B, 512, 12] → [B, 512, 1176] complex',
-    idea: 'Each feature becomes a complex vector with magnitude + phase. Location gets 27% of capacity because WHERE matters most.',
+    shape: '[B, 384, 12] → [B, 384, 1024] complex',
+    idea: 'Each feature becomes a complex vector with magnitude + phase. Location gets ~27% of capacity because WHERE matters most.',
     code: `class ComplexEmbedding(nn.Module):
     def __init__(self, num_embeddings, embedding_dim):
         # Magnitude embedding (log-scale, always positive)
@@ -217,15 +217,15 @@ x = dataC.getLastFromDB(T=512)  # → [1, 512, 12]`,
             magnitude * torch.sin(phase)
         )`,
     details: [
-      'GPE (lat+lon): 318 dims (27%) — Spherical Harmonics + Fourier + Tectonic Zones + Relative Position',
-      'Global dt + Local dt: 117 dims each (10%) — discrete embedding + continuous log-scale encoding',
-      '8 other features: 78 dims each (6.6%) — standard ComplexEmbedding lookup',
-      'Total: 318 + 117 + 117 + (8×78) = 1,176 complex dims = 2,352 coupled real values',
+      'GPE (lat+lon): 276 dims (~27%) — Spherical Harmonics + Fourier + Tectonic Zones + Relative Position',
+      'Global dt + Local dt: 102 dims each (10%) — discrete embedding + continuous log-scale encoding',
+      '8 other features: 68 dims each (~6.6%) — standard ComplexEmbedding lookup',
+      'Total: 276 + 102 + 102 + (8×68) = 1,024 complex dims = 2,048 coupled real values',
     ],
   },
   {
     title: '3. Hermitian Multi-Head Attention',
-    shape: '[B, 512, 1176] → [B, 512, 1176] complex',
+    shape: '[B, 384, 1024] → [B, 384, 1024] complex',
     idea: '8 parallel attention heads — each earthquake "looks at" every previous one. QK-Norm stabilizes attention, PerDimScale lets each dimension learn its own importance. Spatial bias makes nearby events attend more strongly.',
     code: `def forward(self, x, lat=None, lon=None):
     Q = self.q_proj(x)  # ComplexLinear
@@ -264,7 +264,7 @@ x = dataC.getLastFromDB(T=512)  # → [1, 512, 12]`,
   },
   {
     title: '4. Complex Gated Feed-Forward (SwiGLU)',
-    shape: '[B, 512, 1176] → [B, 512, 4704] → [B, 512, 1176]',
+    shape: '[B, 384, 1024] → [B, 384, 4096] → [B, 384, 1024]',
     idea: 'Processes each position independently. The critical part: TRUE complex multiplication for gating, which keeps real and imaginary parts coupled.',
     code: `def forward(self, x):
     # Gate: decides "how much to keep" (magnitude + phase)
@@ -283,13 +283,13 @@ x = dataC.getLastFromDB(T=512)  # → [1, 512, 12]`,
     return self.down_proj(hidden)       # Back to 1176 dims`,
     details: [
       'Without true complex multiply, the gate and up paths would stay independent — just two separate real networks pretending to be complex',
-      '4× expansion (1176→4704) gives room for complex feature interactions before compressing back',
+      '4× expansion (1024→4096) gives room for complex feature interactions before compressing back',
     ],
   },
   {
-    title: '5. Transformer Block (×8 stacked)',
+    title: '5. Transformer Block (×6 stacked)',
     shape: 'Pre-norm → Attn → Post-norm → Add → Pre-norm → FFN → Post-norm → Add',
-    idea: '8 blocks stacked, each with 4 norms (pre+post for both attention and FFN). Early blocks learn "these events are near each other", later blocks learn "this aftershock cascade is accelerating toward a larger event".',
+    idea: '6 blocks stacked, each with 4 norms (pre+post for both attention and FFN). Early blocks learn "these events are near each other", later blocks learn "this aftershock cascade is accelerating toward a larger event".',
     code: `class ComplexTransformerBlock(nn.Module):
     def forward(self, x, lat=None, lon=None):
         # 4-norm design (pre-norm → sublayer → post-norm → residual)
@@ -306,22 +306,22 @@ x = dataC.getLastFromDB(T=512)  # → [1, 512, 12]`,
 
         return x
 
-# Main model stacks 8 blocks (357M params total):
-for block in self.blocks:      # 8 layers
+# Main model stacks 6 blocks (203M params total):
+for block in self.blocks:      # 6 layers
     x = block(x, lat=lat, lon=lon)
 x = self.ln_f(x)               # final norm`,
     details: [
       'Pre-norm (ComplexLayerNorm) + Post-norm (ComplexRMSNorm) — 4-norm design stabilizes residual stream',
       'Residual connections: each layer learns only the delta, not the full representation',
-      '8 layers at n_embed=1176 fits RTX 4060 Ti (16 GB) with expandable_segments:True — 14.5 GB VRAM used',
+      '6 layers at n_embed=1024, T=384 — sized to share GPU with Ollama (~1 GiB reserved)',
     ],
   },
   {
     title: '6. Output: Mixture Density Network Heads',
-    shape: '[B, T, 1176] complex → SpatialMDN(K=20) + MagnitudeMDN(K=8)',
-    idea: 'Complex representation is split into real + imaginary (→2,352 dims). Two MDN heads predict full probability distributions — not just a point estimate. At inference, the highest-weight Gaussian component becomes the prediction.',
+    shape: '[B, T, 1024] complex → SpatialMDN(K=20) + MagnitudeMDN(K=8)',
+    idea: 'Complex representation is split into real + imaginary (→2,048 dims). Two MDN heads predict full probability distributions — not just a point estimate. At inference, the highest-weight Gaussian component becomes the prediction.',
     code: `# Leave complex space: cat real and imaginary
-x_combined = torch.cat([x.real, x.imag], dim=-1)  # [B, T, 2352]
+x_combined = torch.cat([x.real, x.imag], dim=-1)  # [B, T, 2048]
 
 # SpatialMDNHead: K=20 bivariate Gaussians for (lat, lon)
 spatial_params = self.spatial_head(x_combined)
@@ -341,14 +341,14 @@ sigma_km = 111 * sqrt((sigma_lat[top_k]**2 + sigma_lon[top_k]**2) / 2)`,
       'K=20 spatial components: each Gaussian covers a different seismically active zone (Pacific Ring, Alpide belt, etc.)',
       'Bivariate Gaussian: σ_lat, σ_lon, ρ (correlation) — non-axis-aligned uncertainty ellipses',
       'sigma_km: RMS of σ_lat and σ_lon converted to km (1°≈111km) — shown as ±NNN km in UI',
-      'Gutenberg-Richter prior in MagnitudeMDN enforces realistic b≈1.0 magnitude distribution',
+      'MagnitudeMDN K=8 Gaussians — GR prior removed (was suppressing predictions above M4.43)',
       'pi (mixture weight) is returned as a confidence score per prediction',
     ],
   },
   {
     title: '7. Training Loss (5 signals)',
-    shape: 'loss = NLL_spatial + NLL_mag + 3.0×hav + 0.1×GR + 0.5×entropy',
-    idea: 'Five simultaneous training signals: MDN NLL teaches the full distribution, min-k haversine pulls the closest component toward targets, magnitude weighting prioritizes big quakes, Omori decay weights recent events more, GR prior and entropy keep the distribution well-behaved.',
+    shape: 'loss = NLL_spatial + NLL_mag + 3.0×hav + 0.5×entropy + 1.0×diversity',
+    idea: 'Five simultaneous training signals: MDN NLL teaches the full distribution, min-k haversine pulls the closest component toward targets, magnitude weighting prioritizes big quakes, Omori decay weights recent events more, entropy + diversity keep components spread across the globe.',
     code: `# 1. MDN negative log-likelihood (all K components compete)
 spatial_nll = SpatialMDNHead.nll_loss(sp, lat_actual, lon_actual)
 mag_nll = MagnitudeMDNHead.nll_loss(mp, mag_actual)
@@ -363,19 +363,19 @@ combined_w = (mag_w * omori_w) / (mag_w * omori_w).mean()
 hav_k = haversine(mu_lat, mu_lon, lat_tgt, lon_tgt)
 hav_loss = log1p(hav_k.min(dim=-1).values).mean()  # best component
 
-# 4. Gutenberg-Richter prior (b≈1.0 regularization)
-gr_loss = MagnitudeMDNHead.gr_prior_loss(mp)
-
-# 5. Entropy regularizer (keep 20 components diverse)
+# 4. Entropy regularizer (keep mixture weights diverse)
 ent_loss = SpatialMDNHead.entropy_loss(sp)  # max entropy = uniform pi
 
-loss = (spatial_nll + mag_nll) * combined_w + 3.0*hav_loss + 0.1*gr_loss + 0.5*ent_loss`,
+# 5. Diversity loss (Gaussian repulsion between K component means)
+div_loss = SpatialMDNHead.diversity_loss(sp)  # tau=30°, prevents Fiji/Tonga collapse
+
+loss = (spatial_nll + mag_nll) * combined_w + 3.0*hav_loss + 0.5*ent_loss + 1.0*div_loss`,
     details: [
       'Min-k haversine: gradient only flows through the CLOSEST component — creates geographic diversity, avoids mid-ocean averaging',
       'Omori decay: pos=0 (oldest) → 0.05× weight; pos=T-1 (newest) → 1.0× weight — model focuses on near-future',
       'Magnitude weights: M4.0→1×, M5.0→3.2×, M6.0→10×, M7.0→31.6×',
-      'GR prior: penalizes non-b≈1.0 magnitude distributions — prevents collapse to single magnitude',
-      'Entropy loss: prevents all 20 components from pointing at the same location',
+      'Entropy loss: prevents all 20 components from collapsing to the same pi weight',
+      'Diversity loss: Gaussian repulsion (τ=30°) pushes component means apart — fixed mode collapse where all 20 pointed at Fiji/Tonga',
       'Validation: pure NLL only (no aux losses, no weighting) — true generalization signal',
     ],
   },
@@ -669,18 +669,18 @@ export default function HowItWorks() {
           <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-4">Technical Specifications</h2>
           <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
             {[
-              { label: 'Parameters', value: '357M' },
+              { label: 'Parameters', value: '203M' },
               { label: 'Features', value: '12' },
-              { label: 'Seq Length', value: '512' },
-              { label: 'Embed Dim', value: '1,176' },
+              { label: 'Seq Length', value: '384' },
+              { label: 'Embed Dim', value: '1,024' },
               { label: 'Heads', value: '8' },
-              { label: 'Layers', value: '8' },
+              { label: 'Layers', value: '6' },
               { label: 'Spatial MDN', value: 'K=20' },
               { label: 'Mag MDN', value: 'K=8' },
               { label: 'Data', value: '1.5M+' },
               { label: 'Input', value: 'M2.0+' },
-              { label: 'Window', value: '120 min' },
-              { label: 'Source', value: 'EMSC' },
+              { label: 'Window', value: '90 min' },
+              { label: 'Match Radius', value: '250 km' },
             ].map((spec, i) => (
               <div key={i} className="bg-zinc-800/60 rounded-lg p-2.5 border border-zinc-700/50 text-center">
                 <p className="text-zinc-500 text-[10px] uppercase tracking-wider">{spec.label}</p>

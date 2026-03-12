@@ -116,7 +116,7 @@ MATCH_RADIUS_KM = 250       # Haversine distance for matching (km)
 MAGNITUDE_TOLERANCE = 0.75  # ±0.75 magnitude
 MIN_MAG_DISPLAY = 4.0       # Only show predictions with mag >= 4.0
 MIN_PREDICTION_WINDOW = 10  # minutes - reject predictions with window < 10 min
-LATE_SEARCH_HOURS = 24      # hours - keep checking a MISSED group (late catch window)
+LATE_SEARCH_HOURS = 48      # hours - keep checking a MISSED prediction (late catch window, grouped by 12h)
 EARTH_RADIUS_KM = 6371      # km
 PREDICTION_WINDOW_MINUTES = 90    # minutes per prediction cycle (1.5-hour window)
 TOP_K_PREDICTIONS = 1             # ONE prediction per cycle — simple, explainable
@@ -642,7 +642,7 @@ def auto_verify_predictions():
               AND (pr_rank = 1 OR pr_rank IS NULL)
               AND pr_timestamp > DATE_SUB(NOW(), INTERVAL %s HOUR)
         """
-        missed = dataC._safe_fetch(sql, (LATE_SEARCH_HOURS + 24,)) or []
+        missed = dataC._safe_fetch(sql, (LATE_SEARCH_HOURS + 24,)) or []  # +24h buffer for window duration
         now = datetime.now()
 
         for pr_id, pr_timestamp, pr_dt, lat_enc, lon_enc, mag_enc in missed:
@@ -690,7 +690,7 @@ def check_and_handle_prediction():
       PENDING → check for M4+ within 250km during 90min window
              → MATCHED (correct=True) → make new prediction
              → window expires → MISSED (correct=False) → make new prediction
-             → LATE CATCH checked by auto_verify_predictions() for next 24h
+             → LATE CATCH checked by auto_verify_predictions() for next 48h (grouped by 12h)
     """
     global dataC
 

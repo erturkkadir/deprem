@@ -420,9 +420,9 @@ function LiveDashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <span>
-                    Each cycle predicts <span className="text-zinc-400">5 zones</span> for the next <span className="text-zinc-400">1 hour</span> within <span className="text-zinc-400">250 km</span>.
-                    If no M4+ hits, the group is marked <span className="text-yellow-500">Missed</span> and a new cycle starts immediately.
-                    Missed groups continue checking for <span className="text-zinc-400">up to 24 h</span> — a late match counts as a <span className="text-green-500">Late Catch</span>.
+                    Each cycle predicts <span className="text-zinc-400">1 zone</span> for the next <span className="text-zinc-400">90 min</span> within <span className="text-zinc-400">250 km</span>.
+                    If no M4+ hits, the prediction is marked <span className="text-yellow-500">Missed</span> and a new cycle starts immediately.
+                    Missed predictions continue checking for <span className="text-zinc-400">up to 48 h</span> — a late match counts as a <span className="text-green-500">Late Catch</span>.
                   </span>
                 </div>
               </>
@@ -470,7 +470,7 @@ function LiveDashboard() {
             )}
 
             <div className="space-y-1.5 max-h-[440px] overflow-y-auto custom-scrollbar pr-0.5">
-              {recentQuakes.length > 0 ? recentQuakes.map((eq, i) => (
+              {recentQuakes.length > 0 ? recentQuakes.slice(0, 10).map((eq, i) => (
                 <div key={eq.id || i} className={`p-2 rounded ${getMagBg(eq.mag, eq.inWindow, eq.isMatch)} ${eq.isMatch ? 'ring-1 ring-green-400' : ''}`}>
                   <div className="flex items-center justify-between gap-1">
                     <div className="flex-1 min-w-0">

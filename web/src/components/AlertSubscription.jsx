@@ -29,8 +29,8 @@ function LocationPicker({ onSelect, selected, radiusKm }) {
   );
 }
 
-export default function AlertSubscription() {
-  const [isOpen, setIsOpen] = useState(false);
+export default function AlertSubscription({ alwaysOpen = false }) {
+  const [isOpen, setIsOpen] = useState(alwaysOpen);
   const [email, setEmail] = useState('');
   const [location, setLocation] = useState(null);
   const [radiusKm, setRadiusKm] = useState(500);
@@ -106,39 +106,8 @@ export default function AlertSubscription() {
     return () => clearTimeout(timer);
   }, [email, fetchAlerts]);
 
-  return (
-    <section className="py-4">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="card">
-          {/* Header - always visible */}
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="w-full flex items-center justify-between text-left"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-orange-500/15 flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-white font-bold text-sm sm:text-base">Email Alerts for Earthquake Predictions</h3>
-                <p className="text-zinc-500 text-xs mt-0.5">
-                  Get notified by email when our AI predicts an earthquake near your chosen location
-                </p>
-              </div>
-            </div>
-            <svg
-              className={`w-5 h-5 text-zinc-400 transition-transform flex-shrink-0 ml-2 ${isOpen ? 'rotate-180' : ''}`}
-              fill="none" stroke="currentColor" viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-
-          {/* Collapsible content */}
-          {isOpen && (
-            <div className="mt-4 pt-4 border-t border-zinc-700">
+  const innerContent = (
+            <div>
 
               {/* How it works */}
               <div className="mb-5 bg-zinc-800/50 rounded-lg p-4">
@@ -329,6 +298,45 @@ export default function AlertSubscription() {
                   )}
                 </div>
               </div>
+    </div>
+  );
+
+  if (alwaysOpen) {
+    return innerContent;
+  }
+
+  return (
+    <section className="py-4">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="card">
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-orange-500/15 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-white font-bold text-sm sm:text-base">Email Alerts for Earthquake Predictions</h3>
+                <p className="text-zinc-500 text-xs mt-0.5">
+                  Get notified by email when our AI predicts an earthquake near your chosen location
+                </p>
+              </div>
+            </div>
+            <svg
+              className={`w-5 h-5 text-zinc-400 transition-transform flex-shrink-0 ml-2 ${isOpen ? 'rotate-180' : ''}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {isOpen && (
+            <div className="mt-4 pt-4 border-t border-zinc-700">
+              {innerContent}
             </div>
           )}
         </div>

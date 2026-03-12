@@ -12,8 +12,8 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-export default function EarthquakeHistory() {
-  const [isOpen, setIsOpen] = useState(false);
+export default function EarthquakeHistory({ alwaysOpen = false }) {
+  const [isOpen, setIsOpen] = useState(alwaysOpen);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
@@ -47,37 +47,8 @@ export default function EarthquakeHistory() {
     if (isOpen && !data) fetchData();
   }, [isOpen]);
 
-  return (
-    <section className="py-4">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="card">
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="w-full flex items-center justify-between text-left"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-orange-500/15 flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-white font-bold text-sm sm:text-base">Historical Earthquake Patterns</h3>
-                <p className="text-zinc-500 text-xs mt-0.5">
-                  Distribution by month and day of month within a custom date range
-                </p>
-              </div>
-            </div>
-            <svg
-              className={`w-5 h-5 text-zinc-400 transition-transform flex-shrink-0 ml-2 ${isOpen ? 'rotate-180' : ''}`}
-              fill="none" stroke="currentColor" viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-
-          {isOpen && (
-            <div className="mt-4 pt-4 border-t border-zinc-700">
+  const content = (
+    <div>
               {/* Controls */}
               <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-end gap-2 sm:gap-3 mb-5">
                 <div className="col-span-1">
@@ -167,6 +138,45 @@ export default function EarthquakeHistory() {
                   </div>
                 </div>
               )}
+    </div>
+  );
+
+  if (alwaysOpen) {
+    return <div>{content}</div>;
+  }
+
+  return (
+    <section className="py-4">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="card">
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-orange-500/15 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-white font-bold text-sm sm:text-base">Historical Earthquake Patterns</h3>
+                <p className="text-zinc-500 text-xs mt-0.5">
+                  Distribution by month and day of month within a custom date range
+                </p>
+              </div>
+            </div>
+            <svg
+              className={`w-5 h-5 text-zinc-400 transition-transform flex-shrink-0 ml-2 ${isOpen ? 'rotate-180' : ''}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {isOpen && (
+            <div className="mt-4 pt-4 border-t border-zinc-700">
+              {content}
             </div>
           )}
         </div>

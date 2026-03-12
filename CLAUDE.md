@@ -8,7 +8,8 @@ This server runs the AI training and prediction backend using a **Full Complex-V
 
 ## Architecture Overview
 
-### Full Complex Neural Network (272M parameters)
+### Full Complex Neural Network (203M parameters)
+Current config: n_layer=6, n_embed=1024, n_heads=8, T=384. Shares GPU with Ollama.
 The model uses true complex-valued operations throughout, maintaining coupling between real and imaginary parts:
 
 - **ComplexLinear**: Magnitude-phase parameterization `W = |W| * exp(i*θ)`
@@ -16,8 +17,8 @@ The model uses true complex-valued operations throughout, maintaining coupling b
 - **ComplexLayerNorm/RMSNorm**: Normalization using complex variance
 - **ComplexMultiHeadAttention**: Hermitian inner product with QK-Norm, PerDimScale, RoPE
 - **ComplexGatedFeedForward**: SwiGLU-style with true complex multiplication
-- **SpatialMDNHead**: K=20 bivariate Gaussian mixture for joint (lat, lon) prediction
-- **MagnitudeMDNHead**: K=8 univariate Gaussian mixture with Gutenberg-Richter prior
+- **SpatialMDNHead**: K=20 bivariate Gaussian mixture for joint (lat, lon) prediction + diversity_loss (τ=30°)
+- **MagnitudeMDNHead**: K=8 univariate Gaussian mixture (GR prior REMOVED — was suppressing M>4.43)
 - **4-norm transformer blocks**: Pre-norm (LayerNorm) + Post-norm (RMSNorm) per sublayer
 
 ### Feature Encoding & Decoding Reference

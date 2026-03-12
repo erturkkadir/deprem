@@ -11,26 +11,41 @@ const FILTERS = [
   { key: 'missed', label: 'Missed' },
 ];
 
+// Returns { status, lateHalfDay } where lateHalfDay = 1-based 12h bucket (1=0-12h, 2=12-24h, etc.) or null
 function getStatus(pred) {
   if (!pred.verified) {
-    // Calculate if prediction window has expired
     if (pred.prediction_time) {
-      // Server times are UTC - append Z if not present to ensure correct parsing
       let timeStr = pred.prediction_time;
-      if (!timeStr.endsWith('Z') && !timeStr.includes('+')) {
-        timeStr += 'Z';
-      }
+      if (!timeStr.endsWith('Z') && !timeStr.includes('+')) timeStr += 'Z';
       const predTime = new Date(timeStr);
       const now = new Date();
-      // predicted_dt is in minutes, default to 60 if not set
-      const windowMinutes = pred.predicted_dt || 60;
+      const windowMinutes = pred.predicted_dt || 90;
       const windowEndTime = new Date(predTime.getTime() + windowMinutes * 60 * 1000);
-      // If current time is past the prediction window, it's missed
-      if (now > windowEndTime) return 'missed';
+      if (now > windowEndTime) return { status: 'missed', lateHalfDay: null };
     }
-    return 'pending';
+    return { status: 'pending', lateHalfDay: null };
   }
-  return pred.correct ? 'matched' : 'missed';
+  if (!pred.correct) return { status: 'missed', lateHalfDay: null };
+
+  // Matched — check if it's a late catch (actual_time > window end)
+  if (pred.actual_time && pred.prediction_time) {
+    try {
+      let predTimeStr = pred.prediction_time;
+      if (!predTimeStr.endsWith('Z') && !predTimeStr.includes('+')) predTimeStr += 'Z';
+      let actualTimeStr = pred.actual_time;
+      if (!actualTimeStr.endsWith('Z') && !actualTimeStr.includes('+')) actualTimeStr += 'Z';
+      const predTime = new Date(predTimeStr);
+      const actualTime = new Date(actualTimeStr);
+      const windowMinutes = pred.predicted_dt || 90;
+      const windowEnd = new Date(predTime.getTime() + windowMinutes * 60 * 1000);
+      if (actualTime > windowEnd) {
+        const hoursAfterWindow = (actualTime - windowEnd) / 3600000;
+        const halfDay = Math.floor(hoursAfterWindow / 12) + 1; // 1=0-12h, 2=12-24h, 3=24-36h, 4=36-48h
+        return { status: 'late', lateHalfDay: halfDay };
+      }
+    } catch { /* fall through */ }
+  }
+  return { status: 'matched', lateHalfDay: null };
 }
 
 function FilterButton({ active, label, count, onClick, colorClass }) {
@@ -55,8 +70,10 @@ function FilterButton({ active, label, count, onClick, colorClass }) {
   );
 }
 
+const LATE_HALF_DAY_LABELS = ['0-12h', '12-24h', '24-36h', '36-48h'];
+
 function StatusBadge({ pred }) {
-  const status = getStatus(pred);
+  const { status, lateHalfDay } = getStatus(pred);
 
   if (status === 'pending') {
     return (
@@ -74,6 +91,18 @@ function StatusBadge({ pred }) {
           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
         </svg>
         Matched
+      </span>
+    );
+  }
+
+  if (status === 'late') {
+    const bucket = lateHalfDay >= 1 && lateHalfDay <= 4 ? LATE_HALF_DAY_LABELS[lateHalfDay - 1] : `+${lateHalfDay * 12 - 12}h`;
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-cyan-900/30 text-cyan-400 border border-cyan-600">
+        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+        </svg>
+        Late Catch <span className="ml-0.5 opacity-70 text-[9px]">{bucket}</span>
       </span>
     );
   }
@@ -107,7 +136,7 @@ function TimeDiffCompare({ predictionTime, predictedWindow, actualTime, verified
   }
 
   const hasActual = actualMinutesAfter !== null;
-  const windowMinutes = predictedWindow || 60;
+  const windowMinutes = predictedWindow || 90;
 
   // Format time nicely
   const formatTime = (minutes) => {
@@ -226,7 +255,7 @@ export default function PredictionsTable() {
 
   // Fetch predictions on mount and when filter/page changes
   useEffect(() => {
-    dispatch(fetchPredictions({ page: currentPage, limit: 20, filter }));
+    dispatch(fetchPredictions({ page: currentPage, limit: 5, filter }));
   }, [dispatch, filter, currentPage]);
 
   // Force re-render every 30 seconds to update expired statuses
@@ -248,7 +277,7 @@ export default function PredictionsTable() {
 
   const openMapInNewTab = (pred) => {
     // Calculate window end time
-    const windowMinutes = pred.predicted_dt || 60;
+    const windowMinutes = pred.predicted_dt || 90;
     let windowEndTime = '';
     if (pred.prediction_time) {
       const predDate = new Date(pred.prediction_time);
