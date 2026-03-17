@@ -14,6 +14,7 @@ import TrainingLossChart from './components/TrainingLossChart';
 import Changelog from './components/Changelog';
 import EarthquakeHistory from './components/EarthquakeHistory';
 import HowItWorks from './components/HowItWorks';
+import Code from './components/Code';
 
 function App() {
   const dispatch = useDispatch();
@@ -55,6 +56,7 @@ function App() {
     <Routes>
       <Route path="/map" element={<RealtimeMap />} />
       <Route path="/how-it-works" element={<HowItWorks />} />
+      <Route path="/code" element={<Code />} />
       <Route path="/prediction/:id" element={<PredictionDetail />} />
       <Route path="/alerts" element={
         <div className="min-h-screen bg-zinc-900">
@@ -136,7 +138,6 @@ function App() {
           <LiveDashboard />
           <PredictionsTable />
           <About />
-          <Changelog />
 
           {/* Training Progress Section */}
           <section className="py-6 bg-zinc-900">

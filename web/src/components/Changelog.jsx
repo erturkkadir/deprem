@@ -2,6 +2,26 @@ import { useState } from 'react';
 
 const releases = [
   {
+    version: 'v1.4',
+    date: '2026-03-17',
+    title: 'Model Tuning, Diversity Loss & UI Overhaul',
+    type: 'architecture',
+    notes: [
+      'Model downsized from 8 layers (357M params) to 6 layers (203M params, n_embed=1024) — sized to share RTX 4060 Ti GPU with Ollama without OOM',
+      'Match criteria tightened: 250km radius (was 500km), 90-minute window (was 120min) — stricter verification improves signal quality',
+      'GR (Gutenberg-Richter) prior removed from MagnitudeMDNHead — was artificially suppressing all predictions above M4.43',
+      'Diversity loss added to SpatialMDNHead: Gaussian repulsion between K=20 component means (τ=30°, weight=1.0×) — fixed mode collapse where all 20 components converged on Fiji/Tonga',
+      'Late-catch verification window extended from 24h to 48h; grouped into 12-hour half-day buckets (0-12h, 12-24h, 24-36h, 36-48h) for UI display',
+      'Depth encoding corrected: us_d = min(int(dep), 200) — was incorrectly stored as dep/10; 1.38M rows backfilled',
+      'DB indexes added (idx_us_mag, idx_us_t, idx_us_xy, idx_us_mag_type) — faster stored procedure queries',
+      'UI: top navigation with dedicated pages — /alerts (email subscriptions), /history (seismic patterns), /code (architecture + changelog)',
+      'UI: predictions table paginated (5 per page), filter-aware Map button opens pre-filtered to selected status',
+      'UI: 3-column About section (Architecture, Training Status, Contact); status badges moved into hero box; nav right-aligned in header',
+      'ACCUMULATION_STEPS=32 effective batch size maintained with no mixed precision (torch.complex incompatible with bfloat16)',
+      'Prediction window reduced from 90 min to 20 min — forces tighter temporal precision, cycles predictions 4.5× faster, reduces geographic concentration on Map view',
+    ],
+  },
+  {
     version: 'v1.3',
     date: '2026-02-27',
     title: 'MDN Output, Larger Model & Loss Improvements',
@@ -200,14 +220,12 @@ const typeLabels = {
   foundation: 'Foundation',
 };
 
-export default function Changelog() {
+export default function Changelog({ bare = false }) {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedVersion, setExpandedVersion] = useState(null);
 
-  return (
-    <section className="py-4">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="card">
+  const card = (
+    <div className="card">
           <button
             onClick={() => setIsOpen(!isOpen)}
             className="w-full flex items-center justify-between text-left"
@@ -296,7 +314,15 @@ export default function Changelog() {
               </div>
             </div>
           )}
-        </div>
+    </div>
+  );
+
+  if (bare) return card;
+
+  return (
+    <section className="py-4">
+      <div className="max-w-7xl mx-auto px-4">
+        {card}
       </div>
     </section>
   );

@@ -118,7 +118,7 @@ MIN_MAG_DISPLAY = 4.0       # Only show predictions with mag >= 4.0
 MIN_PREDICTION_WINDOW = 10  # minutes - reject predictions with window < 10 min
 LATE_SEARCH_HOURS = 48      # hours - keep checking a MISSED prediction (late catch window, grouped by 12h)
 EARTH_RADIUS_KM = 6371      # km
-PREDICTION_WINDOW_MINUTES = 90    # minutes per prediction cycle (1.5-hour window)
+PREDICTION_WINDOW_MINUTES = 20    # minutes per prediction cycle (20-min window — forces tighter temporal precision)
 TOP_K_PREDICTIONS = 1             # ONE prediction per cycle — simple, explainable
 
 
@@ -558,7 +558,7 @@ def reload_if_new_checkpoint():
 
 def make_prediction():
     """Make ONE prediction and save to database.
-    Simple: one location, one magnitude, one 90-minute window.
+    Simple: one location, one magnitude, one 20-minute window.
     Returns the prediction ID.
     """
     global model, dataC
@@ -687,7 +687,7 @@ def auto_verify_predictions():
 
 def check_and_handle_prediction():
     """Single prediction cycle:
-      PENDING → check for M4+ within 250km during 90min window
+      PENDING → check for M4+ within 250km during 20min window
              → MATCHED (correct=True) → make new prediction
              → window expires → MISSED (correct=False) → make new prediction
              → LATE CATCH checked by auto_verify_predictions() for next 48h (grouped by 12h)
