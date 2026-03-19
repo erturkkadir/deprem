@@ -264,7 +264,7 @@ function LiveDashboard() {
             </span>
             Live Monitor
           </h2>
-          <span className="text-zinc-500 text-xs">Updates every 10s</span>
+          <span className="text-zinc-500 text-xs">Updates every 1m</span>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-3">

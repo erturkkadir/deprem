@@ -28,10 +28,10 @@ function App() {
     dispatch(fetchLiveData());
     // PredictionsTable fetches its own data on mount with the correct filter
 
-    // Poll for live data every 10 seconds
+    // Poll for live data every 1 minute
     const earthquakeInterval = setInterval(() => {
       dispatch(fetchLiveData());
-    }, 10000);
+    }, 60000);
 
     // Poll stats every 2 minutes
     // Note: do NOT call fetchPredictions here — PredictionsTable owns its own

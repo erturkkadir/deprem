@@ -172,7 +172,7 @@ function TrainingLossChart() {
 
       {/* Chart */}
       <div className="h-72 select-none">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height={288}>
           <LineChart
             data={zoomedData}
             margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
