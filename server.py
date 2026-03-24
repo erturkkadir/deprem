@@ -645,6 +645,12 @@ def auto_verify_predictions():
         missed = dataC._safe_fetch(sql, (LATE_SEARCH_HOURS + 24,)) or []  # +24h buffer for window duration
         now = datetime.now()
 
+        # Collect already-claimed earthquake IDs so one EQ can only match one prediction
+        claimed_ids_row = dataC._safe_fetch(
+            "SELECT pr_actual_id FROM predictions WHERE pr_actual_id IS NOT NULL", ()
+        ) or []
+        claimed_eq_ids = {row[0] for row in claimed_ids_row}
+
         for pr_id, pr_timestamp, pr_dt, lat_enc, lon_enc, mag_enc in missed:
             expected_event_time = pr_timestamp + timedelta(minutes=pr_dt or PREDICTION_WINDOW_MINUTES)
             late_end_time = expected_event_time + timedelta(hours=LATE_SEARCH_HOURS)
@@ -660,12 +666,15 @@ def auto_verify_predictions():
             actuals = dataC.get_earthquakes_in_window(pr_timestamp, late_end_time, min_mag=4.0)
             for actual in (actuals or []):
                 us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = actual
+                if us_id in claimed_eq_ids:
+                    continue  # already matched to another prediction
                 eq_lat = us_x - 90
                 eq_lon = us_y - 180
                 dist_km = haversine_km(pred_lat, pred_lon, eq_lat, eq_lon)
                 if dist_km <= MATCH_RADIUS_KM:
                     actual_dt = int((us_datetime - pr_timestamp).total_seconds() / 60)
                     print(f"[{now}] LATE CATCH! Prediction #{pr_id}: M{us_mag} at {dist_km:.0f}km - {us_place}")
+                    claimed_eq_ids.add(us_id)  # prevent same EQ matching another prediction this run
                     dataC.close_group_correct(
                         group_id=pr_id, winner_pr_id=pr_id,
                         actual_id=us_id, actual_lat=us_x, actual_lon=us_y,
@@ -727,8 +736,16 @@ def check_and_handle_prediction():
         expected_event_time = pr_timestamp + timedelta(minutes=pr_dt)
 
         # Check for M4+ earthquakes within the prediction window
+        # Exclude earthquakes already claimed by another prediction
+        claimed_row = dataC._safe_fetch(
+            "SELECT pr_actual_id FROM predictions WHERE pr_actual_id IS NOT NULL", ()
+        ) or []
+        claimed_ids = {r[0] for r in claimed_row}
+
         quakes = dataC.get_earthquakes_in_window(pr_timestamp, expected_event_time, min_mag=4.0)
         for us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place in (quakes or []):
+            if us_id in claimed_ids:
+                continue
             eq_lat = us_x - 90
             eq_lon = us_y - 180
             if pred_lat is None or pred_lon is None:

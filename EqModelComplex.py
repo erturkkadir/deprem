@@ -143,11 +143,6 @@ class ComplexEmbedding(nn.Module):
 
     Each embedding vector is: e = |e| * exp(i*θ)
 
-    This is natural for features like:
-    - Month (θ can represent position in yearly cycle)
-    - Geographic coordinates (θ encodes angular position)
-    - Time intervals (magnitude = intensity, phase = periodicity)
-
     Magnitude is learned in log-space (always positive).
     Phase is learned directly (full rotation freedom).
     """
@@ -165,6 +160,41 @@ class ComplexEmbedding(nn.Module):
     def forward(self, x):
         magnitude = torch.exp(self.log_magnitude(x))
         phase = self.phase(x)
+        return torch.complex(magnitude * torch.cos(phase), magnitude * torch.sin(phase))
+
+
+class CircularComplexEmbedding(nn.Module):
+    """
+    Complex embedding for circular/periodic features with FIXED phase.
+
+    For features like month (period=12), hour (period=24), day-of-year (period=365),
+    moon_phase (period=29.5): the phase is pinned to 2π*index/period so the circular
+    topology is preserved regardless of gradient updates. Only magnitude is learned.
+
+    This prevents e.g. month=11 (Dec) drifting phase-away from month=0 (Jan),
+    which would break the yearly periodicity the model needs to learn.
+
+      phase[i] = 2π * i / period   (fixed)
+      embed[i] = exp(log_mag[i]) * e^(i * phase[i])
+    """
+    def __init__(self, num_embeddings, embedding_dim, period):
+        super().__init__()
+        self.num_embeddings = num_embeddings
+        self.embedding_dim = embedding_dim
+
+        # Fixed phase: 2π * index / period
+        fixed_phase = 2.0 * math.pi * torch.arange(num_embeddings).float() / period
+        # [num_embeddings, embedding_dim] — broadcast same phase to all dims
+        fixed_phase = fixed_phase.unsqueeze(1).expand(num_embeddings, embedding_dim)
+        self.register_buffer('fixed_phase', fixed_phase)
+
+        # Only magnitude is learned
+        self.log_magnitude = nn.Embedding(num_embeddings, embedding_dim)
+        nn.init.normal_(self.log_magnitude.weight, mean=0.0, std=0.1)
+
+    def forward(self, x):
+        phase = self.fixed_phase[x]             # [B, T, embed_dim]
+        magnitude = torch.exp(self.log_magnitude(x))
         return torch.complex(magnitude * torch.cos(phase), magnitude * torch.sin(phase))
 
 
@@ -395,7 +425,10 @@ class ComplexRotaryEmbedding(nn.Module):
         self.max_seq_len = max_seq_len
         self.theta = theta
 
-        inv_freq = 1.0 / (theta ** (torch.arange(0, dim, 2).float() / dim))
+        # One frequency per complex dimension (not per real pair).
+        # Old: arange(0, dim, 2) → dim/2 freqs, then cat([cos,cos]) to fill dim.
+        # New: arange(0, dim) → dim freqs, one rotation per complex dim.
+        inv_freq = 1.0 / (theta ** (torch.arange(0, dim).float() / dim))
         self.register_buffer('inv_freq', inv_freq)
         self._build_cache(max_seq_len)
 
@@ -416,43 +449,40 @@ class ComplexRotaryEmbedding(nn.Module):
 
 
 def apply_complex_rotary_embedding(q, k, cos, sin):
-    """Apply rotary embeddings to complex Q and K tensors.
+    """True complex RoPE: rotate each complex dimension by e^(i*theta_pos).
 
-    Handles odd head dimensions by only applying RoPE to even portion.
+    Previous implementation applied real RoPE to real and imaginary parts
+    independently — two separate rotations in R that do not exploit the
+    complex structure. This means q = a+ib was mapped to
+      (a*cos - a'*sin) + i(b*cos - b'*sin)
+    which is NOT multiplication in C.
+
+    True complex RoPE multiplies by e^(i*theta):
+      q_rot = q * e^(i*theta) = (a*cos - b*sin) + i(a*sin + b*cos)
+
+    This couples real and imaginary, making the Hermitian attention score
+    encode relative position as a phase shift:
+      Re(q_rot * conj(k_rot)) = Re(q * conj(k) * e^(i*(theta_m - theta_n)))
+
+    Each complex dimension needs only ONE frequency band (not two as before),
+    so cos/sin tables are indexed per complex dimension directly.
     """
     batch_size, num_heads, seq_len, head_dim = q.shape
 
-    # RoPE only applies to pairs of dimensions
-    # For odd head_dim, we apply to head_dim-1 dims and leave last dim unchanged
-    rope_dim = (head_dim // 2) * 2  # Largest even number <= head_dim
-
-    cos = cos[:seq_len].unsqueeze(0).unsqueeze(0)  # [1, 1, seq_len, dim/2]
+    cos = cos[:seq_len].unsqueeze(0).unsqueeze(0)  # [1, 1, seq_len, head_dim]
     sin = sin[:seq_len].unsqueeze(0).unsqueeze(0)
 
-    # Truncate cos/sin to match rope_dim/2
-    half_rope_dim = rope_dim // 2
-    cos = cos[..., :half_rope_dim]
-    sin = sin[..., :half_rope_dim]
-
-    def rotate_half(x):
-        x1, x2 = x[..., :x.shape[-1]//2], x[..., x.shape[-1]//2:]
-        return torch.cat([-x2, x1], dim=-1)
+    # Truncate to head_dim in case tables are longer
+    cos = cos[..., :head_dim]
+    sin = sin[..., :head_dim]
 
     def apply_rotation(x, cos, sin):
-        # Split into rotated and pass-through portions
-        x_rope = x[..., :rope_dim]
-        x_pass = x[..., rope_dim:] if rope_dim < head_dim else None
-
-        cos_full = torch.cat([cos, cos], dim=-1)
-        sin_full = torch.cat([sin, sin], dim=-1)
-
-        x_rope_real_rot = x_rope.real * cos_full + rotate_half(x_rope.real) * sin_full
-        x_rope_imag_rot = x_rope.imag * cos_full + rotate_half(x_rope.imag) * sin_full
-        x_rope_rot = torch.complex(x_rope_real_rot, x_rope_imag_rot)
-
-        if x_pass is not None:
-            return torch.cat([x_rope_rot, x_pass], dim=-1)
-        return x_rope_rot
+        # True complex multiplication: x * e^(i*theta)
+        # real part: x.real * cos - x.imag * sin
+        # imag part: x.real * sin + x.imag * cos
+        rot_real = x.real * cos - x.imag * sin
+        rot_imag = x.real * sin + x.imag * cos
+        return torch.complex(rot_real, rot_imag)
 
     return apply_rotation(q, cos, sin), apply_rotation(k, cos, sin)
 
@@ -909,15 +939,16 @@ class FourierLocationEncoding(nn.Module):
     Multi-scale Fourier features for geographic coordinates.
     Captures patterns at different spatial scales (local faults to global plates).
     """
-    def __init__(self, embed_dim=64, num_frequencies=16):
+    def __init__(self, embed_dim=64, num_frequencies=6):
         super().__init__()
         self.embed_dim = embed_dim
         self.num_frequencies = num_frequencies
 
         # Frequencies for multi-scale encoding (log-spaced for different scales)
-        # Small frequencies = large-scale patterns (plates)
-        # Large frequencies = small-scale patterns (local faults)
-        frequencies = 2.0 ** torch.linspace(0, num_frequencies - 1, num_frequencies)
+        # Range: 2^0 to 2^5 — covers global (180°) down to ~5° regional scale.
+        # Previous range (2^0 to 2^15) caused aliasing: highest bands changed
+        # phase by >100,000 rad across lat range, producing meaningless noise.
+        frequencies = 2.0 ** torch.linspace(0, 5, num_frequencies)
         self.register_buffer('frequencies', frequencies)
 
         # Input: 2 coords * 2 (sin/cos) * num_frequencies = 4 * num_frequencies
@@ -983,33 +1014,13 @@ class TectonicZoneEncoding(nn.Module):
         self.zone_embed_imag = nn.Parameter(torch.randn(num_zones, embed_dim) * 0.02)
 
     def _init_zone_centers(self):
-        """Initialize zone centers near known tectonic boundaries."""
-        # Major earthquake zones (normalized: lat 0-1, lon 0-1)
-        known_zones = torch.tensor([
-            [0.25, 0.42],   # Pacific Ring of Fire - Japan
-            [0.28, 0.33],   # Pacific Ring of Fire - Philippines
-            [0.55, 0.65],   # Pacific Ring of Fire - Chile
-            [0.50, 0.67],   # Pacific Ring of Fire - Peru
-            [0.45, 0.70],   # Central America
-            [0.40, 0.69],   # Mexico
-            [0.38, 0.68],   # California
-            [0.30, 0.60],   # Alaska/Aleutians
-            [0.22, 0.35],   # Indonesia
-            [0.25, 0.30],   # Sumatra
-            [0.35, 0.22],   # Mediterranean
-            [0.35, 0.15],   # Turkey/Iran
-            [0.30, 0.20],   # Himalayas/Nepal
-            [0.40, 0.50],   # Mid-Atlantic Ridge
-            [0.20, 0.45],   # New Zealand
-            [0.15, 0.40],   # Fiji/Tonga
-        ], dtype=torch.float32)
+        """Initialize zone centers with uniform global coverage.
 
-        # Fill remaining zones with random positions
-        n_known = known_zones.shape[0]
-        n_random = self.num_zones - n_known
-        random_zones = torch.rand(n_random, 2)
-
-        return torch.cat([known_zones, random_zones], dim=0)
+        Using fully random init instead of hardcoded seismic zones to prevent
+        the model from collapsing to high-density regions (Fiji/Tonga) from step 0.
+        The model will learn meaningful zones through training.
+        """
+        return torch.rand(self.num_zones, 2)
 
     def forward(self, lat_encoded, lon_encoded):
         """
@@ -1331,15 +1342,15 @@ class CustomComplexEmbedding(nn.Module):
 
             # Complex embeddings for non-location features
             self.yr_embed = ComplexEmbedding(self.yr_size, self.feature_dim)
-            self.mt_embed = ComplexEmbedding(self.mt_size, self.feature_dim)
+            self.mt_embed = CircularComplexEmbedding(self.mt_size, self.feature_dim, period=12)  # fixed monthly phase
             self.m_embed = ComplexEmbedding(self.m_size, self.feature_dim)
             self.d_embed = ComplexEmbedding(self.d_size, self.feature_dim)
 
-            # Earth-state embeddings (NEW)
-            self.hr_embed = ComplexEmbedding(self.hr_size, self.feature_dim)   # hour of day
-            self.doy_embed = ComplexEmbedding(self.doy_size, self.feature_dim) # day of year
-            self.mp_embed = ComplexEmbedding(self.mp_size, self.feature_dim)   # moon phase
-            self.md_embed = ComplexEmbedding(self.md_size, self.feature_dim)   # moon distance
+            # Earth-state embeddings — circular features use fixed phase to preserve periodicity
+            self.hr_embed  = CircularComplexEmbedding(self.hr_size,  self.feature_dim, period=24)             # 24h day
+            self.doy_embed = CircularComplexEmbedding(self.doy_size, self.feature_dim, period=self.doy_size)  # 366 slots, exact wrap
+            self.mp_embed  = CircularComplexEmbedding(self.mp_size,  self.feature_dim, period=self.mp_size)   # 30 slots, exact wrap
+            self.md_embed  = ComplexEmbedding(self.md_size, self.feature_dim)   # moon distance (not circular)
 
             # Global dt: standard discrete embedding + log-scale continuous
             self.t_embed = ComplexEmbedding(self.t_size, self.dt_embed_dim)
@@ -1361,25 +1372,25 @@ class CustomComplexEmbedding(nn.Module):
             self.gpe = GeographicPositionalEncoding(
                 embed_dim=self.gpe_dim,
                 spherical_degree=8,
-                num_frequencies=16,
+                num_frequencies=6,   # was 16; top 11 bands were aliased (>100k rad/lat-range)
                 num_zones=32
             )
         else:
             # Original behavior: simple embeddings for all features
             self.feature_dim = embed_dim // 12  # 12 features now
 
-            self.yr_embed = ComplexEmbedding(self.yr_size, self.feature_dim)
-            self.mt_embed = ComplexEmbedding(self.mt_size, self.feature_dim)
-            self.x_embed = ComplexEmbedding(self.x_size, self.feature_dim)
-            self.y_embed = ComplexEmbedding(self.y_size, self.feature_dim)
-            self.m_embed = ComplexEmbedding(self.m_size, self.feature_dim)
-            self.d_embed = ComplexEmbedding(self.d_size, self.feature_dim)
-            self.t_embed = ComplexEmbedding(self.t_size, self.feature_dim)
-            self.lt_embed = ComplexEmbedding(self.lt_size, self.feature_dim)
-            self.hr_embed = ComplexEmbedding(self.hr_size, self.feature_dim)
-            self.doy_embed = ComplexEmbedding(self.doy_size, self.feature_dim)
-            self.mp_embed = ComplexEmbedding(self.mp_size, self.feature_dim)
-            self.md_embed = ComplexEmbedding(self.md_size, self.feature_dim)
+            self.yr_embed  = ComplexEmbedding(self.yr_size, self.feature_dim)
+            self.mt_embed  = CircularComplexEmbedding(self.mt_size,  self.feature_dim, period=12)
+            self.x_embed   = ComplexEmbedding(self.x_size, self.feature_dim)
+            self.y_embed   = ComplexEmbedding(self.y_size, self.feature_dim)
+            self.m_embed   = ComplexEmbedding(self.m_size, self.feature_dim)
+            self.d_embed   = ComplexEmbedding(self.d_size, self.feature_dim)
+            self.t_embed   = ComplexEmbedding(self.t_size, self.feature_dim)
+            self.lt_embed  = ComplexEmbedding(self.lt_size, self.feature_dim)
+            self.hr_embed  = CircularComplexEmbedding(self.hr_size,  self.feature_dim, period=24)
+            self.doy_embed = CircularComplexEmbedding(self.doy_size, self.feature_dim, period=self.doy_size)  # 366 slots
+            self.mp_embed  = CircularComplexEmbedding(self.mp_size,  self.feature_dim, period=self.mp_size)   # 30 slots
+            self.md_embed  = ComplexEmbedding(self.md_size, self.feature_dim)
             self.gpe = None
             self.t_log_embed = None
             self.lt_log_embed = None
@@ -1653,7 +1664,15 @@ class SpatialMDNHead(nn.Module):
 
         # Gaussian repulsion: 1 when dist=0, 0 when dist >> tau
         repulsion = torch.exp(-pair_dists ** 2 / (2.0 * tau_deg ** 2))
-        return repulsion.mean()
+
+        # Global spread penalty: penalize when all K components cluster at similar lat/lon
+        # This prevents all 20 components sitting in the Pacific while still 30°+ apart
+        lat_std = mu_lat.std(dim=-1).clamp(min=1e-6)   # [N]
+        lon_std = mu_lon.std(dim=-1).clamp(min=1e-6)   # [N]
+        spread_loss = -torch.log(lat_std / 30.0 + 1.0).mean() \
+                      - torch.log(lon_std / 60.0 + 1.0).mean()
+
+        return repulsion.mean() + 0.5 * spread_loss
 
     @staticmethod
     def sample(params, temperature=0.8):
@@ -1825,8 +1844,8 @@ class EqModelComplex(nn.Module):
         self.mag_head._init_weights()
 
     def _init_weights(self, module):
-        # Skip nn.Embedding inside ComplexEmbedding — they have their own init
-        if isinstance(module, ComplexEmbedding):
+        # Skip ComplexEmbedding / CircularComplexEmbedding — they have their own init
+        if isinstance(module, (ComplexEmbedding, CircularComplexEmbedding)):
             return
         if isinstance(module, nn.Linear):
             std = (2 * self.n_layer) ** -0.5
