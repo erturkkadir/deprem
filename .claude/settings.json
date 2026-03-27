@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Read(//var/www/syshuman/quake/**)",
-      "Bash(venv/bin/python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(''''loaded:'''', d.get\\(''''loaded''''\\)\\)\")"
+      "Bash(venv/bin/python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(''''loaded:'''', d.get\\(''''loaded''''\\)\\)\")",
+      "WebSearch"
     ],
     "additionalDirectories": [
       "/var/www/syshuman/quake"

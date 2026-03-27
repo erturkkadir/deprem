@@ -255,7 +255,7 @@ export default function PredictionsTable() {
 
   // Fetch predictions on mount and when filter/page changes
   useEffect(() => {
-    dispatch(fetchPredictions({ page: currentPage, limit: 5, filter }));
+    dispatch(fetchPredictions({ page: currentPage, limit: 10, filter }));
   }, [dispatch, filter, currentPage]);
 
   // Force re-render every 30 seconds to update expired statuses

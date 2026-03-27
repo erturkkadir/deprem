@@ -7,5 +7,27 @@ Batch: 1  |  Seq len: 384  |  Embed: 1024
 Print every: 200  |  Save every: 600
 Learning rate: 0.0001
 ============================================================
-[2026-03-24 23:01:55.296652] Loading hybrid data (M2.0+ input, M4.0+ targets)...
+[2026-03-27 18:25:00.511545] Loading hybrid data (M2.0+ input, M4.0+ targets)...
 Database connection established
+Loaded 1,505,542 records (M2.0+)
+  Training targets (M4.0+): 523,099 (34.7%)
+  Earth-state features: hour[0-23], doy[0-365], moon_phase[0-29], moon_dist[0-9]
+
+[2026-03-27 18:25:33.576733] Creating model with Geographic Positional Encoding (GPE)...
+Model parameters: 203,854,256
+Starting from scratch
+
+[2026-03-27 18:25:41.342462] Training started (MULTI-POSITION)...
+LR schedule: warmup 500 optimizer steps, cosine decay to 500000
+Gradient accumulation: 32 steps (effective batch=32)
+Output: MDN (SpatialMDN K=20, MagnitudeMDN K=8)
+Multi-position: loss at ALL M4+ positions per sequence
+
+step    200 | train 26.5495 | val 31.7474 | lr 1.20e-06 | tgt 151 | sp 24.28 mag 1.29 hav 0.82 ent -2.987 div 0.000 sig 0.000
+  -> New best val loss!
+step    400 | train 26.3311 | val 26.8863 | lr 2.40e-06 | tgt 147 | sp 24.08 mag 1.28 hav 0.82 ent -2.987 div 0.000 sig 0.000
+  -> New best val loss!
+step    600 | train 25.8474 | val 36.8338 | lr 3.60e-06 | tgt 145 | sp 23.59 mag 1.28 hav 0.82 ent -2.987 div 0.000 sig 0.000
+[2026-03-27 18:30:42.239229] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260327_183036.pth (iter=600, loss=25.8474)
+step    800 | train 27.4719 | val 27.4224 | lr 4.80e-06 | tgt 147 | sp 25.23 mag 1.27 hav 0.82 ent -2.988 div 0.000 sig 0.000
+step   1000 | train 26.9368 | val 35.6115 | lr 6.20e-06 | tgt 148 | sp 24.67 mag 1.27 hav 0.83 ent -2.988 div 0.000 sig 0.000

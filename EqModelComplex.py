@@ -1623,6 +1623,101 @@ class SpatialMDNHead(nn.Module):
         return nll.mean() if reduce else nll
 
     @staticmethod
+    def wta_nll_loss(params, lat_target, lon_target, reduce=True):
+        """Winner-Takes-All NLL: gradient flows only through the winning component
+        for mean/sigma updates. Pi weights still get full gradient to keep all
+        components alive (prevents dead-component collapse).
+
+        CVPR 2019: 70% WTA (component specialization) + 30% full NLL (pi diversity).
+        """
+        pi     = params['pi']
+        mu_lat = params['mu_lat']
+        mu_lon = params['mu_lon']
+        s_lat  = params['sigma_lat']
+        s_lon  = params['sigma_lon']
+        rho    = params['rho']
+
+        d_lat = lat_target.unsqueeze(-1) - mu_lat
+        d_lon = lon_target.unsqueeze(-1) - mu_lon
+        d_lon = d_lon - 360.0 * torch.round(d_lon / 360.0)
+
+        z_lat = d_lat / s_lat
+        z_lon = d_lon / s_lon
+        one_m_rho2 = torch.clamp(1.0 - rho ** 2, min=1e-6)
+        exponent = -0.5 / one_m_rho2 * (z_lat**2 + z_lon**2 - 2*rho*z_lat*z_lon)
+        log_norm = (-math.log(2*math.pi) - torch.log(s_lat) - torch.log(s_lon)
+                    - 0.5*torch.log(one_m_rho2))
+        log_component = log_norm + exponent   # [N, K]
+        log_pi = torch.log(pi + 1e-10)
+
+        # Winner: argmax of responsibility (no gradient through selection)
+        with torch.no_grad():
+            winner_idx = (log_pi + log_component).argmax(dim=-1)         # [N]
+            wta_mask = FN.one_hot(winner_idx, num_classes=pi.shape[-1]).float()  # [N, K]
+
+        # WTA component loss: gradient through winner's mu/sigma only
+        wta_comp_loss = -(wta_mask * log_component).sum(dim=-1)          # [N]
+
+        # Full NLL for pi only (detach log_component so mu/sigma unaffected)
+        full_nll = -torch.logsumexp(log_pi + log_component.detach(), dim=-1)  # [N]
+
+        loss = 0.7 * wta_comp_loss + 0.3 * full_nll
+        return loss.mean() if reduce else loss
+
+    @staticmethod
+    def energy_score_loss(params, lat_target, lon_target, reduce=True):
+        """Energy Score: proper multivariate scoring rule (replaces haversine + diversity).
+
+        ES = E_P[d(X, y)] - 0.5 * E_P[d(X, X')]
+        Minimizing ES simultaneously:
+         - pulls the closest component toward the target (accuracy)
+         - maximises spread between components (diversity — free, no separate loss needed)
+
+        Gneiting & Raftery 2007; Leutbecher 2019 (ECMWF ensemble).
+        Units: degrees (haversine great-circle). Scaled via log1p for stability.
+        """
+        mu_lat = params['mu_lat']   # [N, K]
+        mu_lon = params['mu_lon']   # [N, K]
+        N, K = mu_lat.shape
+        deg2rad = math.pi / 180.0
+
+        # --- Term 1: E[d(X, y)] = Σ_k π_k * d(μ_k, y) ---
+        lat2 = lat_target.unsqueeze(-1) * deg2rad   # [N, 1]
+        lon2 = lon_target.unsqueeze(-1) * deg2rad
+        lat1 = mu_lat * deg2rad                      # [N, K]
+        lon1 = mu_lon * deg2rad
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a1 = (torch.sin(dlat/2)**2
+              + torch.cos(lat1) * torch.cos(lat2) * torch.sin(dlon/2)**2)
+        a1 = torch.clamp(a1, 1e-6, 1.0 - 1e-6)
+        d_to_tgt = 2.0 * torch.asin(torch.sqrt(a1)) / deg2rad   # [N, K] degrees
+
+        # Use detached pi so energy score trains mu/sigma, not pi distribution
+        with torch.no_grad():
+            pi_w = params['pi'].detach()                         # [N, K]
+        term1 = (pi_w * d_to_tgt).sum(dim=-1)                   # [N]
+
+        # --- Term 2: 0.5 * E[d(X, X')] = 0.5 Σ_k Σ_j π_k π_j d(μ_k, μ_j) ---
+        lati = mu_lat.unsqueeze(2) * deg2rad   # [N, K, 1]
+        latj = mu_lat.unsqueeze(1) * deg2rad   # [N, 1, K]
+        loni = mu_lon.unsqueeze(2) * deg2rad
+        lonj = mu_lon.unsqueeze(1) * deg2rad
+        dlat_ij = latj - lati
+        dlon_ij = lonj - loni
+        a2 = (torch.sin(dlat_ij/2)**2
+              + torch.cos(lati) * torch.cos(latj) * torch.sin(dlon_ij/2)**2)
+        a2 = torch.clamp(a2, 1e-6, 1.0 - 1e-6)
+        d_ij = 2.0 * torch.asin(torch.sqrt(a2)) / deg2rad   # [N, K, K] degrees
+
+        pi_i = pi_w.unsqueeze(2)   # [N, K, 1]
+        pi_j = pi_w.unsqueeze(1)   # [N, 1, K]
+        term2 = 0.5 * (pi_i * pi_j * d_ij).sum(dim=(-1, -2))   # [N]
+
+        es = term1 - term2   # [N] — negative term2 rewards spread
+        return torch.log1p(es.clamp(min=0.0) / 30.0).mean()     # scale: 30°≈3300km
+
+    @staticmethod
     def entropy_loss(params):
         """Negative entropy of pi weights (encourages diverse component usage).
         Returns a value to MINIMIZE: lower = more uniform pi = less mode collapse.
@@ -1967,13 +2062,16 @@ class EqModelComplex(nn.Module):
         mag_actual = mag_tgt.float() / 10.0    # 0.0 to 9.1
 
         if label_smoothing > 0:
-            # --- Training: magnitude-weighted NLL + auxiliary losses ---
-            spatial_nll_ps = SpatialMDNHead.nll_loss(sp, lat_actual, lon_actual, reduce=False)
+            # --- Training: WTA NLL + Energy Score + magnitude-weighted losses ---
+
+            # WTA NLL: gradient flows only through winning component (CVPR 2019)
+            spatial_nll_ps = SpatialMDNHead.wta_nll_loss(sp, lat_actual, lon_actual, reduce=False)
             mag_nll_ps = MagnitudeMDNHead.nll_loss(mp, mag_actual, reduce=False)
 
-            # Magnitude weighting: M4→1×, M5→3.16×, M6→10×, M7→31.6×
+            # Inverse-frequency magnitude weighting: M4→1×, M5→3.16×, M6→10×, M7→31.6×
+            # Clipped at 10× to prevent rare M7+ dominating every batch
             mag_w = torch.pow(10.0, 0.5 * (mag_actual - 4.0))
-            mag_w = torch.clamp(mag_w, min=1.0)
+            mag_w = torch.clamp(mag_w, min=1.0, max=10.0)
             mag_w = mag_w / mag_w.mean()
 
             # Combine magnitude + Omori temporal decay weights (if multi-position)
@@ -1986,23 +2084,26 @@ class EqModelComplex(nn.Module):
             spatial_loss = (spatial_nll_ps * combined_w).mean()
             mag_loss = (mag_nll_ps * combined_w).mean()
 
-            # Auxiliary losses
-            hav_loss = self._haversine_loss_mdn(sp, lat_actual, lon_actual)
-            ent_loss = SpatialMDNHead.entropy_loss(sp)   # encourages uniform pi weights
-            div_loss = SpatialMDNHead.diversity_loss(sp) # pushes component means apart geographically
+            # Energy Score: proper multivariate scoring rule (replaces haversine + diversity_loss)
+            # ES = E[d(X,y)] - 0.5*E[d(X,X')] — accuracy + spread in one proper loss
+            es_loss = SpatialMDNHead.energy_score_loss(sp, lat_actual, lon_actual)
+
+            # Entropy: encourages uniform pi weights (component usage diversity)
+            ent_loss = SpatialMDNHead.entropy_loss(sp)
+
             # Sigma regularization: penalize average sigma above 3° (≈333km) to prevent blowup
             sigma_mean = (sp['sigma_lat'].mean() + sp['sigma_lon'].mean()) / 2.0
             sigma_reg = torch.clamp(sigma_mean - 3.0, min=0.0)
 
-            loss = spatial_loss + mag_loss + 3.0 * hav_loss + 1.0 * ent_loss + 1.0 * div_loss + 0.1 * sigma_reg
+            loss = spatial_loss + mag_loss + 3.0 * es_loss + 0.5 * ent_loss + 0.1 * sigma_reg
 
             loss_dict = {
                 'spatial': spatial_loss.item(),
                 'mag': mag_loss.item(),
-                'hav': hav_loss.item(),
+                'hav': es_loss.item(),   # reuse 'hav' key so train.py print loop unchanged
                 'gr': 0.0,
                 'ent': ent_loss.item(),
-                'div': div_loss.item(),
+                'div': 0.0,              # subsumed by energy score
                 'sig': sigma_reg.item(),
             }
         else:
