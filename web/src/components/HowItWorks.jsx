@@ -190,17 +190,6 @@ const sectionTitleKeys = {
   limitations: 'howItWorks.honestLimitations',
 };
 
-// Maps heading text to i18n key (only for headings that have translation keys)
-const headingKeys = {
-  'Can earthquakes be predicted?': 'howItWorks.canEarthquakesBePredicted',
-  'Earthquakes as a sequence problem': 'howItWorks.sequenceProblem',
-  'Why complex-valued embeddings?': 'howItWorks.whyComplex',
-  'What does the complex space give us?': 'howItWorks.whatComplexGives',
-  'This is an experiment, not an oracle': 'howItWorks.limitExperiment',
-  'Spatial accuracy is the biggest challenge': 'howItWorks.limitSpatial',
-  'Do not rely on this for safety decisions': 'howItWorks.limitSafety',
-  'Statistics reset with architecture changes': 'howItWorks.limitReset',
-};
 
 export default function HowItWorks() {
   const [openSection, setOpenSection] = useState(null);
@@ -279,6 +268,9 @@ export default function HowItWorks() {
             const bgColor = isLimitations
               ? (isOpen ? 'bg-amber-500/5' : 'bg-zinc-800/40')
               : (isOpen ? 'bg-zinc-800/80' : 'bg-zinc-800/40');
+            // Get translated content for this section
+            const tContent = t(`hiw.${section.id}`, { returnObjects: true });
+            const items = Array.isArray(tContent) ? tContent : section.content;
 
             return (
               <div key={section.id} id={section.id} className={`rounded-xl border transition-all ${borderColor} ${bgColor}`}>
@@ -299,17 +291,17 @@ export default function HowItWorks() {
                             {String(sIdx + 1).padStart(2, '0')}
                           </span>
                           <h2 className={`text-sm md:text-base font-bold ${isLimitations ? 'text-amber-400' : 'text-white'}`}>
-                            {sectionTitleKeys[section.id] ? t(sectionTitleKeys[section.id]) : section.title}
+                            {t(sectionTitleKeys[section.id])}
                           </h2>
                         </div>
                         <p className="text-zinc-500 text-xs mt-0.5 truncate">
-                          {section.content[0].heading}
-                          {section.content.length > 1 && ` + ${section.content.length - 1} more`}
+                          {items[0]?.heading}
+                          {items.length > 1 && ` + ${items.length - 1} more`}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-zinc-600 text-xs hidden sm:inline">{section.content.length} items</span>
+                      <span className="text-zinc-600 text-xs hidden sm:inline">{items.length} items</span>
                       <svg
                         className={`w-5 h-5 text-zinc-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
                         fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -325,13 +317,13 @@ export default function HowItWorks() {
                     <div className="border-t border-zinc-700/50 pt-4">
                       {isLimitations ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {section.content.map((item, i) => (
+                          {items.map((item, i) => (
                             <div key={i} className="bg-zinc-900/60 rounded-lg p-4 border border-amber-500/15">
                               <div className="flex items-start gap-2.5 mb-2">
                                 <svg className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01" />
                                 </svg>
-                                <h3 className="text-white font-semibold text-sm">{headingKeys[item.heading] ? t(headingKeys[item.heading]) : item.heading}</h3>
+                                <h3 className="text-white font-semibold text-sm">{item.heading}</h3>
                               </div>
                               <p className="text-zinc-400 text-sm leading-relaxed pl-7">{item.text}</p>
                             </div>
@@ -339,9 +331,9 @@ export default function HowItWorks() {
                         </div>
                       ) : (
                         <div className="space-y-4">
-                          {section.content.map((item, i) => (
+                          {items.map((item, i) => (
                             <div key={i} className="pl-4 border-l-2 border-zinc-700 hover:border-orange-500/50 transition-colors">
-                              <h3 className="text-white font-semibold text-sm mb-1.5">{headingKeys[item.heading] ? t(headingKeys[item.heading]) : item.heading}</h3>
+                              <h3 className="text-white font-semibold text-sm mb-1.5">{item.heading}</h3>
                               <p className="text-zinc-400 text-sm leading-relaxed">{item.text}</p>
                             </div>
                           ))}

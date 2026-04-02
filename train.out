@@ -6108,3 +6108,25 @@ step 903600 | train 9.8829 | val 9.5818 | lr 9.93e-05 | tgt 151 | sp 7.07 mag 0.
 [2026-04-02 15:28:21.717169] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260402_152753.pth (iter=903600, loss=9.8829)
 step 903800 | train 9.8710 | val 9.7701 | lr 9.93e-05 | tgt 149 | sp 7.11 mag 0.78 hav 1.31 ent -2.963 div -0.753 sig 3.081
 step 904000 | train 9.8393 | val 9.7255 | lr 9.93e-05 | tgt 156 | sp 7.04 mag 0.80 hav 1.31 ent -2.963 div -0.753 sig 3.080
+step 904200 | train 9.8623 | val 9.7350 | lr 9.93e-05 | tgt 155 | sp 7.11 mag 0.75 hav 1.31 ent -2.964 div -0.754 sig 3.075
+[2026-04-02 15:33:42.521285] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260402_153318.pth (iter=904200, loss=9.8623)
+step 904400 | train 9.8587 | val 9.6362 | lr 9.93e-05 | tgt 151 | sp 7.11 mag 0.76 hav 1.31 ent -2.965 div -0.753 sig 3.090
+step 904600 | train 9.8555 | val 9.6721 | lr 9.93e-05 | tgt 151 | sp 7.07 mag 0.76 hav 1.32 ent -2.964 div -0.753 sig 3.091
+step 904800 | train 9.9542 | val 9.5635 | lr 9.93e-05 | tgt 147 | sp 7.19 mag 0.76 hav 1.31 ent -2.963 div -0.753 sig 3.095
+[2026-04-02 15:39:08.799557] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260402_153839.pth (iter=904800, loss=9.9542)
+step 905000 | train 9.8747 | val 9.4745 | lr 9.93e-05 | tgt 154 | sp 7.12 mag 0.76 hav 1.31 ent -2.962 div -0.753 sig 3.098
+step 905200 | train 9.8770 | val 9.5501 | lr 9.93e-05 | tgt 142 | sp 7.11 mag 0.77 hav 1.31 ent -2.963 div -0.753 sig 3.090
+step 905400 | train 9.7132 | val 9.9712 | lr 9.93e-05 | tgt 154 | sp 6.99 mag 0.76 hav 1.29 ent -2.963 div -0.753 sig 3.094
+[2026-04-02 15:44:39.578933] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260402_154408.pth (iter=905400, loss=9.7132)
+step 905600 | train 9.8791 | val 9.6048 | lr 9.93e-05 | tgt 150 | sp 7.11 mag 0.76 hav 1.31 ent -2.964 div -0.753 sig 3.094
+step 905800 | train 9.7132 | val 9.4011 | lr 9.93e-05 | tgt 151 | sp 7.02 mag 0.75 hav 1.29 ent -2.963 div -0.754 sig 3.084
+step 906000 | train 9.9315 | val 9.5538 | lr 9.93e-05 | tgt 148 | sp 7.14 mag 0.80 hav 1.31 ent -2.964 div -0.754 sig 3.082
+[2026-04-02 15:50:17.921741] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260402_154939.pth (iter=906000, loss=9.9315)
+step 906200 | train 9.8351 | val 9.4869 | lr 9.93e-05 | tgt 155 | sp 7.05 mag 0.78 hav 1.31 ent -2.964 div -0.754 sig 3.071
+step 906400 | train 9.8931 | val 9.6371 | lr 9.93e-05 | tgt 146 | sp 7.12 mag 0.77 hav 1.31 ent -2.965 div -0.754 sig 3.077
+step 906600 | train 9.7493 | val 9.5141 | lr 9.93e-05 | tgt 150 | sp 7.01 mag 0.76 hav 1.30 ent -2.963 div -0.754 sig 3.065
+[2026-04-02 15:55:44.804622] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260402_155518.pth (iter=906600, loss=9.7493)
+step 906800 | train 9.7530 | val 9.6091 | lr 9.93e-05 | tgt 151 | sp 7.00 mag 0.78 hav 1.30 ent -2.962 div -0.754 sig 3.074
+step 907000 | train 9.7758 | val 9.4768 | lr 9.93e-05 | tgt 154 | sp 7.01 mag 0.80 hav 1.30 ent -2.961 div -0.754 sig 3.082
+step 907200 | train 9.8426 | val 9.6301 | lr 9.93e-05 | tgt 152 | sp 7.07 mag 0.77 hav 1.31 ent -2.963 div -0.754 sig 3.081
+[2026-04-02 16:01:14.741643] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260402_160043.pth (iter=907200, loss=9.8426)

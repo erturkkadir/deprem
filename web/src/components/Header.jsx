@@ -106,11 +106,11 @@ export default function Header() {
             <div className="relative">
               <button
                 onClick={() => setLangOpen(v => !v)}
-                className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 border border-zinc-700 hover:border-zinc-600 transition-colors"
                 aria-label="Change language"
               >
-                <span className="text-sm">{currentLang.flag}</span>
-                <span className="hidden sm:inline">{currentLang.label}</span>
+                <span className="text-base leading-none">{currentLang.flag}</span>
+                <span>{currentLang.label}</span>
                 <svg className={`w-3 h-3 transition-transform ${langOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
@@ -123,13 +123,13 @@ export default function Header() {
                       <button
                         key={lang.code}
                         onClick={() => switchLang(lang.code)}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
+                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors ${
                           currentLang.code === lang.code
                             ? 'text-orange-400 bg-orange-500/10'
                             : 'text-zinc-300 hover:bg-zinc-700'
                         }`}
                       >
-                        <span>{lang.flag}</span>
+                        <span className="text-base leading-none">{lang.flag}</span>
                         <span>{t(`language.${lang.code}`)}</span>
                       </button>
                     ))}

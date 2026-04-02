@@ -1,21 +1,32 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Routes, Route, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { fetchModelStatus, fetchStats, fetchLiveData, fetchPredictions } from './store/earthquakeSlice';
 
+// Critical path: loaded immediately (landing page)
 import Header from './components/Header';
 import LiveDashboard from './components/LiveDashboard';
 import PredictionsTable from './components/PredictionsTable';
-import PredictionDetail from './components/PredictionDetail';
 import About from './components/About';
-import RealtimeMap from './components/RealtimeMap';
-import AlertSubscription from './components/AlertSubscription';
-import TrainingLossChart from './components/TrainingLossChart';
-import Changelog from './components/Changelog';
-import EarthquakeHistory from './components/EarthquakeHistory';
-import HowItWorks from './components/HowItWorks';
-import Code from './components/Code';
+
+// Lazy-loaded: only fetched when user navigates to these routes
+const PredictionDetail = lazy(() => import('./components/PredictionDetail'));
+const RealtimeMap = lazy(() => import('./components/RealtimeMap'));
+const AlertSubscription = lazy(() => import('./components/AlertSubscription'));
+const TrainingLossChart = lazy(() => import('./components/TrainingLossChart'));
+const Changelog = lazy(() => import('./components/Changelog'));
+const EarthquakeHistory = lazy(() => import('./components/EarthquakeHistory'));
+const HowItWorks = lazy(() => import('./components/HowItWorks'));
+const Code = lazy(() => import('./components/Code'));
+
+function LazyFallback() {
+  return (
+    <div className="min-h-screen bg-zinc-900 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 function App() {
   const { t } = useTranslation();
@@ -55,6 +66,7 @@ function App() {
   }, [dispatch]);
 
   return (
+    <Suspense fallback={<LazyFallback />}>
     <Routes>
       <Route path="/map" element={<RealtimeMap />} />
       <Route path="/how-it-works" element={<HowItWorks />} />
@@ -162,6 +174,7 @@ function App() {
         </div>
       } />
     </Routes>
+    </Suspense>
   );
 }
 
