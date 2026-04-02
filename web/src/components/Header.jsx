@@ -50,10 +50,33 @@ const NAV_KEYS = [
   },
 ];
 
+// SVG flags — emoji flags don't render on many Linux/Windows systems
+const FlagEN = () => (
+  <svg className="w-5 h-3.5 rounded-sm overflow-hidden" viewBox="0 0 60 30">
+    <clipPath id="s"><path d="M0,0 v30 h60 v-30 z"/></clipPath>
+    <clipPath id="t"><path d="M30,15 h30 v15 z v15 h-30 z h-30 v-15 z v-15 h30 z"/></clipPath>
+    <g clipPath="url(#s)"><path d="M0,0 v30 h60 v-30 z" fill="#012169"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#fff" strokeWidth="6"/><path d="M0,0 L60,30 M60,0 L0,30" clipPath="url(#t)" stroke="#C8102E" strokeWidth="4"/><path d="M30,0 v30 M0,15 h60" stroke="#fff" strokeWidth="10"/><path d="M30,0 v30 M0,15 h60" stroke="#C8102E" strokeWidth="6"/></g>
+  </svg>
+);
+const FlagTR = () => (
+  <svg className="w-5 h-3.5 rounded-sm" viewBox="0 0 60 40">
+    <rect width="60" height="40" fill="#E30A17"/>
+    <circle cx="22" cy="20" r="10" fill="#fff"/>
+    <circle cx="25" cy="20" r="8" fill="#E30A17"/>
+    <polygon points="33,20 28.5,16.5 30.5,21.5 26,18 32,18 27.5,21.5" fill="#fff"/>
+  </svg>
+);
+const FlagJA = () => (
+  <svg className="w-5 h-3.5 rounded-sm" viewBox="0 0 60 40">
+    <rect width="60" height="40" fill="#fff"/>
+    <circle cx="30" cy="20" r="10" fill="#BC002D"/>
+  </svg>
+);
+
 const LANGS = [
-  { code: 'en', flag: '🇬🇧', label: 'EN' },
-  { code: 'tr', flag: '🇹🇷', label: 'TR' },
-  { code: 'ja', flag: '🇯🇵', label: 'JA' },
+  { code: 'en', Flag: FlagEN, label: 'EN' },
+  { code: 'tr', Flag: FlagTR, label: 'TR' },
+  { code: 'ja', Flag: FlagJA, label: 'JA' },
 ];
 
 export default function Header() {
@@ -63,6 +86,7 @@ export default function Header() {
   const [langOpen, setLangOpen] = useState(false);
 
   const currentLang = LANGS.find(l => i18n.language?.startsWith(l.code)) || LANGS[0];
+  const CurrentFlag = currentLang.Flag;
 
   const switchLang = (code) => {
     i18n.changeLanguage(code);
@@ -109,7 +133,7 @@ export default function Header() {
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 border border-zinc-700 hover:border-zinc-600 transition-colors"
                 aria-label="Change language"
               >
-                <span className="text-base leading-none">{currentLang.flag}</span>
+                <CurrentFlag />
                 <span>{currentLang.label}</span>
                 <svg className={`w-3 h-3 transition-transform ${langOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -129,7 +153,7 @@ export default function Header() {
                             : 'text-zinc-300 hover:bg-zinc-700'
                         }`}
                       >
-                        <span className="text-base leading-none">{lang.flag}</span>
+                        <lang.Flag />
                         <span>{t(`language.${lang.code}`)}</span>
                       </button>
                     ))}
