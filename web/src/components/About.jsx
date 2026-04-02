@@ -1,6 +1,8 @@
 import { useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 
 export default function About() {
+  const { t } = useTranslation();
   const { modelStatus } = useSelector((state) => state.earthquake);
 
   const features = [
@@ -10,8 +12,8 @@ export default function About() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
         </svg>
       ),
-      title: 'Complex-Valued Neural Network',
-      description: 'Uses complex-valued embeddings and attention mechanisms to capture phase relationships in seismic patterns.',
+      title: t('about.featureComplex'),
+      description: t('about.featureComplexDesc'),
     },
     {
       icon: (
@@ -19,8 +21,8 @@ export default function About() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
       ),
-      title: 'Real-time EMSC Data',
-      description: 'Continuously updated with the latest global earthquake data from the European-Mediterranean Seismological Centre (EMSC), enriched with Earth-state features like lunar phase and tidal forces.',
+      title: t('about.featureData'),
+      description: t('about.featureDataDesc'),
     },
     {
       icon: (
@@ -28,8 +30,8 @@ export default function About() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
         </svg>
       ),
-      title: 'Success Rate Tracking',
-      description: 'Predictions are verified against actual events to maintain transparent accuracy metrics.',
+      title: t('about.featureTracking'),
+      description: t('about.featureTrackingDesc'),
     },
   ];
 
@@ -37,15 +39,13 @@ export default function About() {
     <section className="py-16 bg-zinc-800/50">
       <div className="max-w-7xl mx-auto px-4">
         <h2 className="text-3xl font-bold text-center text-orange-500 mb-4">
-          About This System
+          {t('about.title')}
         </h2>
         <p className="text-zinc-400 text-center max-w-2xl mx-auto mb-4">
-          An experimental earthquake prediction system using deep learning to analyze
-          patterns in historical seismic data.
+          {t('about.description')}
         </p>
         <p className="text-zinc-500 text-center text-sm max-w-2xl mx-auto mb-12">
-          This project is under continuous development. The AI model is regularly retrained
-          with new features and improvements, so predictions and statistics may reset periodically.
+          {t('about.disclaimer')}
         </p>
 
         <div className="grid md:grid-cols-3 gap-6 mb-12">
@@ -66,22 +66,22 @@ export default function About() {
 
           {/* Col 1: Architecture */}
           <div className="card">
-            <h3 className="text-base font-semibold text-orange-400 mb-4">Architecture</h3>
+            <h3 className="text-base font-semibold text-orange-400 mb-4">{t('about.architecture')}</h3>
             <div className="space-y-3 text-sm">
               <div>
-                <span className="text-zinc-500 block">Sequence Length</span>
+                <span className="text-zinc-500 block">{t('about.sequenceLength')}</span>
                 <span className="text-white font-mono">{modelStatus.config?.sequence_length ?? '384'}</span>
               </div>
               <div>
-                <span className="text-zinc-500 block">Embedding Size</span>
+                <span className="text-zinc-500 block">{t('about.embeddingSize')}</span>
                 <span className="text-white font-mono">{modelStatus.config?.embedding_size ?? '1024'}</span>
               </div>
               <div>
-                <span className="text-zinc-500 block">Attention Heads</span>
+                <span className="text-zinc-500 block">{t('about.attentionHeads')}</span>
                 <span className="text-white font-mono">{modelStatus.config?.num_heads ?? '8'}</span>
               </div>
               <div>
-                <span className="text-zinc-500 block">Layers</span>
+                <span className="text-zinc-500 block">{t('about.layers')}</span>
                 <span className="text-white font-mono">{modelStatus.config?.num_layers ?? '6'}</span>
               </div>
             </div>
@@ -89,11 +89,11 @@ export default function About() {
 
           {/* Col 2: Training Status */}
           <div className="card">
-            <h3 className="text-base font-semibold text-orange-400 mb-4">Training Status</h3>
+            <h3 className="text-base font-semibold text-orange-400 mb-4">{t('about.trainingStatus')}</h3>
             <div className="space-y-3 text-sm">
               {modelStatus.currentCheckpoint && (
                 <div>
-                  <span className="text-zinc-500 block">Checkpoint</span>
+                  <span className="text-zinc-500 block">{t('about.checkpoint')}</span>
                   <span className="text-orange-400 font-mono">
                     {modelStatus.currentCheckpoint.replace('eqModel_complex_', '').replace('.pth', '')}
                   </span>
@@ -102,13 +102,13 @@ export default function About() {
               {modelStatus.training?.latestStep && (
                 <>
                   <div>
-                    <span className="text-zinc-500 block">Training Step</span>
+                    <span className="text-zinc-500 block">{t('about.trainingStep')}</span>
                     <span className="text-purple-400 font-mono">
                       {modelStatus.training.latestStep.toLocaleString()}
                     </span>
                   </div>
                   <div>
-                    <span className="text-zinc-500 block">Loss</span>
+                    <span className="text-zinc-500 block">{t('about.loss')}</span>
                     <span className="text-cyan-400 font-mono">
                       {modelStatus.training.latestLoss?.toFixed(4)}
                     </span>
@@ -116,15 +116,15 @@ export default function About() {
                 </>
               )}
               {!modelStatus.loaded && (
-                <p className="text-zinc-600 text-xs">Model not loaded</p>
+                <p className="text-zinc-600 text-xs">{t('about.modelNotLoaded')}</p>
               )}
             </div>
           </div>
 
           {/* Col 3: Contact */}
           <div className="card">
-            <h3 className="text-base font-semibold text-orange-400 mb-1">Contact</h3>
-            <p className="text-zinc-500 text-xs mb-4">Questions, feedback, or collaboration.</p>
+            <h3 className="text-base font-semibold text-orange-400 mb-1">{t('about.contact')}</h3>
+            <p className="text-zinc-500 text-xs mb-4">{t('about.contactDesc')}</p>
             <div className="flex flex-col gap-2">
               <a
                 href="mailto:kadirerturk@gmail.com"

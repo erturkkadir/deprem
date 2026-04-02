@@ -1,11 +1,12 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { fetchLiveData } from '../store/earthquakeSlice';
 
 const MATCH_RADIUS_KM = 250;
 
 // ── Circular countdown clock ────────────────────────────────────────────────
-function CountdownClock({ totalSecs, remainingSecs, isExpired }) {
+function CountdownClock({ totalSecs, remainingSecs, isExpired, t }) {
   const cx = 50, cy = 50;
   const trackR = 30;
   const circ = 2 * Math.PI * trackR;
@@ -89,7 +90,7 @@ function CountdownClock({ totalSecs, remainingSecs, isExpired }) {
           {timeStr}
         </span>
         <span className="text-zinc-600 leading-none mt-1" style={{ fontSize: 8 }}>
-          {isExpired ? 'expired' : 'left'}
+          {isExpired ? t('live.expired') : t('live.left')}
         </span>
       </div>
     </div>
@@ -98,6 +99,7 @@ function CountdownClock({ totalSecs, remainingSecs, isExpired }) {
 
 // ── Main component ──────────────────────────────────────────────────────────
 function LiveDashboard() {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const { liveData } = useSelector((state) => state.earthquake);
   const [minMagFilter, setMinMagFilter] = useState(2);
@@ -201,12 +203,12 @@ function LiveDashboard() {
   const actualTime = pred?.actual_time ? new Date(pred.actual_time) : null;
   const isLateCatch = isVerified && isCorrect && actualTime && predWindowEnd && actualTime > predWindowEnd;
 
-  const statusLabel = isLateCatch ? '⏱ LATE CATCH'
-    : isMatch || (isVerified && isCorrect) ? '✓ MATCHED'
-    : isVerified && isExpired ? 'Missed — checking 24h'
-    : isVerified ? 'Missed'
-    : isExpired ? 'Expired — next starting'
-    : 'Active';
+  const statusLabel = isLateCatch ? `⏱ ${t('live.lateCatch')}`
+    : isMatch || (isVerified && isCorrect) ? `✓ ${t('live.matched').toUpperCase()}`
+    : isVerified && isExpired ? t('live.missedChecking', { hours: 24 })
+    : isVerified ? t('live.missed')
+    : isExpired ? t('live.expiredNextStarting')
+    : t('live.active');
   const statusClass = isLateCatch
     ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
     : isMatch || (isVerified && isCorrect)
@@ -262,9 +264,9 @@ function LiveDashboard() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
             </span>
-            Live Monitor
+            {t('live.title')}
           </h2>
-          <span className="text-zinc-500 text-xs">Updates every 1m</span>
+          <span className="text-zinc-500 text-xs">{t('live.updatesEvery')}</span>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-3">
@@ -303,6 +305,7 @@ function LiveDashboard() {
                           totalSecs={totalSecs}
                           remainingSecs={smoothRemaining}
                           isExpired={isExpired}
+                          t={t}
                         />
                       ) : (
                         <div className={`w-24 h-24 rounded-full flex items-center justify-center border-2 ${isCorrect ? 'border-green-500 bg-green-500/10' : 'border-red-500 bg-red-500/10'}`}>
@@ -319,7 +322,7 @@ function LiveDashboard() {
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                         </svg>
-                        Map
+                        {t('common.map')}
                       </a>
                     </div>
                   </div>
@@ -327,25 +330,25 @@ function LiveDashboard() {
                   {/* Details row */}
                   <div className="px-4 py-2.5 grid grid-cols-2 sm:grid-cols-5 gap-3 border-b border-zinc-800">
                     <div>
-                      <div className="text-[9px] text-zinc-500 uppercase mb-0.5">Latitude</div>
+                      <div className="text-[9px] text-zinc-500 uppercase mb-0.5">{t('live.latitude')}</div>
                       <div className="text-orange-400 font-bold font-mono">{pred.predicted_lat?.toFixed(1)}°</div>
                     </div>
                     <div>
-                      <div className="text-[9px] text-zinc-500 uppercase mb-0.5">Longitude</div>
+                      <div className="text-[9px] text-zinc-500 uppercase mb-0.5">{t('live.longitude')}</div>
                       <div className="text-blue-400 font-bold font-mono">{pred.predicted_lon?.toFixed(1)}°</div>
                     </div>
                     <div>
-                      <div className="text-[9px] text-zinc-500 uppercase mb-0.5">Magnitude</div>
+                      <div className="text-[9px] text-zinc-500 uppercase mb-0.5">{t('live.magnitude')}</div>
                       <div className={`font-bold ${getMagColor(pred.predicted_mag)}`}>M{pred.predicted_mag?.toFixed(1)}</div>
                     </div>
                     <div>
-                      <div className="text-[9px] text-zinc-500 uppercase mb-0.5">Window</div>
+                      <div className="text-[9px] text-zinc-500 uppercase mb-0.5">{t('live.window')}</div>
                       <div className="text-purple-400 font-bold">
                         {(() => { const m = pred.predicted_dt || 60; return m >= 60 ? `${(m/60).toFixed(0)}h` : `${m}m`; })()}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[9px] text-zinc-500 uppercase mb-0.5">Uncertainty</div>
+                      <div className="text-[9px] text-zinc-500 uppercase mb-0.5">{t('live.uncertainty')}</div>
                       <div className="text-zinc-300 font-bold font-mono">
                         {pred.sigma_km != null ? `±${Math.round(pred.sigma_km)} km` : '—'}
                       </div>
@@ -356,7 +359,7 @@ function LiveDashboard() {
                   {group_zones && group_zones.length > 1 && (
                     <div className="px-4 py-2.5 border-b border-zinc-800">
                       <div className="text-[9px] text-zinc-500 uppercase mb-1.5 tracking-wider">
-                        Prediction Zones ({group_zones.length})
+                        {t('live.predictionZones')} ({group_zones.length})
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {group_zones.map((z) => (
@@ -365,7 +368,7 @@ function LiveDashboard() {
                             href={`/map.html?plat=${z.lat}&plon=${z.lon}&pmag=${pred?.predicted_mag || ''}&pdt=${pred?.predicted_dt || ''}&pplace=${encodeURIComponent(z.place || '')}&time=${encodeURIComponent(pred?.prediction_time || '')}&wend=${encodeURIComponent(pred?.window_end || '')}&id=${pred?.id || ''}`}
                             target="_blank" rel="noopener noreferrer"
                             className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-zinc-700 bg-zinc-800/60 hover:border-orange-500/50 hover:bg-zinc-700/60 transition-colors cursor-pointer"
-                            title={`Rank ${z.rank}: ${z.lat?.toFixed(1)}°, ${z.lon?.toFixed(1)}°${z.sigma_km ? ` ±${Math.round(z.sigma_km)}km` : ''}`}
+                            title={`${t('live.rank', { rank: z.rank })}: ${z.lat?.toFixed(1)}°, ${z.lon?.toFixed(1)}°${z.sigma_km ? ` ±${Math.round(z.sigma_km)}km` : ''}`}
                           >
                             <span className="text-orange-500 font-bold text-[9px]">#{z.rank}</span>
                             <span className="text-zinc-300 text-[10px] truncate max-w-[120px]">
@@ -391,7 +394,7 @@ function LiveDashboard() {
                             M{(match_info?.mag || pred.actual_mag)?.toFixed(1)}
                           </span>
                           <span className="text-zinc-300 ml-1">
-                            {match_info?.place || '— earthquake matched'}
+                            {match_info?.place || t('live.earthquakeMatched')}
                           </span>
                         </div>
                       </div>
@@ -402,10 +405,10 @@ function LiveDashboard() {
                 {/* ── STATS ROW ── */}
                 <div className="grid grid-cols-4 gap-2">
                   {[
-                    { val: counts.matched, label: 'Matched', color: 'text-green-500' },
-                    { val: counts.pending, label: 'Pending', color: 'text-yellow-500' },
-                    { val: counts.missed,  label: 'Missed',  color: 'text-red-500' },
-                    { val: `${counts.rate.toFixed(0)}%`, label: 'Success', color: counts.rate > 30 ? 'text-green-500' : counts.rate > 0 ? 'text-orange-500' : 'text-zinc-500' },
+                    { val: counts.matched, label: t('live.matched'), color: 'text-green-500' },
+                    { val: counts.pending, label: t('live.pending'), color: 'text-yellow-500' },
+                    { val: counts.missed,  label: t('live.missed'),  color: 'text-red-500' },
+                    { val: `${counts.rate.toFixed(0)}%`, label: t('live.successRate'), color: counts.rate > 30 ? 'text-green-500' : counts.rate > 0 ? 'text-orange-500' : 'text-zinc-500' },
                   ].map(({ val, label, color }) => (
                     <div key={label} className="bg-zinc-800/50 border border-zinc-700 rounded-lg p-2.5 text-center">
                       <div className={`text-xl font-bold ${color}`}>{val}</div>
@@ -420,9 +423,7 @@ function LiveDashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <span>
-                    Each cycle predicts <span className="text-zinc-400">1 zone</span> for the next <span className="text-zinc-400">90 min</span> within <span className="text-zinc-400">250 km</span>.
-                    If no M4+ hits, the prediction is marked <span className="text-yellow-500">Missed</span> and a new cycle starts immediately.
-                    Missed predictions continue checking for <span className="text-zinc-400">up to 48 h</span> — a late match counts as a <span className="text-green-500">Late Catch</span>.
+                    {t('live.eachCyclePredicts', { minutes: 90, radius: 250, hours: 48 })}
                   </span>
                 </div>
               </>
@@ -433,8 +434,8 @@ function LiveDashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
                 </div>
-                <p className="text-zinc-400 text-sm font-medium">No active prediction</p>
-                <p className="text-zinc-600 text-xs mt-1">Waiting for model...</p>
+                <p className="text-zinc-400 text-sm font-medium">{t('live.noActivePrediction')}</p>
+                <p className="text-zinc-600 text-xs mt-1">{t('live.waitingForModel')}</p>
               </div>
             )}
           </div>
@@ -446,7 +447,7 @@ function LiveDashboard() {
                 <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                Recent Earthquakes
+                {t('live.recentEarthquakes')}
               </h3>
               <select
                 value={minMagFilter}
@@ -465,7 +466,7 @@ function LiveDashboard() {
             {inWindowCount > 0 && (
               <div className="text-[10px] text-orange-400 mb-2 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block"></span>
-                {inWindowCount} in prediction window
+                {t('live.inPredictionWindow', { count: inWindowCount })}
               </div>
             )}
 
@@ -486,7 +487,7 @@ function LiveDashboard() {
                           <span className="px-1 py-0.5 bg-orange-500/20 text-orange-300 border border-orange-500/30 text-[9px] rounded-full">window</span>
                         )}
                       </div>
-                      <p className="text-white text-xs truncate">{eq.place || 'Unknown'}</p>
+                      <p className="text-white text-xs truncate">{eq.place || t('live.unknown')}</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-zinc-500 text-[10px] font-mono">{eq.lat?.toFixed(1)}°, {eq.lon?.toFixed(1)}°</span>
                         <a
@@ -495,7 +496,7 @@ function LiveDashboard() {
                           className="text-blue-400 hover:text-blue-300 text-[10px]"
                           onClick={e => e.stopPropagation()}
                         >
-                          map
+                          {t('live.map')}
                         </a>
                       </div>
                     </div>
@@ -511,7 +512,7 @@ function LiveDashboard() {
                   <svg className="w-8 h-8 mx-auto mb-2 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
-                  <p className="text-xs">No recent earthquakes</p>
+                  <p className="text-xs">{t('live.noRecentEarthquakes')}</p>
                 </div>
               )}
             </div>

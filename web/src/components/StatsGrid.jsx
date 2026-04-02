@@ -1,4 +1,5 @@
 import { useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 
 function StatCard({ value, label, color = 'orange', animate = false }) {
   const colorClasses = {
@@ -21,6 +22,7 @@ function StatCard({ value, label, color = 'orange', animate = false }) {
 }
 
 export default function StatsGrid() {
+  const { t } = useTranslation();
   const { stats, liveData, lastFetchTime } = useSelector((state) => state.earthquake);
 
   const timeSinceUpdate = () => {
@@ -44,35 +46,35 @@ export default function StatsGrid() {
     <section className="py-4">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-bold text-orange-500">Statistics</h2>
-          <span className="text-zinc-500 text-xs">Updated {timeSinceUpdate()}</span>
+          <h2 className="text-lg font-bold text-orange-500">{t('stats.title')}</h2>
+          <span className="text-zinc-500 text-xs">{t('stats.updated', { time: timeSinceUpdate() })}</span>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <StatCard
             value={total}
-            label="Total"
+            label={t('stats.total')}
             color="blue"
           />
           <StatCard
             value={matched}
-            label="Matched"
+            label={t('stats.matched')}
             color="green"
           />
           <StatCard
             value={missed}
-            label="Missed"
+            label={t('stats.missed')}
             color="purple"
           />
           <StatCard
             value={pending}
-            label="Pending"
+            label={t('stats.pending')}
             color="orange"
             animate={pending > 0}
           />
           <StatCard
             value={`${successRate.toFixed(1)}%`}
-            label="Success Rate"
+            label={t('stats.successRate')}
             color="green"
             animate={successRate > 50}
           />

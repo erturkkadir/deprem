@@ -185,7 +185,7 @@ class CircularComplexEmbedding(nn.Module):
         # Fixed phase: 2π * index / period
         fixed_phase = 2.0 * math.pi * torch.arange(num_embeddings).float() / period
         # [num_embeddings, embedding_dim] — broadcast same phase to all dims
-        fixed_phase = fixed_phase.unsqueeze(1).expand(num_embeddings, embedding_dim)
+        fixed_phase = fixed_phase.unsqueeze(1).expand(num_embeddings, embedding_dim).contiguous()
         self.register_buffer('fixed_phase', fixed_phase)
 
         # Only magnitude is learned
@@ -1715,7 +1715,7 @@ class SpatialMDNHead(nn.Module):
         term2 = 0.5 * (pi_i * pi_j * d_ij).sum(dim=(-1, -2))   # [N]
 
         es = term1 - term2   # [N] — negative term2 rewards spread
-        return torch.log1p(es.clamp(min=0.0) / 30.0).mean()     # scale: 30°≈3300km
+        return (es / 30.0).mean()     # scale: 30°≈3300km — no clamp: negative es still needs gradient
 
     @staticmethod
     def entropy_loss(params):
@@ -2084,9 +2084,15 @@ class EqModelComplex(nn.Module):
             spatial_loss = (spatial_nll_ps * combined_w).mean()
             mag_loss = (mag_nll_ps * combined_w).mean()
 
-            # Energy Score: proper multivariate scoring rule (replaces haversine + diversity_loss)
-            # ES = E[d(X,y)] - 0.5*E[d(X,X')] — accuracy + spread in one proper loss
+            # Energy Score: proper multivariate scoring rule for accuracy
+            # ES = E[d(X,y)] - 0.5*E[d(X,X')] — pulls closest component toward target + rewards spread
+            # NOTE: es can be negative when spread term > accuracy term — no clamping, gradient must flow
             es_loss = SpatialMDNHead.energy_score_loss(sp, lat_actual, lon_actual)
+
+            # Diversity loss: explicit pi-weight-independent pairwise repulsion between component means
+            # Kept alongside energy score: when pi is uniform and all means collapse, es gradient
+            # vanishes (es goes negative and stays there); div_loss provides the escape gradient.
+            div_loss = SpatialMDNHead.diversity_loss(sp)
 
             # Entropy: encourages uniform pi weights (component usage diversity)
             ent_loss = SpatialMDNHead.entropy_loss(sp)
@@ -2095,7 +2101,7 @@ class EqModelComplex(nn.Module):
             sigma_mean = (sp['sigma_lat'].mean() + sp['sigma_lon'].mean()) / 2.0
             sigma_reg = torch.clamp(sigma_mean - 3.0, min=0.0)
 
-            loss = spatial_loss + mag_loss + 3.0 * es_loss + 0.5 * ent_loss + 0.1 * sigma_reg
+            loss = spatial_loss + mag_loss + 3.0 * es_loss + 1.0 * div_loss + 0.5 * ent_loss + 0.1 * sigma_reg
 
             loss_dict = {
                 'spatial': spatial_loss.item(),
@@ -2103,7 +2109,7 @@ class EqModelComplex(nn.Module):
                 'hav': es_loss.item(),   # reuse 'hav' key so train.py print loop unchanged
                 'gr': 0.0,
                 'ent': ent_loss.item(),
-                'div': 0.0,              # subsumed by energy score
+                'div': div_loss.item(),
                 'sig': sigma_reg.item(),
             }
         else:

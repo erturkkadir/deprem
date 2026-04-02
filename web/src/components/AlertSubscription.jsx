@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MapContainer, TileLayer, CircleMarker, Circle, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -30,6 +31,7 @@ function LocationPicker({ onSelect, selected, radiusKm }) {
 }
 
 export default function AlertSubscription({ alwaysOpen = false }) {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(alwaysOpen);
   const [email, setEmail] = useState('');
   const [location, setLocation] = useState(null);
@@ -71,14 +73,14 @@ export default function AlertSubscription({ alwaysOpen = false }) {
       if (data.success) {
         setStatus({
           type: 'verify',
-          msg: `Verification email sent to ${email}. Please check your inbox and click the link to activate alerts.`
+          msg: t('alerts.verificationSent', { email })
         });
         fetchAlerts(email);
       } else {
-        setStatus({ type: 'error', msg: data.error || 'Failed to subscribe' });
+        setStatus({ type: 'error', msg: data.error || t('alerts.failedToSubscribe') });
       }
     } catch (err) {
-      setStatus({ type: 'error', msg: 'Network error' });
+      setStatus({ type: 'error', msg: t('alerts.networkError') });
     } finally {
       setIsSubmitting(false);
     }
@@ -111,27 +113,27 @@ export default function AlertSubscription({ alwaysOpen = false }) {
 
               {/* How it works */}
               <div className="mb-5 bg-zinc-800/50 rounded-lg p-4">
-                <h4 className="text-zinc-300 text-xs font-semibold uppercase tracking-wider mb-3">How it works</h4>
+                <h4 className="text-zinc-300 text-xs font-semibold uppercase tracking-wider mb-3">{t('alerts.howItWorks')}</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="flex items-start gap-2.5">
                     <span className="w-5 h-5 rounded-full bg-orange-500/20 text-orange-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
                     <div>
-                      <p className="text-white text-xs font-medium">Pick your location</p>
-                      <p className="text-zinc-500 text-[11px] mt-0.5">Click anywhere on the map and set a monitoring radius</p>
+                      <p className="text-white text-xs font-medium">{t('alerts.step1Title')}</p>
+                      <p className="text-zinc-500 text-[11px] mt-0.5">{t('alerts.step1Desc')}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2.5">
                     <span className="w-5 h-5 rounded-full bg-orange-500/20 text-orange-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
                     <div>
-                      <p className="text-white text-xs font-medium">Verify your email</p>
-                      <p className="text-zinc-500 text-[11px] mt-0.5">We'll send a one-click verification link to activate your alerts</p>
+                      <p className="text-white text-xs font-medium">{t('alerts.step2Title')}</p>
+                      <p className="text-zinc-500 text-[11px] mt-0.5">{t('alerts.step2Desc')}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2.5">
                     <span className="w-5 h-5 rounded-full bg-orange-500/20 text-orange-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
                     <div>
-                      <p className="text-white text-xs font-medium">Receive alerts</p>
-                      <p className="text-zinc-500 text-[11px] mt-0.5">When the AI predicts an M4+ earthquake within your radius, you get an email with details and a map</p>
+                      <p className="text-white text-xs font-medium">{t('alerts.step3Title')}</p>
+                      <p className="text-zinc-500 text-[11px] mt-0.5">{t('alerts.step3Desc')}</p>
                     </div>
                   </div>
                 </div>
@@ -143,7 +145,7 @@ export default function AlertSubscription({ alwaysOpen = false }) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
                 <p className="text-amber-400/90 text-[11px] leading-relaxed">
-                  <span className="font-semibold">Experimental system</span> — This is an AI research project, not an official warning service. Predictions are not reliable and should never be used for safety decisions. Always follow your local authorities' guidance for earthquake preparedness.
+                  <span className="font-semibold">{t('alerts.experimentalWarning')}</span> — {t('alerts.experimentalDesc')}
                 </p>
               </div>
 
@@ -154,7 +156,7 @@ export default function AlertSubscription({ alwaysOpen = false }) {
                     <svg className="w-3.5 h-3.5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                     </svg>
-                    Click on the map to set your monitoring center:
+                    {t('alerts.clickMapPrompt')}
                   </p>
                   <div className="rounded-lg overflow-hidden border border-zinc-700" style={{ height: '250px' }}>
                     <MapContainer
@@ -173,10 +175,10 @@ export default function AlertSubscription({ alwaysOpen = false }) {
                   {location ? (
                     <p className="text-zinc-400 text-xs mt-1.5 flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-orange-500 inline-block"></span>
-                      Monitoring: {location.lat.toFixed(2)}°, {location.lon.toFixed(2)}° within {radiusKm} km
+                      {t('alerts.monitoringAt', { lat: location.lat.toFixed(2), lon: location.lon.toFixed(2), radius: radiusKm })}
                     </p>
                   ) : (
-                    <p className="text-zinc-600 text-xs mt-1.5 italic">No location selected yet — click on the map above</p>
+                    <p className="text-zinc-600 text-xs mt-1.5 italic">{t('alerts.noLocationSelected')}</p>
                   )}
                 </div>
 
@@ -184,12 +186,12 @@ export default function AlertSubscription({ alwaysOpen = false }) {
                 <div className="flex flex-col justify-between">
                   <form onSubmit={handleSubscribe} className="space-y-3">
                     <div>
-                      <label className="text-zinc-400 text-xs block mb-1">Your email address</label>
+                      <label className="text-zinc-400 text-xs block mb-1">{t('alerts.emailLabel')}</label>
                       <input
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="your@email.com"
+                        placeholder={t('alerts.emailPlaceholder')}
                         required
                         className="w-full bg-zinc-700 text-white text-sm rounded px-3 py-2 border border-zinc-600 focus:outline-none focus:border-orange-500"
                       />
@@ -197,18 +199,18 @@ export default function AlertSubscription({ alwaysOpen = false }) {
 
                     <div>
                       <label className="text-zinc-400 text-xs block mb-1">
-                        Alert radius
-                        <span className="text-zinc-600 ml-1">— how far from your point to watch</span>
+                        {t('alerts.radiusLabel')}
+                        <span className="text-zinc-600 ml-1">{t('alerts.radiusHelp')}</span>
                       </label>
                       <select
                         value={radiusKm}
                         onChange={(e) => setRadiusKm(Number(e.target.value))}
                         className="w-full bg-zinc-700 text-white text-sm rounded px-3 py-2 border border-zinc-600 focus:outline-none focus:border-orange-500"
                       >
-                        <option value={250}>250 km — City region</option>
-                        <option value={500}>500 km — Country-wide</option>
-                        <option value={750}>750 km — Regional</option>
-                        <option value={1000}>1000 km — Continental</option>
+                        <option value={250}>{t('alerts.radius250')}</option>
+                        <option value={500}>{t('alerts.radius500')}</option>
+                        <option value={750}>{t('alerts.radius750')}</option>
+                        <option value={1000}>{t('alerts.radius1000')}</option>
                       </select>
                     </div>
 
@@ -223,20 +225,20 @@ export default function AlertSubscription({ alwaysOpen = false }) {
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                           </svg>
-                          Sending verification...
+                          {t('alerts.subscribing')}
                         </>
                       ) : (
                         <>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                           </svg>
-                          Subscribe to Alerts
+                          {t('alerts.subscribe')}
                         </>
                       )}
                     </button>
 
                     <p className="text-zinc-600 text-[11px] text-center">
-                      You can unsubscribe anytime. We only send alerts when a prediction falls within your area.
+                      {t('alerts.unsubscribeNote')}
                     </p>
                   </form>
 
@@ -264,22 +266,22 @@ export default function AlertSubscription({ alwaysOpen = false }) {
                   {/* Existing subscriptions */}
                   {alerts.length > 0 && (
                     <div className="mt-3">
-                      <p className="text-zinc-400 text-xs mb-2">Your active subscriptions:</p>
+                      <p className="text-zinc-400 text-xs mb-2">{t('alerts.activeSubscriptions')}</p>
                       <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
                         {alerts.map((alert) => (
                           <div key={alert.id} className="flex items-center justify-between bg-zinc-800 rounded px-2 py-1.5 text-xs">
                             <div className="flex items-center gap-2">
                               {alert.verified && alert.active ? (
-                                <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" title="Active — receiving alerts" />
+                                <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" title={t('alerts.statusActive')} />
                               ) : (
-                                <span className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" title="Pending — check your email to verify" />
+                                <span className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" title={t('alerts.statusPendingVerify')} />
                               )}
                               <span className="text-zinc-300">
                                 {alert.lat.toFixed(1)}°, {alert.lon.toFixed(1)}°
                                 <span className="text-zinc-500 ml-1">({alert.radius_km} km)</span>
                               </span>
                               {!alert.verified && (
-                                <span className="text-yellow-500 text-[10px]">check email to verify</span>
+                                <span className="text-yellow-500 text-[10px]">{t('alerts.checkEmailToVerify')}</span>
                               )}
                             </div>
                             <button
@@ -320,9 +322,9 @@ export default function AlertSubscription({ alwaysOpen = false }) {
                 </svg>
               </div>
               <div>
-                <h3 className="text-white font-bold text-sm sm:text-base">Email Alerts for Earthquake Predictions</h3>
+                <h3 className="text-white font-bold text-sm sm:text-base">{t('alerts.title')}</h3>
                 <p className="text-zinc-500 text-xs mt-0.5">
-                  Get notified by email when our AI predicts an earthquake near your chosen location
+                  {t('alerts.subtitle')}
                 </p>
               </div>
             </div>

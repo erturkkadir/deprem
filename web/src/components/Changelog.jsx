@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const releases = [
   {
@@ -221,6 +222,7 @@ const typeLabels = {
 };
 
 export default function Changelog({ bare = false }) {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [expandedVersion, setExpandedVersion] = useState(null);
 
@@ -237,9 +239,9 @@ export default function Changelog({ bare = false }) {
                 </svg>
               </div>
               <div>
-                <h3 className="text-white font-bold text-sm sm:text-base">Changelog</h3>
+                <h3 className="text-white font-bold text-sm sm:text-base">{t('changelog.title')}</h3>
                 <p className="text-zinc-500 text-xs mt-0.5">
-                  Development history and release notes — {releases.length} releases since {releases[releases.length - 1].date}
+                  {t('changelog.subtitle', { count: releases.length, date: releases[releases.length - 1].date })}
                 </p>
               </div>
             </div>
@@ -287,7 +289,7 @@ export default function Changelog({ bare = false }) {
                             </span>
                             {isLatest && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30">
-                                Latest
+                                {t('changelog.latest')}
                               </span>
                             )}
                             <span className="text-zinc-600 text-xs ml-auto">{release.date}</span>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -74,6 +75,7 @@ function calcMinutesAfter(predictionTime, actualTime) {
 }
 
 export default function PredictionDetail() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);

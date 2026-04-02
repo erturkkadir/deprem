@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -13,6 +14,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function EarthquakeHistory({ alwaysOpen = false }) {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(alwaysOpen);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
@@ -52,7 +54,7 @@ export default function EarthquakeHistory({ alwaysOpen = false }) {
               {/* Controls */}
               <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-end gap-2 sm:gap-3 mb-5">
                 <div className="col-span-1">
-                  <label className="block text-zinc-500 text-[10px] uppercase tracking-wider mb-1">From</label>
+                  <label className="block text-zinc-500 text-[10px] uppercase tracking-wider mb-1">{t('history.from')}</label>
                   <input
                     type="date"
                     value={startDate}
@@ -61,7 +63,7 @@ export default function EarthquakeHistory({ alwaysOpen = false }) {
                   />
                 </div>
                 <div className="col-span-1">
-                  <label className="block text-zinc-500 text-[10px] uppercase tracking-wider mb-1">To</label>
+                  <label className="block text-zinc-500 text-[10px] uppercase tracking-wider mb-1">{t('history.to')}</label>
                   <input
                     type="date"
                     value={endDate}
@@ -70,7 +72,7 @@ export default function EarthquakeHistory({ alwaysOpen = false }) {
                   />
                 </div>
                 <div className="col-span-1">
-                  <label className="block text-zinc-500 text-[10px] uppercase tracking-wider mb-1">Min Mag</label>
+                  <label className="block text-zinc-500 text-[10px] uppercase tracking-wider mb-1">{t('history.minMag')}</label>
                   <select
                     value={minMag}
                     onChange={e => setMinMag(e.target.value)}
@@ -160,9 +162,9 @@ export default function EarthquakeHistory({ alwaysOpen = false }) {
                 </svg>
               </div>
               <div>
-                <h3 className="text-white font-bold text-sm sm:text-base">Historical Earthquake Patterns</h3>
+                <h3 className="text-white font-bold text-sm sm:text-base">{t('history.title')}</h3>
                 <p className="text-zinc-500 text-xs mt-0.5">
-                  Distribution by month and day of month within a custom date range
+                  {t('history.subtitle')}
                 </p>
               </div>
             </div>

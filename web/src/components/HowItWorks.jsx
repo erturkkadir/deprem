@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 const sections = [
   {
@@ -179,8 +180,31 @@ const sections = [
 ];
 
 
+// Maps section id to i18n key for section titles
+const sectionTitleKeys = {
+  idea: 'howItWorks.coreIdea',
+  data: 'howItWorks.dataPipeline',
+  model: 'howItWorks.neuralNetwork',
+  training: 'howItWorks.trainingStrategy',
+  prediction: 'howItWorks.predictionVerification',
+  limitations: 'howItWorks.honestLimitations',
+};
+
+// Maps heading text to i18n key (only for headings that have translation keys)
+const headingKeys = {
+  'Can earthquakes be predicted?': 'howItWorks.canEarthquakesBePredicted',
+  'Earthquakes as a sequence problem': 'howItWorks.sequenceProblem',
+  'Why complex-valued embeddings?': 'howItWorks.whyComplex',
+  'What does the complex space give us?': 'howItWorks.whatComplexGives',
+  'This is an experiment, not an oracle': 'howItWorks.limitExperiment',
+  'Spatial accuracy is the biggest challenge': 'howItWorks.limitSpatial',
+  'Do not rely on this for safety decisions': 'howItWorks.limitSafety',
+  'Statistics reset with architecture changes': 'howItWorks.limitReset',
+};
+
 export default function HowItWorks() {
   const [openSection, setOpenSection] = useState(null);
+  const { t } = useTranslation();
 
   const toggle = (id) => setOpenSection(openSection === id ? null : id);
 
@@ -193,7 +217,7 @@ export default function HowItWorks() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            <span className="text-sm">Back to Dashboard</span>
+            <span className="text-sm">{t('howItWorks.backToDashboard')}</span>
           </Link>
           <span className="text-zinc-600 text-xs font-mono">quake.syshuman.com</span>
         </div>
@@ -203,28 +227,28 @@ export default function HowItWorks() {
       <section className="py-10">
         <div className="max-w-4xl mx-auto px-4">
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-3">
-            How It Works
+            {t('howItWorks.title')}
           </h1>
           <p className="text-zinc-400 text-lg max-w-2xl">
-            The idea, the reasoning, and the technical approach behind this AI earthquake prediction system.
+            {t('howItWorks.subtitle')}
           </p>
 
           {/* Flow diagram */}
           <div className="bg-zinc-800/50 rounded-xl p-5 border border-zinc-700 mt-8">
-            <h3 className="text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-4">System Flow</h3>
+            <h3 className="text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-4">{t('howItWorks.systemFlow')}</h3>
             <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
               {[
-                { label: 'EMSC Data', color: 'text-green-400 bg-green-500/10 border-green-500/30' },
+                { label: t('howItWorks.flowStep1'), color: 'text-green-400 bg-green-500/10 border-green-500/30' },
                 null,
-                { label: 'MySQL DB', color: 'text-blue-400 bg-blue-500/10 border-blue-500/30' },
+                { label: t('howItWorks.flowStep2'), color: 'text-blue-400 bg-blue-500/10 border-blue-500/30' },
                 null,
-                { label: 'Feature Encoding', color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30' },
+                { label: t('howItWorks.flowStep3'), color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30' },
                 null,
-                { label: 'Complex Transformer', color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' },
+                { label: t('howItWorks.flowStep4'), color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' },
                 null,
-                { label: 'Prediction', color: 'text-orange-400 bg-orange-500/10 border-orange-500/30' },
+                { label: t('howItWorks.flowStep5'), color: 'text-orange-400 bg-orange-500/10 border-orange-500/30' },
                 null,
-                { label: 'Verification', color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30' },
+                { label: t('howItWorks.flowStep6'), color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30' },
               ].map((item, i) =>
                 item === null ? (
                   <svg key={i} className="w-4 h-4 text-zinc-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -275,7 +299,7 @@ export default function HowItWorks() {
                             {String(sIdx + 1).padStart(2, '0')}
                           </span>
                           <h2 className={`text-sm md:text-base font-bold ${isLimitations ? 'text-amber-400' : 'text-white'}`}>
-                            {section.title}
+                            {sectionTitleKeys[section.id] ? t(sectionTitleKeys[section.id]) : section.title}
                           </h2>
                         </div>
                         <p className="text-zinc-500 text-xs mt-0.5 truncate">
@@ -307,7 +331,7 @@ export default function HowItWorks() {
                                 <svg className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01" />
                                 </svg>
-                                <h3 className="text-white font-semibold text-sm">{item.heading}</h3>
+                                <h3 className="text-white font-semibold text-sm">{headingKeys[item.heading] ? t(headingKeys[item.heading]) : item.heading}</h3>
                               </div>
                               <p className="text-zinc-400 text-sm leading-relaxed pl-7">{item.text}</p>
                             </div>
@@ -317,7 +341,7 @@ export default function HowItWorks() {
                         <div className="space-y-4">
                           {section.content.map((item, i) => (
                             <div key={i} className="pl-4 border-l-2 border-zinc-700 hover:border-orange-500/50 transition-colors">
-                              <h3 className="text-white font-semibold text-sm mb-1.5">{item.heading}</h3>
+                              <h3 className="text-white font-semibold text-sm mb-1.5">{headingKeys[item.heading] ? t(headingKeys[item.heading]) : item.heading}</h3>
                               <p className="text-zinc-400 text-sm leading-relaxed">{item.text}</p>
                             </div>
                           ))}
@@ -337,21 +361,21 @@ export default function HowItWorks() {
       {/* Technical specs — always visible compact grid */}
       <section className="py-8">
         <div className="max-w-4xl mx-auto px-4">
-          <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-4">Technical Specifications</h2>
+          <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-4">{t('howItWorks.technicalSpecs')}</h2>
           <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
             {[
-              { label: 'Parameters', value: '203M' },
-              { label: 'Features', value: '12' },
-              { label: 'Seq Length', value: '384' },
-              { label: 'Embed Dim', value: '1,024' },
-              { label: 'Heads', value: '8' },
-              { label: 'Layers', value: '6' },
-              { label: 'Spatial MDN', value: 'K=20' },
-              { label: 'Mag MDN', value: 'K=8' },
-              { label: 'Data', value: '1.5M+' },
-              { label: 'Input', value: 'M2.0+' },
-              { label: 'Window', value: '90 min' },
-              { label: 'Match Radius', value: '250 km' },
+              { label: t('howItWorks.parameters'), value: '203M' },
+              { label: t('howItWorks.features'), value: '12' },
+              { label: t('howItWorks.seqLength'), value: '384' },
+              { label: t('howItWorks.embedDim'), value: '1,024' },
+              { label: t('howItWorks.heads'), value: '8' },
+              { label: t('about.layers'), value: '6' },
+              { label: t('howItWorks.spatialMDN'), value: 'K=20' },
+              { label: t('howItWorks.magMDN'), value: 'K=8' },
+              { label: t('howItWorks.data'), value: '1.5M+' },
+              { label: t('howItWorks.input'), value: 'M2.0+' },
+              { label: t('live.window'), value: '90 min' },
+              { label: t('howItWorks.matchRadius'), value: '250 km' },
             ].map((spec, i) => (
               <div key={i} className="bg-zinc-800/60 rounded-lg p-2.5 border border-zinc-700/50 text-center">
                 <p className="text-zinc-500 text-[10px] uppercase tracking-wider">{spec.label}</p>
@@ -366,10 +390,10 @@ export default function HowItWorks() {
       <footer className="bg-zinc-900 border-t border-zinc-800 py-8">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <Link to="/" className="text-orange-500 hover:text-orange-400 text-sm font-medium transition-colors">
-            Back to Dashboard
+            {t('howItWorks.backToDashboard')}
           </Link>
           <p className="text-zinc-600 text-xs mt-3">
-            This is an experimental research project. Not intended for safety-critical decisions.
+            {t('howItWorks.experimentalDisclaimer')}
           </p>
         </div>
       </footer>

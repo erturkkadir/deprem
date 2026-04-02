@@ -1,8 +1,10 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea } from 'recharts';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 
 function TrainingLossChart() {
+  const { t } = useTranslation();
   const [lossData, setLossData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -21,7 +23,7 @@ function TrainingLossChart() {
         setLossData(response.data.loss_history || []);
         setError(null);
       } catch (err) {
-        setError('Failed to load training data');
+        setError(t('training.failedToLoad'));
         console.error('Error fetching loss data:', err);
       } finally {
         setLoading(false);
@@ -87,7 +89,7 @@ function TrainingLossChart() {
     if (active && payload && payload.length) {
       return (
         <div className="bg-zinc-800 border border-zinc-700 rounded p-2 text-xs">
-          <p className="text-zinc-400 mb-1">Step: {label?.toLocaleString()}</p>
+          <p className="text-zinc-400 mb-1">{t('training.step')}: {label?.toLocaleString()}</p>
           {payload.map((entry, index) => (
             <p key={index} style={{ color: entry.color }}>
               {entry.name}: {entry.value?.toFixed(4)}
@@ -102,9 +104,9 @@ function TrainingLossChart() {
   if (loading) {
     return (
       <div className="bg-zinc-900 rounded-lg p-4 border border-zinc-800">
-        <h3 className="text-sm font-medium text-zinc-400 mb-3">Training Progress</h3>
+        <h3 className="text-sm font-medium text-zinc-400 mb-3">{t('training.title')}</h3>
         <div className="h-64 flex items-center justify-center text-zinc-500">
-          Loading...
+          {t('training.loading')}
         </div>
       </div>
     );
@@ -113,9 +115,9 @@ function TrainingLossChart() {
   if (error) {
     return (
       <div className="bg-zinc-900 rounded-lg p-4 border border-zinc-800">
-        <h3 className="text-sm font-medium text-zinc-400 mb-3">Training Progress</h3>
+        <h3 className="text-sm font-medium text-zinc-400 mb-3">{t('training.title')}</h3>
         <div className="h-64 flex items-center justify-center text-red-400 text-sm">
-          {error}
+          {t('training.failedToLoad')}
         </div>
       </div>
     );
@@ -124,9 +126,9 @@ function TrainingLossChart() {
   if (lossData.length === 0) {
     return (
       <div className="bg-zinc-900 rounded-lg p-4 border border-zinc-800">
-        <h3 className="text-sm font-medium text-zinc-400 mb-3">Training Progress</h3>
+        <h3 className="text-sm font-medium text-zinc-400 mb-3">{t('training.title')}</h3>
         <div className="h-64 flex items-center justify-center text-zinc-500 text-sm">
-          No training data yet
+          {t('training.noDataYet')}
         </div>
       </div>
     );
@@ -147,25 +149,25 @@ function TrainingLossChart() {
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <h3 className="text-sm font-medium text-zinc-400">Training Progress</h3>
+          <h3 className="text-sm font-medium text-zinc-400">{t('training.title')}</h3>
           {isZoomed && (
             <button
               onClick={resetZoom}
               className="px-2 py-0.5 text-[10px] bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded transition-colors"
             >
-              Reset Zoom
+              {t('training.resetZoom')}
             </button>
           )}
         </div>
         <div className="flex gap-4 text-xs">
           <span className="text-blue-400">
-            Train: {latest.train_loss?.toFixed(3)} (min: {minTrainLoss?.toFixed(3)})
+            {t('training.train')}: {latest.train_loss?.toFixed(3)} ({t('training.min')}: {minTrainLoss?.toFixed(3)})
           </span>
           <span className="text-green-400">
-            Val: {latest.val_loss?.toFixed(3)} (min: {minValLoss?.toFixed(3)})
+            {t('training.val')}: {latest.val_loss?.toFixed(3)} ({t('training.min')}: {minValLoss?.toFixed(3)})
           </span>
           <span className="text-zinc-500">
-            Step: {formatStep(latest.step)}
+            {t('training.step')}: {formatStep(latest.step)}
           </span>
         </div>
       </div>
@@ -240,12 +242,12 @@ function TrainingLossChart() {
       <div className="mt-3 flex items-center justify-between text-[10px] text-zinc-500">
         <span>
           {isZoomed
-            ? `Zoomed: ${formatStep(zoomLeft)} - ${formatStep(zoomRight)} (${zoomedData.length} points)`
-            : 'Drag to zoom in on a region'
+            ? t('training.zoomed', { left: formatStep(zoomLeft), right: formatStep(zoomRight), count: zoomedData.length })
+            : t('training.dragToZoom')
           }
         </span>
         <span>
-          Random baseline: ~20.6 | Current: {latest.train_loss?.toFixed(2)} ({((20.6 - (latest.train_loss || 20.6)) / 20.6 * 100).toFixed(1)}% better)
+          {t('training.randomBaseline')} | Current: {latest.train_loss?.toFixed(2)} ({((20.6 - (latest.train_loss || 20.6)) / 20.6 * 100).toFixed(1)}% better)
         </span>
       </div>
     </div>

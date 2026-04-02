@@ -1,15 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { fetchPredictions } from '../store/earthquakeSlice';
 import AllPredictionsMap from './AllPredictionsMap';
 
-const FILTERS = [
-  { key: '', label: 'All' },
-  { key: 'pending', label: 'Pending' },
-  { key: 'matched', label: 'Matched' },
-  { key: 'missed', label: 'Missed' },
-];
+const FILTER_KEYS = ['', 'pending', 'matched', 'missed'];
 
 // Returns { status, lateHalfDay } where lateHalfDay = 1-based 12h bucket (1=0-12h, 2=12-24h, etc.) or null
 function getStatus(pred) {
@@ -70,16 +66,16 @@ function FilterButton({ active, label, count, onClick, colorClass }) {
   );
 }
 
-const LATE_HALF_DAY_LABELS = ['0-12h', '12-24h', '24-36h', '36-48h'];
-
-function StatusBadge({ pred }) {
+function StatusBadge({ pred, t }) {
   const { status, lateHalfDay } = getStatus(pred);
+
+  const LATE_BUCKET_KEYS = ['predictions.lateBucket0', 'predictions.lateBucket1', 'predictions.lateBucket2', 'predictions.lateBucket3'];
 
   if (status === 'pending') {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-yellow-900/30 text-yellow-400 border border-yellow-600">
         <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
-        Pending
+        {t('predictions.statusPending')}
       </span>
     );
   }
@@ -90,19 +86,19 @@ function StatusBadge({ pred }) {
         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
         </svg>
-        Matched
+        {t('predictions.statusMatched')}
       </span>
     );
   }
 
   if (status === 'late') {
-    const bucket = lateHalfDay >= 1 && lateHalfDay <= 4 ? LATE_HALF_DAY_LABELS[lateHalfDay - 1] : `+${lateHalfDay * 12 - 12}h`;
+    const bucket = lateHalfDay >= 1 && lateHalfDay <= 4 ? t(LATE_BUCKET_KEYS[lateHalfDay - 1]) : `+${lateHalfDay * 12 - 12}h`;
     return (
       <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-cyan-900/30 text-cyan-400 border border-cyan-600">
         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
         </svg>
-        Late Catch <span className="ml-0.5 opacity-70 text-[9px]">{bucket}</span>
+        {t('predictions.statusLateCatch')} <span className="ml-0.5 opacity-70 text-[9px]">{bucket}</span>
       </span>
     );
   }
@@ -112,12 +108,12 @@ function StatusBadge({ pred }) {
       <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
         <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
       </svg>
-      Missed
+      {t('predictions.statusMissed')}
     </span>
   );
 }
 
-function TimeDiffCompare({ predictionTime, predictedWindow, actualTime, verified }) {
+function TimeDiffCompare({ predictionTime, predictedWindow, actualTime, verified, t }) {
   // predictedWindow = the countdown window (e.g., 60 minutes)
   // actualTime = ISO timestamp when the matched earthquake occurred
 
@@ -153,12 +149,12 @@ function TimeDiffCompare({ predictionTime, predictedWindow, actualTime, verified
 
   return (
     <div className="bg-zinc-800/50 rounded p-2">
-      <div className="text-[10px] font-medium mb-1 text-purple-400">TIME WINDOW</div>
+      <div className="text-[10px] font-medium mb-1 text-purple-400">{t('predictions.labelTimeWindow')}</div>
 
       <div className="flex items-center justify-between gap-2">
         {/* Predicted Window */}
         <div className="text-center flex-1">
-          <div className="text-[9px] text-zinc-500 uppercase">Window</div>
+          <div className="text-[9px] text-zinc-500 uppercase">{t('predictions.windowLabel')}</div>
           <div className="font-mono font-bold text-sm text-purple-400">
             {formatTime(windowMinutes)}
           </div>
@@ -169,7 +165,7 @@ function TimeDiffCompare({ predictionTime, predictedWindow, actualTime, verified
 
         {/* When EQ occurred */}
         <div className="text-center flex-1">
-          <div className="text-[9px] text-zinc-500 uppercase">Occurred</div>
+          <div className="text-[9px] text-zinc-500 uppercase">{t('predictions.occurred')}</div>
           <div className={`font-mono font-bold text-sm ${
             isInvalidMatch ? 'text-red-400' : 'text-white'
           }`}>
@@ -188,17 +184,17 @@ function TimeDiffCompare({ predictionTime, predictedWindow, actualTime, verified
               : 'bg-yellow-900/30 text-yellow-400'
         }`}>
           {isInvalidMatch
-            ? '⚠ Invalid: Before prediction'
+            ? `⚠ ${t('predictions.invalidBeforePrediction')}`
             : isWithinWindow
-              ? `✓ Match at +${formatTime(actualMinutesAfter)}`
-              : `Outside window (+${formatTime(actualMinutesAfter)})`}
+              ? `✓ ${t('predictions.matchAt', { time: formatTime(actualMinutesAfter) })}`
+              : t('predictions.outsideWindow', { time: formatTime(actualMinutesAfter) })}
         </div>
       )}
     </div>
   );
 }
 
-function ParamCompare({ label, predicted, actual, diff, unit, tolerance, colorClass }) {
+function ParamCompare({ label, predicted, actual, diff, unit, tolerance, colorClass, t }) {
   const hasActual = actual !== null && actual !== undefined;
   const hasDiff = diff !== null && diff !== undefined;
   const isWithinTolerance = hasDiff && Math.abs(diff) <= tolerance;
@@ -210,7 +206,7 @@ function ParamCompare({ label, predicted, actual, diff, unit, tolerance, colorCl
       <div className="flex items-center justify-between gap-2">
         {/* Predicted */}
         <div className="text-center flex-1">
-          <div className="text-[9px] text-zinc-500 uppercase">Pred</div>
+          <div className="text-[9px] text-zinc-500 uppercase">{t('predictions.pred')}</div>
           <div className={`font-mono font-bold text-sm ${colorClass}`}>
             {predicted !== null && predicted !== undefined
               ? `${Number(predicted).toFixed(1)}${unit}`
@@ -223,7 +219,7 @@ function ParamCompare({ label, predicted, actual, diff, unit, tolerance, colorCl
 
         {/* Actual */}
         <div className="text-center flex-1">
-          <div className="text-[9px] text-zinc-500 uppercase">Actual</div>
+          <div className="text-[9px] text-zinc-500 uppercase">{t('predictions.actual')}</div>
           <div className="font-mono font-bold text-sm text-white">
             {hasActual ? `${Number(actual).toFixed(1)}${unit}` : '—'}
           </div>
@@ -245,6 +241,7 @@ function ParamCompare({ label, predicted, actual, diff, unit, tolerance, colorCl
 }
 
 export default function PredictionsTable() {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { predictions, pagination, isLoading } = useSelector((state) => state.earthquake);
@@ -252,6 +249,13 @@ export default function PredictionsTable() {
   const [currentPage, setCurrentPage] = useState(1);
   const [, setTick] = useState(0);
   const [showAllMap, setShowAllMap] = useState(false);
+
+  const FILTERS = [
+    { key: '', label: t('predictions.filterAll') },
+    { key: 'pending', label: t('predictions.filterPending') },
+    { key: 'matched', label: t('predictions.filterMatched') },
+    { key: 'missed', label: t('predictions.filterMissed') },
+  ];
 
   // Fetch predictions on mount and when filter/page changes
   useEffect(() => {
@@ -352,27 +356,31 @@ export default function PredictionsTable() {
     }
   };
 
+  const mapButtonLabel = filter
+    ? t('predictions.mapFiltered', { filter: filter.charAt(0).toUpperCase() + filter.slice(1) })
+    : t('predictions.mapAll');
+
   return (
     <section className="py-4">
       {showAllMap && <AllPredictionsMap onClose={() => setShowAllMap(false)} initialFilter={filter || 'all'} />}
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-bold text-orange-500">Predictions</h2>
+            <h2 className="text-lg font-bold text-orange-500">{t('predictions.title')}</h2>
             <span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-1 rounded">
-              {pagination.total} total
+              {t('predictions.total', { count: pagination.total })}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowAllMap(true)}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-900/50 hover:bg-blue-800/70 text-blue-400 hover:text-blue-300 border border-blue-700 transition-colors text-xs font-medium"
-              title="View all predictions on one map"
+              title={mapButtonLabel}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
               </svg>
-              Map {filter ? filter.charAt(0).toUpperCase() + filter.slice(1) : 'All'}
+              {mapButtonLabel}
             </button>
             <div className="flex gap-1.5">
               {FILTERS.map(f => (
@@ -391,14 +399,14 @@ export default function PredictionsTable() {
         {isLoading ? (
           <div className="card text-center py-6 text-zinc-500">
             <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-            <p className="text-sm">Loading...</p>
+            <p className="text-sm">{t('predictions.loading')}</p>
           </div>
         ) : predictions.length === 0 ? (
           <div className="card text-center py-6 text-zinc-500">
             <svg className="w-10 h-10 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
-            <p className="text-sm">{filter === '' ? 'No predictions yet' : `No ${filter} predictions`}</p>
+            <p className="text-sm">{filter === '' ? t('predictions.noPredictions') : t('predictions.noFilteredPredictions', { filter })}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -431,52 +439,56 @@ export default function PredictionsTable() {
                     <button
                       onClick={(e) => { e.stopPropagation(); openMapInNewTab(pred); }}
                       className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-900/50 hover:bg-blue-800/70 text-blue-400 hover:text-blue-300 border border-blue-700 transition-colors text-xs font-medium"
-                      title="View on map"
+                      title={t('common.map')}
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
-                      Map
+                      {t('common.map')}
                     </button>
-                    <StatusBadge pred={pred} />
+                    <StatusBadge pred={pred} t={t} />
                   </div>
                 </div>
 
                 {/* 4 Parameter Grid */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                   <ParamCompare
-                    label="LATITUDE"
+                    label={t('predictions.labelLatitude')}
                     predicted={pred.predicted_lat}
                     actual={pred.actual_lat}
                     diff={pred.diff_lat}
                     unit="°"
                     tolerance={10}
                     colorClass="text-orange-400"
+                    t={t}
                   />
                   <ParamCompare
-                    label="LONGITUDE"
+                    label={t('predictions.labelLongitude')}
                     predicted={pred.predicted_lon}
                     actual={pred.actual_lon}
                     diff={pred.diff_lon}
                     unit="°"
                     tolerance={20}
                     colorClass="text-blue-400"
+                    t={t}
                   />
                   <TimeDiffCompare
                     predictionTime={pred.prediction_time}
                     predictedWindow={pred.predicted_dt}
                     actualTime={pred.actual_time}
                     verified={pred.verified}
+                    t={t}
                   />
                   <ParamCompare
-                    label="MAGNITUDE"
+                    label={t('predictions.labelMagnitude')}
                     predicted={pred.predicted_mag}
                     actual={pred.actual_mag}
                     diff={pred.diff_mag}
                     unit=""
                     tolerance={1.0}
                     colorClass="text-red-400"
+                    t={t}
                   />
                 </div>
               </div>
@@ -492,31 +504,31 @@ export default function PredictionsTable() {
               disabled={currentPage <= 1}
               className="px-2 py-1 rounded text-xs bg-zinc-800 text-zinc-400 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              First
+              {t('predictions.first')}
             </button>
             <button
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage <= 1}
               className="px-3 py-1 rounded text-xs bg-zinc-800 text-zinc-400 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              Prev
+              {t('predictions.prev')}
             </button>
             <span className="px-3 py-1 text-xs text-zinc-300">
-              Page {currentPage} of {pagination.total_pages}
+              {t('predictions.pageOf', { current: currentPage, total: pagination.total_pages })}
             </span>
             <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage >= pagination.total_pages}
               className="px-3 py-1 rounded text-xs bg-zinc-800 text-zinc-400 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              Next
+              {t('predictions.next')}
             </button>
             <button
               onClick={() => handlePageChange(pagination.total_pages)}
               disabled={currentPage >= pagination.total_pages}
               className="px-2 py-1 rounded text-xs bg-zinc-800 text-zinc-400 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              Last
+              {t('predictions.last')}
             </button>
           </div>
         )}

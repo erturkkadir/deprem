@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Routes, Route, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { fetchModelStatus, fetchStats, fetchLiveData, fetchPredictions } from './store/earthquakeSlice';
 
 import Header from './components/Header';
@@ -17,6 +18,7 @@ import HowItWorks from './components/HowItWorks';
 import Code from './components/Code';
 
 function App() {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const { isConnected, modelStatus } = useSelector((state) => state.earthquake);
 
@@ -66,14 +68,14 @@ function App() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
-                <span className="text-sm">Back to Dashboard</span>
+                <span className="text-sm">{t('common.backToDashboard')}</span>
               </Link>
               <span className="text-zinc-600 text-xs font-mono">quake.syshuman.com</span>
             </div>
           </header>
           <div className="max-w-4xl mx-auto px-4 py-8">
-            <h1 className="text-3xl font-bold text-white mb-2">Email Alerts</h1>
-            <p className="text-zinc-400 text-base mb-8">Subscribe to receive email notifications when the model predicts an M4+ earthquake near your location.</p>
+            <h1 className="text-3xl font-bold text-white mb-2">{t('alerts.title')}</h1>
+            <p className="text-zinc-400 text-base mb-8">{t('alerts.subtitle')}</p>
             <AlertSubscription alwaysOpen />
           </div>
         </div>
@@ -86,14 +88,14 @@ function App() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
-                <span className="text-sm">Back to Dashboard</span>
+                <span className="text-sm">{t('common.backToDashboard')}</span>
               </Link>
               <span className="text-zinc-600 text-xs font-mono">quake.syshuman.com</span>
             </div>
           </header>
           <div className="max-w-4xl mx-auto px-4 py-8">
-            <h1 className="text-3xl font-bold text-white mb-2">Historic Earthquake Patterns</h1>
-            <p className="text-zinc-400 text-base mb-8">Distribution by month and day of month — explore the historical seismic record.</p>
+            <h1 className="text-3xl font-bold text-white mb-2">{t('history.title')}</h1>
+            <p className="text-zinc-400 text-base mb-8">{t('history.subtitle')}</p>
             <EarthquakeHistory alwaysOpen />
           </div>
         </div>
@@ -107,15 +109,15 @@ function App() {
             <div className="max-w-7xl mx-auto px-4">
               <div className="bg-gradient-to-br from-orange-600 to-orange-500 rounded-xl py-8 px-4 text-center">
                 <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
-                  AI-Powered Earthquake Prediction
+                  {t('hero.title')}
                 </h2>
                 <p className="text-sm text-orange-100 mb-4 max-w-xl mx-auto">
-                  Fully automated prediction using complex-valued transformer neural networks
+                  {t('hero.subtitle')}
                 </p>
                 <div className="flex flex-wrap justify-center gap-2">
                   <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur px-3 py-1.5 rounded-full">
                     <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
-                    <span className="text-white text-xs">{isConnected ? 'Connected' : 'Offline'}</span>
+                    <span className="text-white text-xs">{isConnected ? t('hero.connected') : t('hero.offline')}</span>
                   </div>
                   <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur px-3 py-1.5 rounded-full">
                     <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -150,10 +152,10 @@ function App() {
           <footer className="bg-zinc-900 border-t border-zinc-800 py-8">
             <div className="max-w-7xl mx-auto px-4 text-center">
               <p className="text-zinc-500 text-sm">
-                Earthquake Prediction System — Fully Automated, No User Interaction Required
+                {t('footer.mainText')}
               </p>
               <p className="text-zinc-600 text-xs mt-2">
-                Data sourced from EMSC every 2 minutes | Predictions verified after 2 hours
+                {t('footer.dataSource')}
               </p>
             </div>
           </footer>
