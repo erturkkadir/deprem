@@ -27,7 +27,8 @@ export default function AllPredictionsMap({ onClose, initialFilter = 'all' }) {
   const [filter, setFilter] = useState(initialFilter); // all | matched | missed | pending
 
   useEffect(() => {
-    axios.get('/api/predictions?limit=100&page=1')
+    // Fetch all predictions (limit 5000 covers any realistic volume)
+    axios.get('/api/predictions?limit=5000&page=1')
       .then(r => {
         setPredictions(r.data.predictions || []);
         setLoading(false);

@@ -1081,7 +1081,7 @@ def get_predictions():
 
     try:
         page = request.args.get('page', 1, type=int)
-        limit = min(request.args.get('limit', 20, type=int), 100)
+        limit = min(request.args.get('limit', 20, type=int), 5000)
         filter_type = request.args.get('filter', None)
 
         if filter_type == '':
