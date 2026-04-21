@@ -19,6 +19,25 @@ const createIcon = (color) => new L.DivIcon({
   popupAnchor: [0, -8],
 });
 
+// Hours after window end: 0 = caught in window (green) → 48+ = very late (red)
+function lateHours(pred) {
+  if (!pred.prediction_time || !pred.actual_time) return 0;
+  const fix = (s) => (s.endsWith('Z') || s.includes('+')) ? s : s + 'Z';
+  const predT = new Date(fix(pred.prediction_time));
+  const actT  = new Date(fix(pred.actual_time));
+  const windowMs = (pred.predicted_dt || 15) * 60000;
+  const windowEnd = new Date(predT.getTime() + windowMs);
+  return Math.max(0, (actT - windowEnd) / 3600000);
+}
+
+// Green (in-window) → yellow (24h late) → red (48h late)
+function matchedColor(pred) {
+  const h = lateHours(pred);
+  const t = Math.min(h / 48, 1);           // 0 → 1 over 0-48h
+  const hue = 120 * (1 - t);               // 120=green → 0=red
+  return `hsl(${hue.toFixed(0)}, 75%, 45%)`;
+}
+
 const matchedIcon = createIcon('#22c55e');
 
 export default function AllPredictionsMap({ onClose, initialFilter = 'all' }) {
@@ -55,7 +74,7 @@ export default function AllPredictionsMap({ onClose, initialFilter = 'all' }) {
 
   const circleColor = (pred) => {
     const s = getStatus(pred);
-    if (s === 'matched') return '#22c55e';
+    if (s === 'matched') return matchedColor(pred);  // gradient: green (in-window) → red (48h late)
     if (s === 'missed')  return '#ef4444';
     return '#f97316';
   };
@@ -109,6 +128,28 @@ export default function AllPredictionsMap({ onClose, initialFilter = 'all' }) {
 
       {/* Map */}
       <div className="flex-1 relative">
+        {/* Gradient legend — shown when viewing matched predictions */}
+        {!loading && filter === 'matched' && (
+          <div className="absolute top-4 left-4 z-[1000] bg-zinc-900/90 backdrop-blur-sm border border-zinc-700 rounded-lg p-3 shadow-xl">
+            <div className="text-xs font-semibold text-zinc-300 mb-2">Match Timing</div>
+            <div className="flex items-stretch gap-2">
+              <div
+                className="w-4 rounded"
+                style={{
+                  height: '120px',
+                  background: 'linear-gradient(to bottom, hsl(120,75%,45%), hsl(60,75%,45%), hsl(0,75%,45%))',
+                }}
+              />
+              <div className="flex flex-col justify-between text-[10px] text-zinc-400 font-mono py-0.5">
+                <span>In window</span>
+                <span>12h late</span>
+                <span>24h late</span>
+                <span>36h late</span>
+                <span>48h+ late</span>
+              </div>
+            </div>
+          </div>
+        )}
         {loading ? (
           <div className="flex items-center justify-center h-full text-zinc-400">
             <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mr-3" />
@@ -154,13 +195,17 @@ export default function AllPredictionsMap({ onClose, initialFilter = 'all' }) {
                       <div><strong>Predicted:</strong> {Number(pred.predicted_lat).toFixed(2)}°, {Number(pred.predicted_lon).toFixed(2)}°</div>
                       <div><strong>Mag:</strong> M{Number(pred.predicted_mag).toFixed(1)}</div>
                       {pred.predicted_place && <div className="text-gray-500 text-xs mt-0.5">{pred.predicted_place}</div>}
-                      {status === 'matched' && pred.actual_lat != null && (
-                        <div className="mt-1 pt-1 border-t border-gray-200">
-                          <div className="text-green-600 font-medium">Actual EQ</div>
-                          <div>{Number(pred.actual_lat).toFixed(2)}°, {Number(pred.actual_lon).toFixed(2)}°</div>
-                          {pred.actual_place && <div className="text-gray-500 text-xs">{pred.actual_place}</div>}
-                        </div>
-                      )}
+                      {status === 'matched' && pred.actual_lat != null && (() => {
+                        const h = lateHours(pred);
+                        return (
+                          <div className="mt-1 pt-1 border-t border-gray-200">
+                            <div className="font-medium" style={{ color }}>Actual EQ</div>
+                            <div>{Number(pred.actual_lat).toFixed(2)}°, {Number(pred.actual_lon).toFixed(2)}°</div>
+                            <div><strong>Late by:</strong> {h < 0.1 ? 'in window' : h < 1 ? `${Math.round(h * 60)}m` : `${h.toFixed(1)}h`}</div>
+                            {pred.actual_place && <div className="text-gray-500 text-xs">{pred.actual_place}</div>}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </Popup>
                 </Circle>
@@ -170,22 +215,27 @@ export default function AllPredictionsMap({ onClose, initialFilter = 'all' }) {
             {/* Actual earthquake pins for matched predictions */}
             {visible
               .filter(p => getStatus(p) === 'matched' && p.actual_lat != null && p.actual_lon != null)
-              .map(pred => (
-                <Marker
-                  key={`actual-${pred.id}`}
-                  position={[pred.actual_lat, pred.actual_lon]}
-                  icon={matchedIcon}
-                >
-                  <Popup>
-                    <div className="text-sm">
-                      <div className="font-bold text-green-600 mb-1">Actual EQ (#{pred.id})</div>
-                      <div>{Number(pred.actual_lat).toFixed(2)}°, {Number(pred.actual_lon).toFixed(2)}°</div>
-                      <div><strong>Mag:</strong> M{Number(pred.actual_mag).toFixed(1)}</div>
-                      {pred.actual_place && <div className="text-gray-500 text-xs">{pred.actual_place}</div>}
-                    </div>
-                  </Popup>
-                </Marker>
-              ))}
+              .map(pred => {
+                const color = matchedColor(pred);
+                const h = lateHours(pred);
+                return (
+                  <Marker
+                    key={`actual-${pred.id}`}
+                    position={[pred.actual_lat, pred.actual_lon]}
+                    icon={createIcon(color)}
+                  >
+                    <Popup>
+                      <div className="text-sm">
+                        <div className="font-bold mb-1" style={{ color }}>Actual EQ (#{pred.id})</div>
+                        <div>{Number(pred.actual_lat).toFixed(2)}°, {Number(pred.actual_lon).toFixed(2)}°</div>
+                        <div><strong>Mag:</strong> M{Number(pred.actual_mag).toFixed(1)}</div>
+                        <div><strong>Late by:</strong> {h < 0.1 ? 'in window' : `${h.toFixed(1)}h`}</div>
+                        {pred.actual_place && <div className="text-gray-500 text-xs">{pred.actual_place}</div>}
+                      </div>
+                    </Popup>
+                  </Marker>
+                );
+              })}
           </MapContainer>
         )}
       </div>

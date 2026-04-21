@@ -589,31 +589,35 @@ def make_prediction():
         with torch.no_grad():
             pred_list = model.generate(x_test, top_k=20)
 
-        # Geographic diversity: skip components too close to recent predictions
-        # This uses the model's full K=20 diverse components instead of always picking #1
+        # Geographic diversity: force rotation across all K=20 components by region.
+        # Each recent prediction "claims" a 2500km-radius region — new prediction must
+        # pick a component outside ALL claimed regions. With K=20 components spread globally,
+        # this forces the system to cycle through every seismic zone over ~20 predictions.
         recent_sql = """
             SELECT pr_lat_predicted - 90 as lat, pr_lon_predicted - 180 as lon
             FROM predictions
-            WHERE pr_timestamp > DATE_SUB(NOW(), INTERVAL 6 HOUR)
-              AND pr_lat_predicted IS NOT NULL
-            ORDER BY pr_id DESC LIMIT 10
+            WHERE pr_lat_predicted IS NOT NULL
+            ORDER BY pr_id DESC LIMIT 20
         """
         recent_preds = dataC._safe_fetch(recent_sql, ()) or []
         recent_coords = [(float(r[0]), float(r[1])) for r in recent_preds]
 
-        pred = pred_list[0]  # default: highest-pi component
+        pred = pred_list[0]  # fallback: highest-pi component
         if recent_coords:
-            for candidate in pred_list:
-                too_close = False
-                for rlat, rlon in recent_coords:
-                    dist = haversine_km(candidate['lat'], candidate['lon'], rlat, rlon)
-                    if dist < 1000:  # skip if within 1000km of any recent prediction
-                        too_close = True
+            # Try decreasing radii so we always find a candidate
+            for min_dist_km in (2500, 1500, 800):
+                found = False
+                for candidate in pred_list:
+                    too_close = any(
+                        haversine_km(candidate['lat'], candidate['lon'], rlat, rlon) < min_dist_km
+                        for rlat, rlon in recent_coords
+                    )
+                    if not too_close:
+                        pred = candidate
+                        found = True
                         break
-                if not too_close:
-                    pred = candidate
+                if found:
                     break
-            # If ALL 20 components are within 1000km of recent (unlikely), keep default top-1
         place = reverse_geocode(pred['lat'], pred['lon'])
         lat_enc = int(round(pred['lat'] + 90))
         lon_enc = int(round(pred['lon'] + 180))
