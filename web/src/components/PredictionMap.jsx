@@ -127,7 +127,7 @@ export default function PredictionMap({ prediction, onClose }) {
               <>
                 <Circle
                   center={[predLat, predLon]}
-                  radius={250000}
+                  radius={50000}
                   pathOptions={{
                     color: '#f97316',
                     fillColor: '#f97316',
@@ -195,7 +195,7 @@ export default function PredictionMap({ prediction, onClose }) {
               )}
               <div className="flex items-center gap-1.5">
                 <div className="w-4 h-0.5 border-t-2 border-dashed border-orange-500"></div>
-                <span className="text-zinc-400">250km radius</span>
+                <span className="text-zinc-400">50km radius</span>
               </div>
             </div>
 

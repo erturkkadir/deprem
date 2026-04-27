@@ -112,7 +112,7 @@ export default function AllPredictionsMap({ onClose, initialFilter = 'all' }) {
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500 inline-block border border-white/40"></span>Missed</span>
             <span className="flex items-center gap-1 ml-1">
               <span className="w-4 h-0 border-t border-dashed border-zinc-400 inline-block"></span>
-              250km radius
+              50km radius
             </span>
           </div>
         </div>
@@ -178,7 +178,7 @@ export default function AllPredictionsMap({ onClose, initialFilter = 'all' }) {
                 <Circle
                   key={pred.id}
                   center={[lat, lon]}
-                  radius={250000}
+                  radius={50000}
                   pathOptions={{
                     color,
                     fillColor: color,

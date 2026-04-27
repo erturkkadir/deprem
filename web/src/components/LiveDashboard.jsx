@@ -3,7 +3,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { fetchLiveData } from '../store/earthquakeSlice';
 
-const MATCH_RADIUS_KM = 250;
+const MATCH_RADIUS_KM = 50;
 
 // ── Circular countdown clock ────────────────────────────────────────────────
 function CountdownClock({ totalSecs, remainingSecs, isExpired, t }) {
