@@ -112,7 +112,7 @@ MODEL_DIR = '/var/www/syshuman/quake'
 MODEL_PREFIX = 'eqModel_complex'
 
 # Matching criteria
-MATCH_RADIUS_KM = 250       # Haversine distance for matching (km)
+MATCH_RADIUS_KM = 50        # Haversine distance for matching (km) — Turkey-tight
 MAGNITUDE_TOLERANCE = 0.75  # ±0.75 magnitude
 MIN_MAG_DISPLAY = 4.0       # Only show predictions with mag >= 4.0
 MIN_PREDICTION_WINDOW = 10  # minutes - reject predictions with window < 10 min
@@ -589,35 +589,16 @@ def make_prediction():
         with torch.no_grad():
             pred_list = model.generate(x_test, top_k=20)
 
-        # Geographic diversity: force rotation across all K=20 components by region.
-        # Each recent prediction "claims" a 2500km-radius region — new prediction must
-        # pick a component outside ALL claimed regions. With K=20 components spread globally,
-        # this forces the system to cycle through every seismic zone over ~20 predictions.
-        recent_sql = """
-            SELECT pr_lat_predicted - 90 as lat, pr_lon_predicted - 180 as lon
-            FROM predictions
-            WHERE pr_lat_predicted IS NOT NULL
-            ORDER BY pr_id DESC LIMIT 20
-        """
-        recent_preds = dataC._safe_fetch(recent_sql, ()) or []
-        recent_coords = [(float(r[0]), float(r[1])) for r in recent_preds]
-
-        pred = pred_list[0]  # fallback: highest-pi component
-        if recent_coords:
-            # Try decreasing radii so we always find a candidate
-            for min_dist_km in (2500, 1500, 800):
-                found = False
-                for candidate in pred_list:
-                    too_close = any(
-                        haversine_km(candidate['lat'], candidate['lon'], rlat, rlon) < min_dist_km
-                        for rlat, rlon in recent_coords
-                    )
-                    if not too_close:
-                        pred = candidate
-                        found = True
-                        break
-                if found:
-                    break
+        # Turkey-only mode: model is trained to predict Turkey region.
+        # Just pick highest-pi component, but enforce Turkey bounding box as safety net.
+        # Turkey bbox: lat 35°-43° N, lon 25°-48° E
+        pred = None
+        for candidate in pred_list:
+            if 35.0 <= candidate['lat'] <= 43.0 and 25.0 <= candidate['lon'] <= 48.0:
+                pred = candidate
+                break
+        if pred is None:
+            pred = pred_list[0]  # fallback: top-1 even if outside (shouldn't happen post-training)
         place = reverse_geocode(pred['lat'], pred['lon'])
         lat_enc = int(round(pred['lat'] + 90))
         lon_enc = int(round(pred['lon'] + 180))

@@ -1492,12 +1492,17 @@ class DataC():
                     self.data = np.nan_to_num(self.data, 0)
 
                 # Store target indices for efficient sampling
-                # Column 12 = is_target
-                self.target_indices = np.where(self.data[:, 12] == 1)[0]
+                # Column 12 = is_target  (M4+ flag)
+                # ALSO restrict to Turkey bounding box (lat 35-43, lon 25-48)
+                # Encoded: lat 125-133, lon 205-228
+                lat_enc = self.data[:, 2]
+                lon_enc = self.data[:, 3]
+                in_turkey = (lat_enc >= 125) & (lat_enc <= 133) & (lon_enc >= 205) & (lon_enc <= 228)
+                self.target_indices = np.where((self.data[:, 12] == 1) & in_turkey)[0]
                 target_count = len(self.target_indices)
 
-                print(f"Loaded {len(self.data):,} records (M{input_mag}+)")
-                print(f"  Training targets (M{target_mag}+): {target_count:,} ({100*target_count/len(self.data):.1f}%)")
+                print(f"Loaded {len(self.data):,} records (M{input_mag}+) — input: GLOBAL")
+                print(f"  Training targets (M{target_mag}+ in Turkey region): {target_count:,} ({100*target_count/len(self.data):.2f}%)")
                 print(f"  Earth-state features: hour[0-23], doy[0-365], moon_phase[0-29], moon_dist[0-9]")
 
                 self._update_data_splits()
@@ -1683,9 +1688,13 @@ class DataC():
         next_data = torch.stack([data_tensor[int(pos)-T+1:int(pos)+1] for pos in target_positions])  # [B, T, 12]
         next_is_target = torch.stack([is_target_col[int(pos)-T+1:int(pos)+1] for pos in target_positions])  # [B, T]
 
-        # Target mask: True where the NEXT position is M4+ (loss computed there)
-        # Position T-1 always True (anchor target is M4+ by construction)
-        target_mask = (next_is_target == 1)  # [B, T] boolean
+        # Target mask: True where the NEXT position is M4+ AND inside Turkey region
+        # Turkey bounding box: lat 35°-43° N, lon 25°-48° E
+        # Encoded: lat 125-133 (= actual+90), lon 205-228 (= actual+180)
+        next_lat = next_data[:, :, 2]
+        next_lon = next_data[:, :, 3]
+        in_turkey = (next_lat >= 125) & (next_lat <= 133) & (next_lon >= 205) & (next_lon <= 228)
+        target_mask = (next_is_target == 1) & in_turkey  # [B, T] boolean
 
         # Build multi-position targets [B, T] — lat, lon, mag only (no dt prediction)
         targets = {

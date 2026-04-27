@@ -1537,32 +1537,33 @@ class SpatialMDNHead(nn.Module):
         for proj in [self.pi_proj, self.mu_proj, self.sigma_proj, self.rho_proj]:
             nn.init.normal_(proj.weight, std=0.01)
             nn.init.zeros_(proj.bias)
-        # softplus(2.7) ≈ 15° — broad initial spatial coverage
-        nn.init.constant_(self.sigma_proj.bias, 2.7)
+        # softplus(0.7) ≈ 1.1° (~120km) — tight regional coverage for Turkey focus
+        nn.init.constant_(self.sigma_proj.bias, 0.7)
 
-        # Diverse mean init: spread K components across major seismic zones
-        # This prevents mode collapse (all-at-origin → winner-take-all)
+        # Turkey-region init: K=20 components spread along major fault zones
+        # All components stay within Turkey + immediate surroundings (lat 35-43, lon 25-48)
+        # Covers North Anatolian Fault, East Anatolian Fault, Aegean, Hellenic arc, Caucasus
         seismic_zones = [
-            (  0.0, 100.0),  # Sumatra
-            ( 35.0, 140.0),  # Japan
-            (-35.0, -72.0),  # Chile
-            ( 38.0,  47.0),  # Turkey/Iran
-            ( 16.0, -98.0),  # Mexico
-            ( 28.0,  85.0),  # Nepal/Himalaya
-            (-6.0,  150.0),  # Papua New Guinea
-            ( 52.0, 160.0),  # Kamchatka
-            (-15.0, 167.0),  # Vanuatu
-            ( 12.0, 125.0),  # Philippines
-            ( 40.0,  20.0),  # Greece
-            (-22.0, -68.0),  # Argentina/Bolivia
-            ( 60.0, -150.0), # Alaska
-            (-8.0,  115.0),  # Indonesia/Bali
-            ( 30.0,  60.0),  # Iran
-            (-42.0, 173.0),  # New Zealand
-            (  5.0, 127.0),  # Mindanao
-            (-18.0, -175.0), # Tonga
-            ( 10.0, -85.0),  # Costa Rica
-            ( 42.0, 145.0),  # Hokkaido
+            (40.7,  29.0),  # Marmara / Istanbul (NAF western segment)
+            (40.8,  31.5),  # Düzce / Bolu (NAF)
+            (40.5,  35.5),  # Amasya (NAF central)
+            (40.2,  38.5),  # Erzincan (NAF eastern)
+            (39.7,  40.0),  # Erzurum
+            (38.5,  39.5),  # Elazığ / Bingöl (EAF)
+            (37.6,  37.0),  # Kahramanmaraş (EAF — 2023 quake)
+            (36.5,  36.2),  # Hatay / Antakya
+            (37.0,  35.0),  # Adana / Misis fault
+            (37.1,  29.0),  # Burdur / Fethiye fault zone
+            (38.4,  27.1),  # İzmir / Aegean
+            (39.6,  27.0),  # Balıkesir / Edremit gulf
+            (40.4,  26.5),  # Çanakkale / Saros gulf
+            (35.5,  27.5),  # Hellenic arc — Crete
+            (36.0,  30.0),  # Antalya / Cyprus arc
+            (37.0,  43.0),  # SE Turkey / Iraq border
+            (38.5,  44.0),  # Van / Iran border
+            (41.0,  41.0),  # Black Sea coast / Caucasus
+            (39.0,  33.5),  # Central Anatolia (Tuz Gölü fault)
+            (38.0,  31.5),  # Konya / Akşehir basin
         ]
         K = self.K
         with torch.no_grad():
@@ -1727,7 +1728,7 @@ class SpatialMDNHead(nn.Module):
         return (pi * torch.log(pi + 1e-10)).sum(dim=-1).mean()
 
     @staticmethod
-    def diversity_loss(params, tau_deg=30.0):
+    def diversity_loss(params, tau_deg=2.0):
         """Component repulsion loss: penalizes spatial components being too close.
 
         Forces K Gaussian components to spread to different geographic zones
@@ -1764,8 +1765,9 @@ class SpatialMDNHead(nn.Module):
         # This prevents all 20 components sitting in the Pacific while still 30°+ apart
         lat_std = mu_lat.std(dim=-1).clamp(min=1e-6)   # [N]
         lon_std = mu_lon.std(dim=-1).clamp(min=1e-6)   # [N]
-        spread_loss = -torch.log(lat_std / 30.0 + 1.0).mean() \
-                      - torch.log(lon_std / 60.0 + 1.0).mean()
+        # Turkey region spans ~8° lat × 23° lon — scale spread loss accordingly
+        spread_loss = -torch.log(lat_std / 3.0 + 1.0).mean() \
+                      - torch.log(lon_std / 8.0 + 1.0).mean()
 
         return repulsion.mean() + 0.5 * spread_loss
 
