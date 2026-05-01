@@ -1758,18 +1758,10 @@ class SpatialMDNHead(nn.Module):
         mask = torch.triu(torch.ones(K, K, device=mu_lat.device, dtype=torch.bool), diagonal=1)
         pair_dists = dist_deg[:, mask]  # [N, num_pairs]
 
-        # Gaussian repulsion: 1 when dist=0, 0 when dist >> tau
+        # Gaussian repulsion: 1 when dist=0, 0 when dist >> tau — bounded [0,1]
+        # NO spread_loss for Turkey-only mode (was unbounded, pushed components out of Turkey)
         repulsion = torch.exp(-pair_dists ** 2 / (2.0 * tau_deg ** 2))
-
-        # Global spread penalty: penalize when all K components cluster at similar lat/lon
-        # This prevents all 20 components sitting in the Pacific while still 30°+ apart
-        lat_std = mu_lat.std(dim=-1).clamp(min=1e-6)   # [N]
-        lon_std = mu_lon.std(dim=-1).clamp(min=1e-6)   # [N]
-        # Turkey region spans ~8° lat × 23° lon — scale spread loss accordingly
-        spread_loss = -torch.log(lat_std / 3.0 + 1.0).mean() \
-                      - torch.log(lon_std / 8.0 + 1.0).mean()
-
-        return repulsion.mean() + 0.5 * spread_loss
+        return repulsion.mean()
 
     @staticmethod
     def sample(params, temperature=0.8):
@@ -2099,17 +2091,25 @@ class EqModelComplex(nn.Module):
             # Entropy: encourages uniform pi weights (component usage diversity)
             ent_loss = SpatialMDNHead.entropy_loss(sp)
 
-            # Sigma regularization: penalize average sigma above 3° (≈333km) to prevent blowup
+            # Sigma regularization: penalize average sigma above 1° (~110km) for Turkey precision
             sigma_mean = (sp['sigma_lat'].mean() + sp['sigma_lon'].mean()) / 2.0
-            sigma_reg = torch.clamp(sigma_mean - 3.0, min=0.0)
+            sigma_reg = torch.clamp(sigma_mean - 1.0, min=0.0)
 
-            loss = spatial_loss + mag_loss + 3.0 * es_loss + 1.0 * div_loss + 0.5 * ent_loss + 0.1 * sigma_reg
+            # Turkey-bbox containment: penalize component means OUTSIDE lat[35,43] / lon[25,48]
+            # Quadratic penalty grows large as components drift toward global coords.
+            mu_lat_v = sp['mu_lat']
+            mu_lon_v = sp['mu_lon']
+            lat_out = torch.clamp(mu_lat_v - 43.0, min=0.0) ** 2 + torch.clamp(35.0 - mu_lat_v, min=0.0) ** 2
+            lon_out = torch.clamp(mu_lon_v - 48.0, min=0.0) ** 2 + torch.clamp(25.0 - mu_lon_v, min=0.0) ** 2
+            bbox_loss = (lat_out + lon_out).mean()
+
+            loss = spatial_loss + mag_loss + 3.0 * es_loss + 1.0 * div_loss + 0.5 * ent_loss + 0.1 * sigma_reg + 1.0 * bbox_loss
 
             loss_dict = {
                 'spatial': spatial_loss.item(),
                 'mag': mag_loss.item(),
                 'hav': es_loss.item(),   # reuse 'hav' key so train.py print loop unchanged
-                'gr': 0.0,
+                'gr': bbox_loss.item(),  # repurpose 'gr' slot for bbox containment
                 'ent': ent_loss.item(),
                 'div': div_loss.item(),
                 'sig': sigma_reg.item(),
