@@ -750,3 +750,5 @@ step 105600 | train 2.0809 | val 6.2027 | lr 1.00e-04 | tgt 5 | sp 2.58 mag 0.47
 [2026-05-01 15:38:23.315201] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260501_153746.pth (iter=105600, loss=2.0809)
 step 105800 | train 1.9886 | val 5.6168 | lr 1.00e-04 | tgt 6 | sp 2.50 mag 0.45 hav 0.13 ent -2.945 div 0.119 sig 0.000
 step 106000 | train 2.0949 | val 5.7286 | lr 1.00e-04 | tgt 7 | sp 2.57 mag 0.49 hav 0.13 ent -2.945 div 0.119 sig 0.000
+step 106200 | train 1.9348 | val 5.5582 | lr 1.00e-04 | tgt 6 | sp 2.50 mag 0.43 hav 0.12 ent -2.945 div 0.119 sig 0.000
+[2026-05-01 15:43:56.485786] Checkpoint saved: /var/www/syshuman/quake/eqModel_complex_20260501_154325.pth (iter=106200, loss=1.9348)
