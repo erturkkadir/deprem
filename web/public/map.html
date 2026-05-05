@@ -155,7 +155,7 @@
       </div>
       <div class="legend-item">
         <div class="legend-circle"></div>
-        <span id="radius-label">500 km Radius</span>
+        <span id="radius-label">50 km Radius</span>
       </div>
     </div>
     <div class="stats" id="stats"></div>
@@ -297,7 +297,7 @@
         document.getElementById('legend-single-pred').style.display = 'none';
         document.getElementById('legend-candidates').style.display = 'flex';
         document.getElementById('legend-candidates-rest').style.display = 'flex';
-        document.getElementById('radius-label').textContent = '500 km Radius';
+        document.getElementById('radius-label').textContent = '50 km Radius';
         document.title = `All ${candidates.length} Candidates - Earthquake Map`;
 
         candidates.forEach(([lat, lon, rank]) => {
@@ -325,7 +325,7 @@
               </div>
             `);
 
-          // 500 km radius circle
+          // 50 km radius circle
           L.circle([lat, lon], {
             radius: 50000,
             color: color,
@@ -360,7 +360,7 @@
             </div>
           `);
 
-        // 500 km radius circle
+        // 50 km radius circle
         L.circle([predLat, predLon], {
           radius: 50000,
           color: '#f97316',
