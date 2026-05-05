@@ -2115,11 +2115,23 @@ class EqModelComplex(nn.Module):
                 'sig': sigma_reg.item(),
             }
         else:
-            # --- Validation: pure NLL (unweighted, no auxiliary) ---
-            spatial_loss = SpatialMDNHead.nll_loss(sp, lat_actual, lon_actual)
+            # --- Validation: same total formula as training (so train/val are comparable) ---
+            # No magnitude or Omori weighting (unweighted) but ALL aux terms included so
+            # train and val numbers move on the same scale.
+            spatial_loss = SpatialMDNHead.wta_nll_loss(sp, lat_actual, lon_actual)
             mag_loss = MagnitudeMDNHead.nll_loss(mp, mag_actual)
+            es_loss = SpatialMDNHead.energy_score_loss(sp, lat_actual, lon_actual)
+            div_loss = SpatialMDNHead.diversity_loss(sp)
+            ent_loss = SpatialMDNHead.entropy_loss(sp)
+            sigma_mean = (sp['sigma_lat'].mean() + sp['sigma_lon'].mean()) / 2.0
+            sigma_reg = torch.clamp(sigma_mean - 1.0, min=0.0)
+            mu_lat_v = sp['mu_lat']
+            mu_lon_v = sp['mu_lon']
+            lat_out = torch.clamp(mu_lat_v - 43.0, min=0.0) ** 2 + torch.clamp(35.0 - mu_lat_v, min=0.0) ** 2
+            lon_out = torch.clamp(mu_lon_v - 48.0, min=0.0) ** 2 + torch.clamp(25.0 - mu_lon_v, min=0.0) ** 2
+            bbox_loss = (lat_out + lon_out).mean()
 
-            loss = spatial_loss + mag_loss
+            loss = spatial_loss + mag_loss + 3.0 * es_loss + 1.0 * div_loss + 0.5 * ent_loss + 0.1 * sigma_reg + 1.0 * bbox_loss
 
             loss_dict = {
                 'spatial': spatial_loss.item(),
