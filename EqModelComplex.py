@@ -1578,7 +1578,7 @@ class SpatialMDNHead(nn.Module):
         mu = self.mu_proj(h)                                     # [*, 2K]
         mu_lat = mu[..., :self.K]                                # [*, K]
         mu_lon = mu[..., self.K:]                                # [*, K]
-        sigma = torch.clamp(FN.softplus(self.sigma_proj(h)) + 0.1, 0.1, 12.0)  # [*, 2K] 0.1°–12° (≈1330km max)
+        sigma = torch.clamp(FN.softplus(self.sigma_proj(h)) + 0.5, 0.5, 12.0)  # [*, 2K] 0.5°–12° — floor 0.5° (~55km) prevents NLL memorization
         sigma_lat = sigma[..., :self.K]                          # [*, K]
         sigma_lon = sigma[..., self.K:]                          # [*, K]
         rho = torch.tanh(self.rho_proj(h)) * 0.95                # [*, K] cap ±0.95
@@ -1826,7 +1826,7 @@ class MagnitudeMDNHead(nn.Module):
         h = self.net(x)
         pi = FN.softmax(self.pi_proj(h), dim=-1)         # [*, K]
         mu = self.mu_proj(h)                               # [*, K]
-        sigma = FN.softplus(self.sigma_proj(h)) + 0.05     # [*, K] min 0.05 mag
+        sigma = FN.softplus(self.sigma_proj(h)) + 0.2      # [*, K] min 0.2 mag — floor prevents NLL memorization
         return {'pi': pi, 'mu': mu, 'sigma': sigma}
 
     @staticmethod
