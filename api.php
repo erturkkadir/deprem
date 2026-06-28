@@ -9,7 +9,7 @@
 
   $path = $_SERVER['PATH_INFO'] ?? '';
   $query = $_SERVER['QUERY_STRING'] ?? '';
-  $api_url = 'https://building-upload-engaging-ongoing.trycloudflare.com/api' . $path;
+  $api_url = 'https://pipes-advocate-emma-sir.trycloudflare.com/api' . $path;
   if ($query) {
       $api_url .= '?' . $query;
   }
