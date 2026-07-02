@@ -1,0 +1,435 @@
+{
+  "nav": {
+    "realtimeMap": "Real-Time Map",
+    "howItWorks": "How It Works",
+    "alerts": "Alerts",
+    "history": "History",
+    "code": "Code"
+  },
+  "header": {
+    "title": "Earthquake Prediction",
+    "subtitle": "Complex-valued Transformer"
+  },
+  "hero": {
+    "title": "AI-Powered Earthquake Prediction",
+    "subtitle": "Fully automated prediction using complex-valued transformer neural networks",
+    "connected": "Connected",
+    "offline": "Offline"
+  },
+  "live": {
+    "title": "Live Monitor",
+    "updatesEvery": "Updates every 1m",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "magnitude": "Magnitude",
+    "window": "Window",
+    "uncertainty": "Uncertainty",
+    "predictionZones": "Prediction Zones",
+    "rank": "Rank {{rank}}",
+    "matched": "Matched",
+    "pending": "Pending",
+    "missed": "Missed",
+    "successRate": "Success",
+    "recentEarthquakes": "Recent Earthquakes",
+    "inPredictionWindow": "{{count}} in prediction window",
+    "map": "map",
+    "unknown": "Unknown",
+    "noActivePrediction": "No active prediction",
+    "waitingForModel": "Waiting for model...",
+    "noRecentEarthquakes": "No recent earthquakes",
+    "expired": "expired",
+    "left": "left",
+    "active": "Active",
+    "lateCatch": "LATE CATCH",
+    "missedChecking": "Missed — checking {{hours}}h",
+    "expiredNextStarting": "Expired — next starting",
+    "earthquakeMatched": "— earthquake matched",
+    "eachCyclePredicts": "Every {{minutes}} min the model outputs a hazard probability for Turkey. Only p ≥ 90% becomes an ALERT (counted in stats); otherwise monitor-only. Late-catch searches up to {{hours}}h.",
+    "hazard": "Hazard",
+    "alert": "ALERT"
+  },
+  "predictions": {
+    "title": "Predictions",
+    "total": "{{count}} total",
+    "filterAll": "All",
+    "filterPending": "Pending",
+    "filterMatched": "Matched",
+    "filterMissed": "Missed",
+    "mapAll": "Map All",
+    "mapFiltered": "Map {{filter}}",
+    "noPredictions": "No predictions yet",
+    "noFilteredPredictions": "No {{filter}} predictions",
+    "statusPending": "Pending",
+    "statusMatched": "Matched",
+    "statusMissed": "Missed",
+    "statusLateCatch": "Late Catch",
+    "lateBucket0": "0-12h",
+    "lateBucket1": "12-24h",
+    "lateBucket2": "24-36h",
+    "lateBucket3": "36-48h",
+    "labelLatitude": "LATITUDE",
+    "labelLongitude": "LONGITUDE",
+    "labelTimeWindow": "TIME WINDOW",
+    "labelMagnitude": "MAGNITUDE",
+    "pred": "Pred",
+    "actual": "Actual",
+    "windowLabel": "Window",
+    "occurred": "Occurred",
+    "invalidBeforePrediction": "Invalid: Before prediction",
+    "matchAt": "Match at +{{time}}",
+    "outsideWindow": "Outside window (+{{time}})",
+    "first": "First",
+    "prev": "Prev",
+    "next": "Next",
+    "last": "Last",
+    "pageOf": "Page {{current}} of {{total}}",
+    "loading": "Loading..."
+  },
+  "stats": {
+    "title": "Statistics",
+    "total": "Total",
+    "matched": "Matched",
+    "missed": "Missed",
+    "pending": "Pending",
+    "successRate": "Success Rate",
+    "updated": "Updated {{time}}"
+  },
+  "about": {
+    "title": "About This System",
+    "description": "An experimental earthquake prediction system using deep learning to analyze patterns in historical seismic data.",
+    "disclaimer": "This project is under continuous development. The AI model is regularly retrained with new features and improvements, so predictions and statistics may reset periodically.",
+    "featureComplex": "Complex-Valued Neural Network",
+    "featureComplexDesc": "Uses complex-valued embeddings and attention mechanisms to capture phase relationships in seismic patterns.",
+    "featureData": "Real-time EMSC Data",
+    "featureDataDesc": "Continuously updated with the latest global earthquake data from the European-Mediterranean Seismological Centre (EMSC), enriched with Earth-state features like lunar phase and tidal forces.",
+    "featureTracking": "Success Rate Tracking",
+    "featureTrackingDesc": "Predictions are verified against actual events to maintain transparent accuracy metrics.",
+    "architecture": "Architecture",
+    "trainingStatus": "Training Status",
+    "contact": "Contact",
+    "contactDesc": "Questions, feedback, or collaboration.",
+    "sequenceLength": "Sequence Length",
+    "embeddingSize": "Embedding Size",
+    "attentionHeads": "Attention Heads",
+    "layers": "Layers",
+    "checkpoint": "Checkpoint",
+    "trainingStep": "Training Step",
+    "loss": "Loss",
+    "modelNotLoaded": "Model not loaded"
+  },
+  "alerts": {
+    "title": "Email Alerts for Earthquake Predictions",
+    "subtitle": "Get notified by email when our AI predicts an earthquake near your chosen location",
+    "howItWorks": "How it works",
+    "step1Title": "Pick your location",
+    "step1Desc": "Click anywhere on the map and set a monitoring radius",
+    "step2Title": "Verify your email",
+    "step2Desc": "We'll send a one-click verification link to activate your alerts",
+    "step3Title": "Receive alerts",
+    "step3Desc": "When the AI predicts an M4+ earthquake within your radius, you get an email with details and a map",
+    "experimentalWarning": "Experimental system",
+    "experimentalDesc": "This is an AI research project, not an official warning service. Predictions are not reliable and should never be used for safety decisions. Always follow your local authorities' guidance for earthquake preparedness.",
+    "clickMapPrompt": "Click on the map to set your monitoring center:",
+    "noLocationSelected": "No location selected yet — click on the map above",
+    "monitoringAt": "Monitoring: {{lat}}°, {{lon}}° within {{radius}} km",
+    "emailPlaceholder": "your@email.com",
+    "emailLabel": "Your email address",
+    "radiusLabel": "Alert radius",
+    "radiusHelp": "— how far from your point to watch",
+    "radius250": "250 km — City region",
+    "radius500": "500 km — Country-wide",
+    "radius750": "750 km — Regional",
+    "radius1000": "1000 km — Continental",
+    "subscribe": "Subscribe to Alerts",
+    "subscribing": "Sending verification...",
+    "unsubscribeNote": "You can unsubscribe anytime. We only send alerts when a prediction falls within your area.",
+    "verificationSent": "Verification email sent to {{email}}. Please check your inbox and click the link to activate alerts.",
+    "failedToSubscribe": "Failed to subscribe",
+    "networkError": "Network error",
+    "activeSubscriptions": "Your active subscriptions:",
+    "statusActive": "Active — receiving alerts",
+    "statusPendingVerify": "Pending — check your email to verify",
+    "checkEmailToVerify": "check email to verify"
+  },
+  "howItWorks": {
+    "title": "How It Works",
+    "subtitle": "The idea, the reasoning, and the technical approach behind this AI earthquake prediction system.",
+    "systemFlow": "System Flow",
+    "flowStep1": "EMSC Data",
+    "flowStep2": "MySQL DB",
+    "flowStep3": "Feature Encoding",
+    "flowStep4": "Complex Transformer",
+    "flowStep5": "Prediction",
+    "flowStep6": "Verification",
+    "coreIdea": "The Core Idea",
+    "canEarthquakesBePredicted": "Can earthquakes be predicted?",
+    "sequenceProblem": "Earthquakes as a sequence problem",
+    "whyComplex": "Why complex-valued embeddings?",
+    "whatComplexGives": "What does the complex space give us?",
+    "dataPipeline": "Data Pipeline",
+    "neuralNetwork": "The Neural Network",
+    "trainingStrategy": "Training Strategy",
+    "predictionVerification": "Prediction & Verification",
+    "honestLimitations": "Honest Limitations",
+    "limitExperiment": "This is an experiment, not an oracle",
+    "limitSpatial": "Spatial accuracy is the biggest challenge",
+    "limitSafety": "Do not rely on this for safety decisions",
+    "limitReset": "Statistics reset with architecture changes",
+    "technicalSpecs": "Technical Specifications",
+    "parameters": "Parameters",
+    "features": "Features",
+    "seqLength": "Seq Length",
+    "embedDim": "Embed Dim",
+    "heads": "Heads",
+    "spatialMDN": "Spatial MDN",
+    "magMDN": "Mag MDN",
+    "data": "Data",
+    "input": "Input",
+    "matchRadius": "Match Radius",
+    "backToDashboard": "Back to Dashboard",
+    "experimentalDisclaimer": "This is an experimental research project. Not intended for safety-critical decisions."
+  },
+  "code": {
+    "title": "Code & Architecture",
+    "subtitle": "Layer-by-layer walkthrough of the complex-valued transformer, plus release history.",
+    "archDeepDive": "Architecture Deep Dive",
+    "dataFlow": "Data flow:",
+    "backToDashboard": "Back to Dashboard"
+  },
+  "changelog": {
+    "title": "Changelog",
+    "subtitle": "Development history and release notes — {{count}} releases since {{date}}",
+    "latest": "Latest"
+  },
+  "history": {
+    "title": "Historic Earthquake Patterns",
+    "subtitle": "Distribution by month and day of month — explore the historical seismic record.",
+    "from": "From",
+    "to": "To",
+    "minMag": "Min Mag"
+  },
+  "training": {
+    "title": "Training Progress",
+    "loading": "Loading...",
+    "failedToLoad": "Failed to load training data",
+    "noDataYet": "No training data yet",
+    "train": "Train",
+    "val": "Val",
+    "min": "min",
+    "step": "Step",
+    "resetZoom": "Reset Zoom",
+    "dragToZoom": "Drag to zoom in on a region",
+    "zoomed": "Zoomed: {{left}} - {{right}} ({{count}} points)",
+    "randomBaseline": "Random baseline: ~20.6"
+  },
+  "footer": {
+    "mainText": "Earthquake Prediction System — Fully Automated, No User Interaction Required",
+    "dataSource": "Data sourced from EMSC every 2 minutes | Predictions verified after 2 hours"
+  },
+  "common": {
+    "backToDashboard": "Back to Dashboard",
+    "loading": "Loading...",
+    "error": "Error",
+    "close": "Close",
+    "map": "Map"
+  },
+  "arch": {
+    "layer1Title": "1. Input: Earthquake Sequence",
+    "layer1Idea": "The model reads a sequence of 384 earthquakes, each described by 12 features. Like reading a paragraph of seismic events to predict the next sentence.",
+    "layer1Details": [
+      "Features 0-1: Year (0-60) and Month (0-11) — long-term trends and seasonal patterns",
+      "Features 2-3: Latitude (0-180) and Longitude (0-360) — encoded location on Earth",
+      "Feature 4: Magnitude (0-91, at 0.1 resolution) — event strength",
+      "Feature 5: Depth (0-200 km) — shallow vs deep quakes behave differently",
+      "Features 6-7: Global dt (0-9) and Local dt (0-25) — log-binned minutes since last M4+",
+      "Features 8-11: Hour, Day of year, Moon phase, Moon distance — Earth-state context"
+    ],
+    "layer2Title": "2. Complex Embedding",
+    "layer2Idea": "Each feature becomes a complex vector with magnitude + phase. Location gets ~27% of capacity because WHERE matters most.",
+    "layer2Details": [
+      "GPE (lat+lon): 276 dims (~27%) — Spherical Harmonics + Fourier + Tectonic Zones + Relative Position",
+      "Global dt + Local dt: 102 dims each (10%) — discrete embedding + continuous log-scale encoding",
+      "8 other features: 68 dims each (~6.6%) — standard ComplexEmbedding lookup",
+      "Total: 276 + 102 + 102 + (8×68) = 1,024 complex dims = 2,048 coupled real values"
+    ],
+    "layer3Title": "3. Hermitian Multi-Head Attention",
+    "layer3Idea": "8 parallel attention heads — each earthquake \"looks at\" every previous one. QK-Norm stabilizes attention, PerDimScale lets each dimension learn its own importance. Spatial bias makes nearby events attend more strongly.",
+    "layer3Details": [
+      "QK-Norm: RMSNorm on Q and K prevents attention logits from exploding — critical for stable complex-valued training (from TimesFM/PaLM)",
+      "PerDimScale: replaces fixed 1/√d with learned softplus(weight) per dimension — some dimensions matter more than others",
+      "RoPE: Position encoded as rotation — nearby events have similar rotations, far ones diverge",
+      "Hermitian: Re(Q)·Re(K)ᵀ + Im(Q)·Im(K)ᵀ — the proper complex inner product",
+      "Spatial bias: Per-head learnable distance-decay — half heads prefer nearby (aftershocks), half neutral (tectonic)"
+    ],
+    "layer4Title": "4. Complex Gated Feed-Forward (SwiGLU)",
+    "layer4Idea": "Processes each position independently. The critical part: TRUE complex multiplication for gating, which keeps real and imaginary parts coupled.",
+    "layer4Details": [
+      "Without true complex multiply, the gate and up paths would stay independent — just two separate real networks pretending to be complex",
+      "4× expansion (1024→4096) gives room for complex feature interactions before compressing back"
+    ],
+    "layer5Title": "5. Transformer Block (×6 stacked)",
+    "layer5Idea": "6 blocks stacked, each with 4 norms (pre+post for both attention and FFN). Early blocks learn \"these events are near each other\", later blocks learn \"this aftershock cascade is accelerating toward a larger event\".",
+    "layer5Details": [
+      "Pre-norm (ComplexLayerNorm) + Post-norm (ComplexRMSNorm) — 4-norm design stabilizes residual stream",
+      "Residual connections: each layer learns only the delta, not the full representation",
+      "6 layers at n_embed=1024, T=384 — sized to share GPU with Ollama (~1 GiB reserved)"
+    ],
+    "layer6Title": "6. Output: Mixture Density Network Heads",
+    "layer6Idea": "Complex representation is split into real + imaginary (→2,048 dims). Two MDN heads predict full probability distributions — not just a point estimate. At inference, the highest-weight Gaussian component becomes the prediction.",
+    "layer6Details": [
+      "K=20 spatial components: each Gaussian covers a different seismically active zone (Pacific Ring, Alpide belt, etc.)",
+      "Bivariate Gaussian: σ_lat, σ_lon, ρ (correlation) — non-axis-aligned uncertainty ellipses",
+      "sigma_km: RMS of σ_lat and σ_lon converted to km (1°≈111km) — shown as ±NNN km in UI",
+      "MagnitudeMDN K=8 Gaussians — GR prior removed (was suppressing predictions above M4.43)",
+      "pi (mixture weight) is returned as a confidence score per prediction"
+    ],
+    "layer7Title": "7. Training Loss (7 signals)",
+    "layer7Idea": "Seven simultaneous signals: WTA NLL specializes components, Energy Score rewards accuracy + spread, bbox containment keeps components inside Turkey, and a dense Occurrence BCE (384 labels/sequence) teaches the hazard probability used for alert gating.",
+    "layer7Details": [
+      "WTA NLL: only the winning component gets mean/sigma gradient — each of K=20 components owns a Turkish fault zone",
+      "Energy Score (Gneiting & Raftery 2007): proper scoring rule — accuracy + diversity in one term",
+      "Diversity loss: pairwise repulsion at τ=2° (Turkey scale) — components spread across NAF, EAF, Aegean, Hellenic arc",
+      "Turkey-bbox containment: quadratic penalty for component means outside lat 35–43 / lon 25–48",
+      "Sigma floors (0.5° spatial, 0.2 mag) + σ>1° cap: prevent NLL memorization — the train/val divergence fix",
+      "Occurrence BCE (weight 2.0): plain BCE with NO pos_weight — keeps probabilities calibrated so the server threshold maps directly to precision",
+      "Validation uses the same total formula (unweighted) — train and val move on the same scale"
+    ],
+    "layer8Title": "8. Occurrence Head & Alert Gating",
+    "layer8Idea": "The key to honest 90%+ precision: a binary hazard head predicts P(Turkey M4+ within 60 min). The server only issues an ALERT when p ≥ 0.90 — quiet periods are monitor-only, no claim made. Aftershock physics (Omori law) makes conditional hazard genuinely predictable.",
+    "layer8Details": [
+      "Dense supervision: every one of 1.5M global events gets a binary label — did a Turkey M4+ follow within 60 min? (base rate ~1.8%)",
+      "Labels computed via searchsorted over Turkey M4+ timestamps — O(N log N), no leakage (strictly-after semantics)",
+      "Plain BCE keeps sigmoid outputs calibrated: p=0.9 means \"9 times out of 10\" — the threshold IS the precision target",
+      "Headline metric = precision over issued alerts; monitor cycles are excluded (the model made no claim)",
+      "Alerts are rare by physics — mostly during aftershock sequences after significant Turkish events. Rare-but-right beats always-wrong.",
+      "Email subscribers are notified only on alerts, never on monitor cycles"
+    ]
+  },
+  "hiw": {
+    "idea": [
+      {
+        "heading": "Can earthquakes be predicted?",
+        "text": "The scientific consensus says no — earthquakes are chaotic, and no reliable short-term prediction method exists. This project challenges that assumption by treating seismic activity as a language: a sequence of events where patterns might exist but are too complex for humans to see."
+      },
+      {
+        "heading": "Earthquakes as a sequence problem",
+        "text": "Just as a language model learns to predict the next word from context, our model learns to predict the next significant earthquake from a sequence of recent seismic events. Each earthquake is described by its location, magnitude, depth, timing, and environmental context — forming a \"vocabulary\" the model learns to read."
+      },
+      {
+        "heading": "Why complex-valued embeddings?",
+        "text": "Standard neural networks embed features as real-valued vectors — a single number per dimension. Our model embeds each feature as a complex number, which has both a magnitude and a phase angle. This means each embedding dimension carries two pieces of information: \"how strongly this feature is present\" (magnitude) and \"what role it plays in this context\" (phase). Think of it as giving the model a richer, two-dimensional workspace to represent relationships between earthquake features. When the model combines embeddings through attention and feed-forward layers, it uses true complex multiplication — where magnitude and phase interact — rather than treating them as independent numbers."
+      },
+      {
+        "heading": "What does the complex space give us?",
+        "text": "In a real-valued network, the relationship between \"latitude 45\" and \"magnitude 5.0\" is a single number (their dot product). In complex space, their relationship has both strength AND direction — the phase angle encodes how these features relate to each other in a way real numbers cannot. This is especially relevant for geospatial patterns: cyclic features like longitude (where 179° and -179° are neighbors), time of day, and lunar phase are naturally represented as rotations in complex space. The entire transformer — embeddings, attention, feed-forward layers, activations — operates in this complex domain."
+      }
+    ],
+    "data": [
+      {
+        "heading": "Source: EMSC (European-Mediterranean Seismological Centre)",
+        "text": "Every 2 minutes, the system pulls the latest earthquake data from EMSC, which reports global seismic events with 10-15 minute delay. Each event includes timestamp, latitude, longitude, depth, magnitude, and type classification."
+      },
+      {
+        "heading": "Feature encoding",
+        "text": "Raw data is encoded into discrete bins the model can embed: latitude (181 bins covering -90° to 90°), longitude (361 bins covering -180° to 180°), magnitude (92 bins at 0.1 resolution), depth (201 bins in km). This discretization turns continuous values into a vocabulary."
+      },
+      {
+        "heading": "Derived temporal features",
+        "text": "Two critical timing features are computed for each earthquake. Global dt: minutes since the last M4+ earthquake anywhere on Earth, log-binned into 10 bins following Omori's aftershock decay law (aftershock rate falls as 1/t). Local dt: minutes since the last M4+ earthquake within 1000km, log-binned into 26 bins — captures local aftershock cascades."
+      },
+      {
+        "heading": "Earth-state features",
+        "text": "The model also receives contextual information about the state of the Earth at each event: hour of day (0-23, captures diurnal tidal stress from solid Earth tides), day of year (0-365, seasonal patterns + Earth-Sun distance variation), lunar phase (0-29, tidal force direction from new moon to full moon), and lunar distance (0-9, perigee to apogee — tidal amplitude varies ±12%)."
+      }
+    ],
+    "model": [
+      {
+        "heading": "Complex-valued transformer (203M parameters)",
+        "text": "The architecture is a 6-layer transformer with 8 attention heads, operating entirely in complex number space. Each layer has complex multi-head attention (with QK-Norm and learned per-dimension scaling) and complex gated feed-forward networks, both wrapped in pre+post normalization. The model processes sequences of 384 earthquakes and predicts the next significant event through Mixture Density Network output heads."
+      },
+      {
+        "heading": "How input becomes prediction",
+        "text": "Each earthquake's 12 features are independently embedded into complex vectors (total embedding dimension: 1024), then concatenated. The sequence passes through 6 transformer layers. The final output goes through two Mixture Density Network heads: SpatialMDNHead (K=20 bivariate Gaussians for joint latitude/longitude) and MagnitudeMDNHead (K=8 univariate Gaussians). At inference, the highest-weight component is used as the prediction, along with a sigma_km uncertainty radius."
+      },
+      {
+        "heading": "Spatial attention bias",
+        "text": "Standard attention treats all earthquakes equally regardless of distance. Our model adds a spatial bias: nearby earthquakes naturally receive higher attention weights, with the decay following haversine (great-circle) distance. Each attention head learns its own distance-decay profile — half are initialized to prefer nearby events (aftershock patterns), half start neutral (tectonic interactions). Attention is stabilized by QK-Norm (RMSNorm on queries and keys) and PerDimScale (learned per-dimension importance weighting replacing fixed 1/√d)."
+      },
+      {
+        "heading": "Geographic Positional Encoding (GPE)",
+        "text": "Instead of treating latitude and longitude as independent numbers, GPE encodes location using spherical harmonics and Fourier features on the Earth's surface. This gives the model an intrinsic understanding of spherical geometry — it knows that longitude 179° and -179° are neighbors, not opposites."
+      },
+      {
+        "heading": "Hermitian attention",
+        "text": "In complex-valued attention, the inner product must preserve complex structure. We use the Hermitian inner product: Re(Q)·Re(K) + Im(Q)·Im(K). This is the natural analog of the dot-product attention but for complex vectors, maintaining the coupling between real and imaginary parts that carries physical meaning."
+      }
+    ],
+    "training": [
+      {
+        "heading": "Hybrid approach: see everything, predict the important",
+        "text": "The model sees ALL earthquakes M2.0+ as input context (including small ones that form background seismicity patterns), but only predicts M4.0+ events as targets. This gives rich context — small foreshock patterns often precede significant events — while focusing learning on earthquakes that matter."
+      },
+      {
+        "heading": "Multi-position training with Omori decay",
+        "text": "The model computes loss at every M4+ position within the sequence simultaneously (~400 target positions per batch), dramatically increasing training signal density. Critically, each position is weighted by its recency using Omori's aftershock decay law: the most recent event in the sequence gets weight 1.0×, while the oldest gets ~0.05×. This focuses the model on predicting near-future events rather than ancient history."
+      },
+      {
+        "heading": "Mixture Density Network loss (NLL)",
+        "text": "The model outputs K=20 spatial Gaussians competing to explain each target. The loss is the negative log-likelihood of the true location under the mixture — this forces multiple components to cover different seismically active regions. Magnitude uses K=8 Gaussians. An entropy regularizer keeps components diverse rather than collapsing. A diversity loss (Gaussian repulsion, τ=30°) prevents all 20 spatial components from collapsing to a single seismic zone."
+      },
+      {
+        "heading": "Magnitude-weighted loss",
+        "text": "Not all earthquakes are equal. An M6.0 prediction is far more valuable than M4.0. The loss function weights each target by its magnitude: M4.0→1×, M5.0→3.2×, M6.0→10×, M7.0→31.6×. Combined with the Omori temporal weight, the total weight prioritizes large and recent events."
+      },
+      {
+        "heading": "Haversine loss: min-k modal approach",
+        "text": "An auxiliary haversine loss (3.0× weight) penalizes geographic distance. Crucially, we compute the distance from each of the K=20 Gaussian components to the target separately, then take the minimum. This pulls the CLOSEST component toward the target — encouraging geographic diversity across components — rather than pushing the mixture mean, which would average across all 20 and point at the ocean when the distribution is multimodal."
+      },
+      {
+        "heading": "Continuous learning",
+        "text": "Training runs 24/7 on GPU (RTX 4060 Ti), saving checkpoints every 600 steps. The prediction server runs on CPU and automatically picks up new checkpoints. The model is retrained from scratch when significant architectural changes are made."
+      }
+    ],
+    "prediction": [
+      {
+        "heading": "Alert gating: the model only speaks when confident",
+        "text": "Every 60-minute cycle, the OccurrenceHead outputs P(Turkey M4+ within the next 60 min) from the latest 384 global events. If p ≥ 0.90 the system issues an ALERT — a real, falsifiable claim. Below threshold it records a monitor-only entry: no claim, no email, not counted in the headline statistic."
+      },
+      {
+        "heading": "Why this reaches 90%+ honestly",
+        "text": "Turkey averages one M4+ every ~2.4 days, so \"an M4+ will happen in this specific hour\" is a ~1.7% base-rate event — forcing a prediction every cycle mathematically caps success at a few percent. But hazard is not uniform: after a significant earthquake, Omori's law makes another M4+ within an hour genuinely likely. A model that only claims during those windows can be right 90%+ of the times it speaks."
+      },
+      {
+        "heading": "What an alert claims — and how it is verified",
+        "text": "An alert claims: \"an M4+ earthquake will occur inside the Turkey region (35–43°N, 25–48°E) within 60 minutes.\" Any M4+ inside that box during the window verifies it. The MDN heads still provide the best-guess epicenter and magnitude; the distance between prediction and actual event is tracked as a separate spatial diagnostic (the 50 km circle on the map)."
+      },
+      {
+        "heading": "Transparent precision accounting",
+        "text": "The headline success rate counts ONLY issued alerts — hits over verified alerts. Monitor cycles are listed separately so you can always see how often the model chose to stay silent. Missed alerts are re-checked for 48 hours (late catch). Full transparency: nothing is hidden, and the claim being scored is exactly the claim being made."
+      }
+    ],
+    "limitations": [
+      {
+        "heading": "This is an experiment, not an oracle",
+        "text": "Earthquake prediction remains one of the hardest unsolved problems in geophysics. No AI model, including this one, can reliably predict earthquakes. This system is a research project exploring whether deep learning can find patterns that traditional methods miss."
+      },
+      {
+        "heading": "Spatial accuracy is the biggest challenge",
+        "text": "The model has learned to predict magnitude reasonably well (38% improvement over random baseline) but spatial prediction — knowing WHERE the next earthquake will strike — remains extremely difficult. Latitude and longitude predictions currently show only 14-15% improvement over random guessing."
+      },
+      {
+        "heading": "Do not rely on this for safety decisions",
+        "text": "This system is for educational and research purposes. Do not use it to make evacuation decisions, cancel plans, or take any action that would normally require an official government seismic warning. Always follow your local authorities' guidance."
+      },
+      {
+        "heading": "Statistics reset with architecture changes",
+        "text": "When we make significant improvements to the model architecture, training restarts from scratch and all prediction statistics reset. This means the reported success rate reflects only the current version of the model, not cumulative history."
+      }
+    ]
+  },
+  "language": {
+    "en": "English",
+    "tr": "Türkçe",
+    "ja": "日本語"
+  }
+}

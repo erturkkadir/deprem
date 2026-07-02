@@ -1,0 +1,435 @@
+{
+  "nav": {
+    "realtimeMap": "Canlı Harita",
+    "howItWorks": "Nasıl Çalışır",
+    "alerts": "Uyarılar",
+    "history": "Geçmiş",
+    "code": "Kod"
+  },
+  "header": {
+    "title": "Deprem Tahmini",
+    "subtitle": "Kompleks Değerli Transformer"
+  },
+  "hero": {
+    "title": "Yapay Zeka Destekli Deprem Tahmini",
+    "subtitle": "Kompleks değerli transformer sinir ağları ile tam otomatik tahmin",
+    "connected": "Bağlı",
+    "offline": "Çevrimdışı"
+  },
+  "live": {
+    "title": "Canlı İzleme",
+    "updatesEvery": "Her 1dk güncellenir",
+    "latitude": "Enlem",
+    "longitude": "Boylam",
+    "magnitude": "Büyüklük",
+    "window": "Pencere",
+    "uncertainty": "Belirsizlik",
+    "predictionZones": "Tahmin Bölgeleri",
+    "rank": "Sıra {{rank}}",
+    "matched": "Eşleşti",
+    "pending": "Beklemede",
+    "missed": "Kaçırıldı",
+    "successRate": "Başarı",
+    "recentEarthquakes": "Son Depremler",
+    "inPredictionWindow": "{{count}} tahmin penceresinde",
+    "map": "harita",
+    "unknown": "Bilinmiyor",
+    "noActivePrediction": "Aktif tahmin yok",
+    "waitingForModel": "Model bekleniyor...",
+    "noRecentEarthquakes": "Son deprem yok",
+    "expired": "süresi doldu",
+    "left": "kaldı",
+    "active": "Aktif",
+    "lateCatch": "GEÇ YAKALAMA",
+    "missedChecking": "Kaçırıldı — {{hours}}s kontrol ediliyor",
+    "expiredNextStarting": "Süresi doldu — sonraki başlıyor",
+    "earthquakeMatched": "— deprem eşleşti",
+    "eachCyclePredicts": "Model her {{minutes}} dk'da Türkiye için tehlike olasılığı üretir. Yalnızca p ≥ %90 ALARM olur (istatistiğe girer); aksi halde yalnızca izleme. Geç yakalama {{hours}}s'e kadar arar.",
+    "hazard": "Risk",
+    "alert": "ALARM"
+  },
+  "predictions": {
+    "title": "Tahminler",
+    "total": "{{count}} toplam",
+    "filterAll": "Tümü",
+    "filterPending": "Bekleyen",
+    "filterMatched": "Eşleşen",
+    "filterMissed": "Kaçırılan",
+    "mapAll": "Tümünü Haritala",
+    "mapFiltered": "{{filter}} Haritala",
+    "noPredictions": "Henüz tahmin yok",
+    "noFilteredPredictions": "{{filter}} tahmin yok",
+    "statusPending": "Beklemede",
+    "statusMatched": "Eşleşti",
+    "statusMissed": "Kaçırıldı",
+    "statusLateCatch": "Geç Yakalama",
+    "lateBucket0": "0-12s",
+    "lateBucket1": "12-24s",
+    "lateBucket2": "24-36s",
+    "lateBucket3": "36-48s",
+    "labelLatitude": "ENLEM",
+    "labelLongitude": "BOYLAM",
+    "labelTimeWindow": "ZAMAN PENCERESİ",
+    "labelMagnitude": "BÜYÜKLÜK",
+    "pred": "Tahmin",
+    "actual": "Gerçek",
+    "windowLabel": "Pencere",
+    "occurred": "Gerçekleşti",
+    "invalidBeforePrediction": "Geçersiz: Tahminden önce",
+    "matchAt": "+{{time}} eşleşti",
+    "outsideWindow": "Pencere dışında (+{{time}})",
+    "first": "İlk",
+    "prev": "Önceki",
+    "next": "Sonraki",
+    "last": "Son",
+    "pageOf": "Sayfa {{current}} / {{total}}",
+    "loading": "Yükleniyor..."
+  },
+  "stats": {
+    "title": "İstatistikler",
+    "total": "Toplam",
+    "matched": "Eşleşen",
+    "missed": "Kaçırılan",
+    "pending": "Bekleyen",
+    "successRate": "Başarı Oranı",
+    "updated": "Güncelleme: {{time}}"
+  },
+  "about": {
+    "title": "Bu Sistem Hakkında",
+    "description": "Tarihsel sismik verilerdeki örüntüleri analiz etmek için derin öğrenme kullanan deneysel bir deprem tahmin sistemi.",
+    "disclaimer": "Bu proje sürekli geliştirilmektedir. Yapay zeka modeli yeni özellikler ve iyileştirmelerle düzenli olarak yeniden eğitildiğinden, tahminler ve istatistikler periyodik olarak sıfırlanabilir.",
+    "featureComplex": "Kompleks Değerli Sinir Ağı",
+    "featureComplexDesc": "Sismik örüntülerdeki faz ilişkilerini yakalamak için kompleks değerli gömme ve dikkat mekanizmaları kullanır.",
+    "featureData": "Gerçek Zamanlı EMSC Verisi",
+    "featureDataDesc": "Avrupa-Akdeniz Sismoloji Merkezi'nden (EMSC) en güncel küresel deprem verileriyle sürekli güncellenir; ay evresi ve gelgit kuvvetleri gibi Dünya durumu özellikleriyle zenginleştirilir.",
+    "featureTracking": "Başarı Oranı Takibi",
+    "featureTrackingDesc": "Tahminler, şeffaf doğruluk metrikleri sağlamak için gerçek olaylarla doğrulanır.",
+    "architecture": "Mimari",
+    "trainingStatus": "Eğitim Durumu",
+    "contact": "İletişim",
+    "contactDesc": "Sorular, geri bildirim veya iş birliği.",
+    "sequenceLength": "Dizi Uzunluğu",
+    "embeddingSize": "Gömme Boyutu",
+    "attentionHeads": "Dikkat Başlıkları",
+    "layers": "Katmanlar",
+    "checkpoint": "Kontrol Noktası",
+    "trainingStep": "Eğitim Adımı",
+    "loss": "Kayıp",
+    "modelNotLoaded": "Model yüklenmedi"
+  },
+  "alerts": {
+    "title": "Deprem Tahminleri İçin E-posta Uyarıları",
+    "subtitle": "Yapay zekamız seçtiğiniz konuma yakın bir deprem tahmin ettiğinde e-posta ile bildirim alın",
+    "howItWorks": "Nasıl çalışır",
+    "step1Title": "Konumunuzu seçin",
+    "step1Desc": "Haritada herhangi bir yere tıklayın ve izleme yarıçapını ayarlayın",
+    "step2Title": "E-postanızı doğrulayın",
+    "step2Desc": "Uyarılarınızı etkinleştirmek için tek tıkla doğrulama bağlantısı göndereceğiz",
+    "step3Title": "Uyarıları alın",
+    "step3Desc": "Yapay zeka yarıçapınız içinde M4+ bir deprem tahmin ettiğinde, ayrıntılar ve harita içeren bir e-posta alırsınız",
+    "experimentalWarning": "Deneysel sistem",
+    "experimentalDesc": "Bu bir yapay zeka araştırma projesidir, resmi bir uyarı servisi değildir. Tahminler güvenilir değildir ve güvenlik kararları için asla kullanılmamalıdır. Deprem hazırlığı için her zaman yerel yetkililerin rehberliğine uyun.",
+    "clickMapPrompt": "İzleme merkezinizi belirlemek için haritaya tıklayın:",
+    "noLocationSelected": "Henüz konum seçilmedi — yukarıdaki haritaya tıklayın",
+    "monitoringAt": "İzleme: {{lat}}°, {{lon}}° — {{radius}} km yarıçapında",
+    "emailPlaceholder": "eposta@adresiniz.com",
+    "emailLabel": "E-posta adresiniz",
+    "radiusLabel": "Uyarı yarıçapı",
+    "radiusHelp": "— noktanızdan ne kadar uzağı izleyeceğiniz",
+    "radius250": "250 km — Şehir bölgesi",
+    "radius500": "500 km — Ülke çapında",
+    "radius750": "750 km — Bölgesel",
+    "radius1000": "1000 km — Kıtasal",
+    "subscribe": "Uyarılara Abone Ol",
+    "subscribing": "Doğrulama gönderiliyor...",
+    "unsubscribeNote": "İstediğiniz zaman abonelikten çıkabilirsiniz. Yalnızca bölgenize düşen bir tahmin olduğunda uyarı göndeririz.",
+    "verificationSent": "Doğrulama e-postası {{email}} adresine gönderildi. Lütfen gelen kutunuzu kontrol edin ve uyarıları etkinleştirmek için bağlantıya tıklayın.",
+    "failedToSubscribe": "Abone olunamadı",
+    "networkError": "Ağ hatası",
+    "activeSubscriptions": "Aktif abonelikleriniz:",
+    "statusActive": "Aktif — uyarılar alınıyor",
+    "statusPendingVerify": "Beklemede — doğrulamak için e-postanızı kontrol edin",
+    "checkEmailToVerify": "doğrulamak için e-postayı kontrol edin"
+  },
+  "howItWorks": {
+    "title": "Nasıl Çalışır",
+    "subtitle": "Bu yapay zeka deprem tahmin sisteminin arkasındaki fikir, gerekçe ve teknik yaklaşım.",
+    "systemFlow": "Sistem Akışı",
+    "flowStep1": "EMSC Verisi",
+    "flowStep2": "MySQL VT",
+    "flowStep3": "Özellik Kodlama",
+    "flowStep4": "Kompleks Transformer",
+    "flowStep5": "Tahmin",
+    "flowStep6": "Doğrulama",
+    "coreIdea": "Temel Fikir",
+    "canEarthquakesBePredicted": "Depremler tahmin edilebilir mi?",
+    "sequenceProblem": "Bir dizi problemi olarak depremler",
+    "whyComplex": "Neden kompleks değerli gömme?",
+    "whatComplexGives": "Kompleks uzay bize ne sağlıyor?",
+    "dataPipeline": "Veri Hattı",
+    "neuralNetwork": "Sinir Ağı",
+    "trainingStrategy": "Eğitim Stratejisi",
+    "predictionVerification": "Tahmin ve Doğrulama",
+    "honestLimitations": "Dürüst Sınırlamalar",
+    "limitExperiment": "Bu bir deneydir, kehanet değil",
+    "limitSpatial": "Mekansal doğruluk en büyük zorluktur",
+    "limitSafety": "Güvenlik kararları için buna güvenmeyin",
+    "limitReset": "Mimari değişikliklerle istatistikler sıfırlanır",
+    "technicalSpecs": "Teknik Özellikler",
+    "parameters": "Parametreler",
+    "features": "Özellikler",
+    "seqLength": "Dizi Uzunluğu",
+    "embedDim": "Gömme Boyutu",
+    "heads": "Başlıklar",
+    "spatialMDN": "Mekansal MDN",
+    "magMDN": "Büyüklük MDN",
+    "data": "Veri",
+    "input": "Girdi",
+    "matchRadius": "Eşleşme Yarıçapı",
+    "backToDashboard": "Ana Sayfaya Dön",
+    "experimentalDisclaimer": "Bu deneysel bir araştırma projesidir. Güvenlik açısından kritik kararlar için tasarlanmamıştır."
+  },
+  "code": {
+    "title": "Kod ve Mimari",
+    "subtitle": "Kompleks değerli transformer'ın katman katman incelemesi ve sürüm geçmişi.",
+    "archDeepDive": "Mimari Detaylı İnceleme",
+    "dataFlow": "Veri akışı:",
+    "backToDashboard": "Ana Sayfaya Dön"
+  },
+  "changelog": {
+    "title": "Değişiklik Günlüğü",
+    "subtitle": "Geliştirme geçmişi ve sürüm notları — {{date}} tarihinden bu yana {{count}} sürüm",
+    "latest": "En Son"
+  },
+  "history": {
+    "title": "Tarihsel Deprem Örüntüleri",
+    "subtitle": "Ay ve ayın gününe göre dağılım — tarihsel sismik kaydı keşfedin.",
+    "from": "Başlangıç",
+    "to": "Bitiş",
+    "minMag": "Min Büyüklük"
+  },
+  "training": {
+    "title": "Eğitim İlerlemesi",
+    "loading": "Yükleniyor...",
+    "failedToLoad": "Eğitim verileri yüklenemedi",
+    "noDataYet": "Henüz eğitim verisi yok",
+    "train": "Eğitim",
+    "val": "Doğrulama",
+    "min": "min",
+    "step": "Adım",
+    "resetZoom": "Yakınlaştırmayı Sıfırla",
+    "dragToZoom": "Bir bölgeyi yakınlaştırmak için sürükleyin",
+    "zoomed": "Yakınlaştırıldı: {{left}} - {{right}} ({{count}} nokta)",
+    "randomBaseline": "Rastgele referans: ~20,6"
+  },
+  "footer": {
+    "mainText": "Deprem Tahmin Sistemi — Tam Otomatik, Kullanıcı Etkileşimi Gerektirmez",
+    "dataSource": "Veriler her 2 dakikada bir EMSC'den alınır | Tahminler 2 saat sonra doğrulanır"
+  },
+  "common": {
+    "backToDashboard": "Ana Sayfaya Dön",
+    "loading": "Yükleniyor...",
+    "error": "Hata",
+    "close": "Kapat",
+    "map": "Harita"
+  },
+  "arch": {
+    "layer1Title": "1. Girdi: Deprem Dizisi",
+    "layer1Idea": "Model, her biri 12 özellikle tanımlanan 384 depremlik bir diziyi okur. Bir sonraki cümleyi tahmin etmek için sismik olaylardan oluşan bir paragraf okumak gibi.",
+    "layer1Details": [
+      "Özellik 0-1: Yıl (0-60) ve Ay (0-11) — uzun vadeli eğilimler ve mevsimsel örüntüler",
+      "Özellik 2-3: Enlem (0-180) ve Boylam (0-360) — kodlanmış Dünya üzerindeki konum",
+      "Özellik 4: Büyüklük (0-91, 0.1 çözünürlükte) — olay şiddeti",
+      "Özellik 5: Derinlik (0-200 km) — sığ ve derin depremler farklı davranır",
+      "Özellik 6-7: Küresel dt (0-9) ve Yerel dt (0-25) — son M4+ depremden bu yana log-bölmeli dakikalar",
+      "Özellik 8-11: Saat, Yılın günü, Ay evresi, Ay uzaklığı — Dünya durumu bağlamı"
+    ],
+    "layer2Title": "2. Kompleks Gömme",
+    "layer2Idea": "Her özellik, genlik + faz içeren bir kompleks vektöre dönüşür. Konum, kapasitenin ~%27'sini alır çünkü NEREDE olduğu en önemlisidir.",
+    "layer2Details": [
+      "GPE (enlem+boylam): 276 boyut (~%27) — Küresel Harmonikler + Fourier + Tektonik Bölgeler + Göreceli Konum",
+      "Küresel dt + Yerel dt: her biri 102 boyut (%10) — ayrık gömme + sürekli log-ölçek kodlama",
+      "Diğer 8 özellik: her biri 68 boyut (~%6,6) — standart ComplexEmbedding araması",
+      "Toplam: 276 + 102 + 102 + (8×68) = 1.024 kompleks boyut = 2.048 bağlı gerçel değer"
+    ],
+    "layer3Title": "3. Hermitian Çok Başlıklı Dikkat",
+    "layer3Idea": "8 paralel dikkat başlığı — her deprem önceki tüm depremlere \"bakar\". QK-Norm dikkati stabilize eder, PerDimScale her boyutun kendi önemini öğrenmesini sağlar. Mekansal önyargı yakın olayların daha güçlü dikkat etmesini sağlar.",
+    "layer3Details": [
+      "QK-Norm: Q ve K üzerinde RMSNorm, dikkat logitlerinin patlamasını önler — kararlı kompleks değerli eğitim için kritik (TimesFM/PaLM'den)",
+      "PerDimScale: sabit 1/√d yerine boyut başına öğrenilen softplus(ağırlık) kullanır — bazı boyutlar diğerlerinden daha önemlidir",
+      "RoPE: Konum dönüş olarak kodlanır — yakın olaylar benzer dönüşlere, uzak olanlar farklılaşanlara sahiptir",
+      "Hermitian: Re(Q)·Re(K)ᵀ + Im(Q)·Im(K)ᵀ — doğru kompleks iç çarpım",
+      "Mekansal önyargı: Başlık başına öğrenilebilir mesafe-azalma — yarısı yakını tercih eder (artçı sarsıntılar), yarısı nötr (tektonik)"
+    ],
+    "layer4Title": "4. Kompleks Geçitli İleri Besleme (SwiGLU)",
+    "layer4Idea": "Her konumu bağımsız olarak işler. Kritik nokta: geçitleme için GERÇEK kompleks çarpma, gerçel ve sanal kısımları bağlı tutar.",
+    "layer4Details": [
+      "Gerçek kompleks çarpma olmadan, geçit ve yukarı yolları bağımsız kalır — kompleksmiş gibi davranan iki ayrı gerçel ağ",
+      "4× genişleme (1024→4096) geri sıkıştırmadan önce kompleks özellik etkileşimlerine alan sağlar"
+    ],
+    "layer5Title": "5. Transformer Bloğu (×6 yığılmış)",
+    "layer5Idea": "6 blok üst üste yığılmış, her birinde 4 normalizasyon (hem dikkat hem FFN için ön+son). Erken bloklar \"bu olaylar birbirine yakın\" öğrenir, sonraki bloklar \"bu artçı sarsıntı dizisi daha büyük bir olaya doğru hızlanıyor\" öğrenir.",
+    "layer5Details": [
+      "Ön-norm (ComplexLayerNorm) + Son-norm (ComplexRMSNorm) — 4-norm tasarımı artık akışını stabilize eder",
+      "Artık bağlantılar: her katman tam gösterimi değil, yalnızca farkı öğrenir",
+      "n_embed=1024, T=384 ile 6 katman — GPU'yu Ollama ile paylaşacak şekilde boyutlandırılmış (~1 GiB ayrılmış)"
+    ],
+    "layer6Title": "6. Çıktı: Karışım Yoğunluk Ağı Başlıkları",
+    "layer6Idea": "Kompleks gösterim gerçel + sanal olarak ayrılır (→2.048 boyut). İki MDN başlığı tam olasılık dağılımlarını tahmin eder — sadece nokta tahmini değil. Çıkarım sırasında en yüksek ağırlıklı Gauss bileşeni tahmin olur.",
+    "layer6Details": [
+      "K=20 mekansal bileşen: her Gauss farklı bir sismik aktif bölgeyi kapsar (Pasifik Halkası, Alp kuşağı vb.)",
+      "İki değişkenli Gauss: σ_lat, σ_lon, ρ (korelasyon) — eksen hizalı olmayan belirsizlik elipsleri",
+      "sigma_km: σ_lat ve σ_lon'un km'ye dönüştürülmüş RMS değeri (1°≈111km) — UI'da ±NNN km olarak gösterilir",
+      "MagnitudeMDN K=8 Gauss — GR öncüsü kaldırıldı (M4,43 üzeri tahminleri bastırıyordu)",
+      "pi (karışım ağırlığı) tahmin başına güven puanı olarak döndürülür"
+    ],
+    "layer7Title": "7. Eğitim Kaybı (7 sinyal)",
+    "layer7Idea": "Yedi eşzamanlı sinyal: WTA NLL bileşenleri uzmanlaştırır, Energy Score doğruluk + yayılımı ödüllendirir, bbox sınırlaması bileşenleri Türkiye içinde tutar ve yoğun Occurrence BCE (dizi başına 384 etiket) alarm kapılaması için kullanılan tehlike olasılığını öğretir.",
+    "layer7Details": [
+      "WTA NLL: yalnızca kazanan bileşen ortalama/sigma gradyanı alır — K=20 bileşenin her biri bir Türk fay hattını sahiplenir",
+      "Energy Score (Gneiting & Raftery 2007): uygun skorlama kuralı — doğruluk + çeşitlilik tek terimde",
+      "Çeşitlilik kaybı: τ=2° ölçeğinde ikili itme (Türkiye ölçeği) — bileşenler KAF, DAF, Ege, Helen yayına dağılır",
+      "Türkiye-bbox sınırlaması: enlem 35–43 / boylam 25–48 dışındaki bileşen ortalamalarına karesel ceza",
+      "Sigma tabanları (0.5° konum, 0.2 büyüklük) + σ>1° tavanı: NLL ezberlemesini önler — train/val ayrışma düzeltmesi",
+      "Occurrence BCE (ağırlık 2.0): pos_weight OLMADAN düz BCE — olasılıklar kalibre kalır, sunucu eşiği doğrudan isabete karşılık gelir",
+      "Doğrulama aynı toplam formülü kullanır (ağırlıksız) — train ve val aynı ölçekte hareket eder"
+    ],
+    "layer8Title": "8. Occurrence Head ve Alarm Kapılaması",
+    "layer8Idea": "Dürüst %90+ isabetin anahtarı: ikili tehlike kafası P(60 dk içinde Türkiye M4+) tahmin eder. Sunucu yalnızca p ≥ 0.90 iken ALARM verir — sakin dönemler yalnızca izleme modudur, iddia yoktur. Artçı fiziği (Omori yasası) koşullu tehlikeyi gerçekten öngörülebilir kılar.",
+    "layer8Details": [
+      "Yoğun denetim: 1.5M küresel olayın her biri ikili etiket alır — 60 dk içinde Türkiye M4+ izledi mi? (baz oran ~%1.8)",
+      "Etiketler Türkiye M4+ zaman damgaları üzerinde searchsorted ile hesaplanır — O(N log N), sızıntı yok (kesinlikle-sonra semantiği)",
+      "Düz BCE sigmoid çıktılarını kalibre tutar: p=0.9 \"10 seferin 9'u\" demektir — eşik doğrudan isabet hedefidir",
+      "Manşet metriği = verilen alarmların isabeti; izleme döngüleri hariçtir (model iddia etmedi)",
+      "Alarmlar fizik gereği nadirdir — çoğunlukla önemli Türkiye depremlerinin ardından gelen artçı dizilerinde. Nadir-ama-doğru, her-zaman-yanlıştan iyidir.",
+      "E-posta aboneleri yalnızca alarmlarda bilgilendirilir, izleme döngülerinde asla"
+    ]
+  },
+  "hiw": {
+    "idea": [
+      {
+        "heading": "Depremler tahmin edilebilir mi?",
+        "text": "Bilimsel uzlaşı hayır diyor — depremler kaotiktir ve güvenilir bir kısa vadeli tahmin yöntemi bulunmamaktadır. Bu proje, sismik aktiviteyi bir dil olarak ele alarak bu varsayımı sorgulamaktadır: örüntülerin var olabileceği ancak insanların göremeyeceği kadar karmaşık olan bir olay dizisi."
+      },
+      {
+        "heading": "Bir dizi problemi olarak depremler",
+        "text": "Bir dil modelinin bağlamdan bir sonraki kelimeyi tahmin etmeyi öğrenmesi gibi, modelimiz de yakın zamandaki sismik olaylar dizisinden bir sonraki önemli depremi tahmin etmeyi öğrenir. Her deprem; konum, büyüklük, derinlik, zamanlama ve çevresel bağlamıyla tanımlanır — modelin okumayı öğrendiği bir \"kelime dağarcığı\" oluşturur."
+      },
+      {
+        "heading": "Neden kompleks değerli gömme?",
+        "text": "Standart sinir ağları özellikleri gerçel değerli vektörler olarak gömer — boyut başına tek bir sayı. Modelimiz ise her özelliği hem genliği hem de faz açısı olan bir kompleks sayı olarak gömer. Bu, her gömme boyutunun iki bilgi taşıdığı anlamına gelir: \"bu özellik ne kadar güçlü\" (genlik) ve \"bu bağlamda hangi rolü oynuyor\" (faz). Bunu, modele deprem özellikleri arasındaki ilişkileri temsil etmek için daha zengin, iki boyutlu bir çalışma alanı vermek olarak düşünebilirsiniz. Model, gömmeleri dikkat ve ileri besleme katmanları aracılığıyla birleştirirken, bunları bağımsız sayılar olarak ele almak yerine genlik ve fazın etkileştiği gerçek kompleks çarpma kullanır."
+      },
+      {
+        "heading": "Kompleks uzay bize ne sağlıyor?",
+        "text": "Gerçel değerli bir ağda, \"enlem 45\" ile \"büyüklük 5.0\" arasındaki ilişki tek bir sayıdır (iç çarpımları). Kompleks uzayda ise bu ilişki hem güce HEM de yöne sahiptir — faz açısı, bu özelliklerin birbirleriyle olan ilişkisini gerçel sayıların yapamayacağı bir biçimde kodlar. Bu özellikle coğrafi örüntüler için önemlidir: boylam (179° ve -179°'nin komşu olduğu), günün saati ve ay evresi gibi döngüsel özellikler, kompleks uzayda doğal olarak dönüşler şeklinde temsil edilir. Tüm transformer — gömmeler, dikkat, ileri besleme katmanları, aktivasyonlar — bu kompleks alanda çalışır."
+      }
+    ],
+    "data": [
+      {
+        "heading": "Kaynak: EMSC (Avrupa-Akdeniz Sismoloji Merkezi)",
+        "text": "Her 2 dakikada bir sistem, 10-15 dakika gecikmeyle küresel sismik olayları raporlayan EMSC'den en son deprem verilerini çeker. Her olay; zaman damgası, enlem, boylam, derinlik, büyüklük ve tür sınıflandırması içerir."
+      },
+      {
+        "heading": "Özellik kodlama",
+        "text": "Ham veriler, modelin gömebileceği ayrık bölmelere kodlanır: enlem (-90° ile 90° arasını kapsayan 181 bölme), boylam (-180° ile 180° arasını kapsayan 361 bölme), büyüklük (0.1 çözünürlükte 92 bölme), derinlik (km cinsinden 201 bölme). Bu ayrıklaştırma, sürekli değerleri bir kelime dağarcığına dönüştürür."
+      },
+      {
+        "heading": "Türetilmiş zamansal özellikler",
+        "text": "Her deprem için iki kritik zamanlama özelliği hesaplanır. Küresel dt: Dünya üzerinde herhangi bir yerdeki son M4+ depremden bu yana geçen dakikalar, Omori'nin artçı sarsıntı azalma yasasını (artçı sarsıntı oranı 1/t olarak düşer) izleyen 10 logaritmik bölmeye ayrılmıştır. Yerel dt: 1000km içindeki son M4+ depremden bu yana geçen dakikalar, 26 logaritmik bölmeye ayrılmıştır — yerel artçı sarsıntı dizilerini yakalar."
+      },
+      {
+        "heading": "Dünya durumu özellikleri",
+        "text": "Model ayrıca her olay anında Dünya'nın durumu hakkında bağlamsal bilgi alır: günün saati (0-23, katı Dünya gelgitlerinden gelen günlük gelgit gerilimini yakalar), yılın günü (0-365, mevsimsel örüntüler + Dünya-Güneş mesafe değişimi), ay evresi (0-29, yeni aydan dolunaya gelgit kuvveti yönü) ve ay uzaklığı (0-9, perigeden apogea — gelgit genliği ±%12 değişir)."
+      }
+    ],
+    "model": [
+      {
+        "heading": "Kompleks değerli transformer (203M parametre)",
+        "text": "Mimari, tamamen kompleks sayı uzayında çalışan 8 dikkat başlıklı 6 katmanlı bir transformer'dır. Her katman, ön+son normalizasyonla sarılmış kompleks çok başlıklı dikkat (QK-Norm ve boyut başına öğrenilen ölçekleme ile) ve kompleks geçitli ileri besleme ağlarına sahiptir. Model, 384 depremlik dizileri işler ve Mixture Density Network çıktı başlıkları aracılığıyla bir sonraki önemli olayı tahmin eder."
+      },
+      {
+        "heading": "Girdiden tahmine nasıl dönüşür",
+        "text": "Her depremin 12 özelliği bağımsız olarak kompleks vektörlere gömülür (toplam gömme boyutu: 1024), ardından birleştirilir. Dizi 6 transformer katmanından geçer. Son çıktı iki Mixture Density Network başlığından geçer: SpatialMDNHead (birleşik enlem/boylam için K=20 iki değişkenli Gaussian) ve MagnitudeMDNHead (K=8 tek değişkenli Gaussian). Çıkarımda en yüksek ağırlıklı bileşen, bir sigma_km belirsizlik yarıçapıyla birlikte tahmin olarak kullanılır."
+      },
+      {
+        "heading": "Mekansal dikkat önyargısı",
+        "text": "Standart dikkat, mesafeden bağımsız olarak tüm depremlere eşit davranır. Modelimiz bir mekansal önyargı ekler: yakın depremler doğal olarak daha yüksek dikkat ağırlıkları alır ve azalma haversine (büyük daire) mesafesini takip eder. Her dikkat başlığı kendi mesafe-azalma profilini öğrenir — yarısı yakın olayları tercih edecek şekilde (artçı sarsıntı örüntüleri), yarısı nötr olarak (tektonik etkileşimler) başlatılır. Dikkat, QK-Norm (sorgular ve anahtarlar üzerinde RMSNorm) ve PerDimScale (sabit 1/√d yerine boyut başına öğrenilen önem ağırlıklandırması) ile stabilize edilir."
+      },
+      {
+        "heading": "Coğrafi Konumsal Kodlama (GPE)",
+        "text": "Enlem ve boylamı bağımsız sayılar olarak ele almak yerine GPE, konumu Dünya yüzeyindeki küresel harmonikler ve Fourier özellikleri kullanarak kodlar. Bu, modele küresel geometrinin içsel bir anlayışını verir — 179° ve -179° boylamının zıtlar değil komşular olduğunu bilir."
+      },
+      {
+        "heading": "Hermitian dikkat",
+        "text": "Kompleks değerli dikkatte iç çarpım, kompleks yapıyı korumalıdır. Hermitian iç çarpımı kullanıyoruz: Re(Q)·Re(K) + Im(Q)·Im(K). Bu, nokta çarpım dikkatinin doğal kompleks vektör karşılığıdır ve fiziksel anlam taşıyan gerçel ile sanal kısımlar arasındaki bağlantıyı korur."
+      }
+    ],
+    "training": [
+      {
+        "heading": "Hibrit yaklaşım: her şeyi gör, önemli olanı tahmin et",
+        "text": "Model, girdi bağlamı olarak M2.0+ TÜM depremleri görür (arka plan sismisitesi örüntülerini oluşturan küçük olanlar dahil), ancak hedef olarak yalnızca M4.0+ olayları tahmin eder. Bu zengin bağlam sağlar — küçük öncü sarsıntı örüntüleri genellikle önemli olaylardan önce gelir — öğrenmeyi önemli depremlere odaklarken."
+      },
+      {
+        "heading": "Omori azalması ile çok konumlu eğitim",
+        "text": "Model, dizi içindeki her M4+ konumunda eş zamanlı olarak kayıp hesaplar (grup başına ~400 hedef konum), eğitim sinyal yoğunluğunu dramatik biçimde artırır. Kritik olarak, her konum Omori'nin artçı sarsıntı azalma yasası kullanılarak yakınlığına göre ağırlıklandırılır: dizideki en son olay 1.0× ağırlık alırken, en eski ~0.05× alır. Bu, modeli geçmiş tarihi değil yakın gelecekteki olayları tahmin etmeye odaklar."
+      },
+      {
+        "heading": "Mixture Density Network kaybı (NLL)",
+        "text": "Model, her hedefi açıklamak için yarışan K=20 mekansal Gaussian çıktılar. Kayıp, gerçek konumun karışım altındaki negatif log-olabilirliğidir — bu, birden fazla bileşeni farklı sismik aktif bölgeleri kapsamaya zorlar. Büyüklük K=8 Gaussian kullanır. Bir entropi düzenleyici, bileşenleri çökmek yerine çeşitli tutar. Bir çeşitlilik kaybı (Gaussian itme, τ=30°) tüm 20 mekansal bileşenin tek bir sismik bölgeye çökmesini önler."
+      },
+      {
+        "heading": "Büyüklük ağırlıklı kayıp",
+        "text": "Tüm depremler eşit değildir. Bir M6.0 tahmini M4.0'dan çok daha değerlidir. Kayıp fonksiyonu her hedefi büyüklüğüne göre ağırlıklandırır: M4.0→1×, M5.0→3.2×, M6.0→10×, M7.0→31.6×. Omori zamansal ağırlığı ile birleştirildiğinde, toplam ağırlık büyük ve yakın zamanlı olayları önceliklendirir."
+      },
+      {
+        "heading": "Haversine kaybı: min-k modal yaklaşım",
+        "text": "Yardımcı bir haversine kaybı (3.0× ağırlık) coğrafi mesafeyi cezalandırır. Kritik olarak, K=20 Gaussian bileşenin her birinden hedefe olan mesafeyi ayrı ayrı hesaplar, ardından minimumu alır. Bu, EN YAKIN bileşeni hedefe çeker — bileşenler arasında coğrafi çeşitliliği teşvik eder — karışım ortalamasını itmek yerine, ki bu tüm 20'nin ortalamasını alır ve dağılım çok modlu olduğunda okyanusa işaret eder."
+      },
+      {
+        "heading": "Sürekli öğrenme",
+        "text": "Eğitim GPU üzerinde (RTX 4060 Ti) 7/24 çalışır ve her 600 adımda kontrol noktası kaydeder. Tahmin sunucusu CPU üzerinde çalışır ve yeni kontrol noktalarını otomatik olarak alır. Önemli mimari değişiklikler yapıldığında model sıfırdan yeniden eğitilir."
+      }
+    ],
+    "prediction": [
+      {
+        "heading": "Alarm kapılaması: model yalnızca eminken konuşur",
+        "text": "Her 60 dakikalık döngüde OccurrenceHead, son 384 küresel olaydan P(önümüzdeki 60 dk içinde Türkiye M4+) üretir. p ≥ 0.90 ise sistem ALARM verir — gerçek, yanlışlanabilir bir iddia. Eşiğin altında yalnızca izleme kaydı düşülür: iddia yok, e-posta yok, manşet istatistiğine dahil değil."
+      },
+      {
+        "heading": "Bu neden dürüstçe %90+ tutturur",
+        "text": "Türkiye'de ortalama ~2.4 günde bir M4+ olur; \"bu belirli saatte M4+ olacak\" ~%1.7 baz oranlı bir olaydır — her döngüde tahmine zorlamak başarıyı matematiksel olarak birkaç yüzdeyle sınırlar. Ama tehlike tekdüze değildir: önemli bir depremden sonra Omori yasası bir saat içinde başka bir M4+'ı gerçekten olası kılar. Yalnızca o pencerelerde iddia eden bir model, konuştuğu zamanların %90+'ında haklı olabilir."
+      },
+      {
+        "heading": "Alarm ne iddia eder — nasıl doğrulanır",
+        "text": "Bir alarm şunu iddia eder: \"60 dakika içinde Türkiye bölgesinde (35–43°K, 25–48°D) M4+ deprem olacak.\" Pencere sırasında bu kutu içindeki herhangi bir M4+ bunu doğrular. MDN kafaları yine en iyi tahmin merkez üssü ve büyüklüğü verir; tahmin ile gerçek olay arasındaki mesafe ayrı bir konumsal teşhis olarak izlenir (haritadaki 50 km çember)."
+      },
+      {
+        "heading": "Şeffaf isabet muhasebesi",
+        "text": "Manşet başarı oranı YALNIZCA verilen alarmları sayar — doğrulanan alarmlar içinde isabet. İzleme döngüleri ayrıca listelenir; modelin ne sıklıkla sessiz kalmayı seçtiğini her zaman görebilirsiniz. Kaçan alarmlar 48 saat boyunca yeniden kontrol edilir (geç yakalama). Tam şeffaflık: hiçbir şey gizlenmez ve puanlanan iddia tam olarak yapılan iddiadır."
+      }
+    ],
+    "limitations": [
+      {
+        "heading": "Bu bir deneydir, kehanet değil",
+        "text": "Deprem tahmini, jeofizikte en zor çözülmemiş problemlerden biri olmaya devam etmektedir. Bu dahil hiçbir yapay zeka modeli depremleri güvenilir biçimde tahmin edemez. Bu sistem, derin öğrenmenin geleneksel yöntemlerin kaçırdığı örüntüleri bulup bulamayacağını araştıran bir araştırma projesidir."
+      },
+      {
+        "heading": "Mekansal doğruluk en büyük zorluktur",
+        "text": "Model, büyüklüğü makul ölçüde iyi tahmin etmeyi öğrenmiştir (rastgele referansa göre %38 iyileşme), ancak mekansal tahmin — bir sonraki depremin NEREDE olacağını bilmek — son derece zor olmaya devam etmektedir. Enlem ve boylam tahminleri şu anda rastgele tahminin yalnızca %14-15 üzerinde iyileşme göstermektedir."
+      },
+      {
+        "heading": "Güvenlik kararları için buna güvenmeyin",
+        "text": "Bu sistem eğitim ve araştırma amaçlıdır. Tahliye kararları almak, planları iptal etmek veya normalde resmi bir hükümet sismik uyarısı gerektiren herhangi bir eylem için kullanmayın. Her zaman yerel yetkililerin rehberliğine uyun."
+      },
+      {
+        "heading": "Mimari değişikliklerle istatistikler sıfırlanır",
+        "text": "Model mimarisinde önemli iyileştirmeler yaptığımızda eğitim sıfırdan yeniden başlar ve tüm tahmin istatistikleri sıfırlanır. Bu, raporlanan başarı oranının kümülatif geçmişi değil, yalnızca modelin mevcut sürümünü yansıttığı anlamına gelir."
+      }
+    ]
+  },
+  "language": {
+    "en": "English",
+    "tr": "Türkçe",
+    "ja": "日本語"
+  }
+}

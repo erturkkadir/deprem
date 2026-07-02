@@ -366,8 +366,8 @@ export default function HowItWorks() {
               { label: t('howItWorks.magMDN'), value: 'K=8' },
               { label: t('howItWorks.data'), value: '1.5M+' },
               { label: t('howItWorks.input'), value: 'M2.0+' },
-              { label: t('live.window'), value: '90 min' },
-              { label: t('howItWorks.matchRadius'), value: '250 km' },
+              { label: t('live.window'), value: '60 min' },
+              { label: t('live.hazard'), value: 'p≥0.90' },
             ].map((spec, i) => (
               <div key={i} className="bg-zinc-800/60 rounded-lg p-2.5 border border-zinc-700/50 text-center">
                 <p className="text-zinc-500 text-[10px] uppercase tracking-wider">{spec.label}</p>

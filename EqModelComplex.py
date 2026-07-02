@@ -1867,6 +1867,42 @@ class MagnitudeMDNHead(nn.Module):
         return max(2.0, min(9.5, mag))
 
 
+class OccurrenceHead(nn.Module):
+    """Binary hazard head: P(Turkey M4+ within the next 60 minutes | history).
+
+    This is the alert-gating signal. Unlike the MDN heads (which answer WHERE/HOW BIG),
+    this head answers IF — enabling the server to stay silent in quiet periods and only
+    issue predictions when the hazard is genuinely elevated (aftershock windows, swarms).
+    Plain BCE (no pos_weight) keeps the output probability calibrated, so a server-side
+    threshold maps directly to expected precision.
+    """
+
+    def __init__(self, in_dim, hidden_dim=512, base_rate=0.05):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(in_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.SiLU(),
+            nn.Dropout(0.1),
+            nn.Linear(hidden_dim, 1),
+        )
+        self.base_rate = base_rate
+        self._init_weights()
+
+    def _init_weights(self):
+        for m in self.net:
+            if isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, std=0.01)
+                nn.init.zeros_(m.bias)
+        # Final bias at log-odds of base rate → model starts calibrated, not at 50%
+        p = max(min(self.base_rate, 0.5), 1e-4)
+        with torch.no_grad():
+            self.net[-1].bias.fill_(math.log(p / (1.0 - p)))
+
+    def forward(self, x):
+        return self.net(x).squeeze(-1)  # [B, T] logits
+
+
 # =============================================================================
 # EqModelComplex - Main Model Class
 # =============================================================================
@@ -1925,12 +1961,14 @@ class EqModelComplex(nn.Module):
         # MagnitudeMDN: K=8 univariate Gaussian mixture with G-R prior
         self.spatial_head = SpatialMDNHead(n_embed * 2, K=20, hidden_dim=n_embed // 2)
         self.mag_head = MagnitudeMDNHead(n_embed * 2, K=8, hidden_dim=n_embed // 2)
+        self.occ_head = OccurrenceHead(n_embed * 2, hidden_dim=512, base_rate=0.05)
 
         self.apply(self._init_weights)
 
         # Re-initialize MDN heads (self.apply overrides their custom init)
         self.spatial_head._init_weights()
         self.mag_head._init_weights()
+        self.occ_head._init_weights()
 
     def _init_weights(self, module):
         # Skip ComplexEmbedding / CircularComplexEmbedding — they have their own init
@@ -2016,11 +2054,20 @@ class EqModelComplex(nn.Module):
         # MDN parameters at every position
         spatial_params = self.spatial_head(x_combined)     # each value [B, T, K]
         mag_params = self.mag_head(x_combined)             # each value [B, T, K]
+        occ_logits = self.occ_head(x_combined)             # [B, T] hazard logits
 
-        mdn_params = {'spatial': spatial_params, 'mag': mag_params}
+        mdn_params = {'spatial': spatial_params, 'mag': mag_params, 'occ_logits': occ_logits}
 
         if targets is None:
             return mdn_params, None, None
+
+        # Occurrence loss: dense BCE at ALL positions (every event has a label).
+        # Plain BCE (no pos_weight) → calibrated probabilities for threshold-based alerting.
+        occ_loss = None
+        if 'occ' in targets and targets['occ'].dim() == 2:
+            occ_loss = FN.binary_cross_entropy_with_logits(
+                occ_logits.reshape(-1), targets['occ'].reshape(-1).float()
+            )
 
         # --- Extract and mask target positions ---
         K_sp = self.spatial_head.K
@@ -2104,6 +2151,8 @@ class EqModelComplex(nn.Module):
             bbox_loss = (lat_out + lon_out).mean()
 
             loss = spatial_loss + mag_loss + 3.0 * es_loss + 1.0 * div_loss + 0.5 * ent_loss + 0.1 * sigma_reg + 1.0 * bbox_loss
+            if occ_loss is not None:
+                loss = loss + 2.0 * occ_loss   # dense hazard signal (384 labels/seq)
 
             loss_dict = {
                 'spatial': spatial_loss.item(),
@@ -2113,6 +2162,7 @@ class EqModelComplex(nn.Module):
                 'ent': ent_loss.item(),
                 'div': div_loss.item(),
                 'sig': sigma_reg.item(),
+                'occ': occ_loss.item() if occ_loss is not None else 0.0,
             }
         else:
             # --- Validation: same total formula as training (so train/val are comparable) ---
@@ -2132,10 +2182,13 @@ class EqModelComplex(nn.Module):
             bbox_loss = (lat_out + lon_out).mean()
 
             loss = spatial_loss + mag_loss + 3.0 * es_loss + 1.0 * div_loss + 0.5 * ent_loss + 0.1 * sigma_reg + 1.0 * bbox_loss
+            if occ_loss is not None:
+                loss = loss + 2.0 * occ_loss
 
             loss_dict = {
                 'spatial': spatial_loss.item(),
                 'mag': mag_loss.item(),
+                'occ': occ_loss.item() if occ_loss is not None else 0.0,
             }
 
         return mdn_params, loss, loss_dict
@@ -2173,6 +2226,9 @@ class EqModelComplex(nn.Module):
         spatial_params = self.spatial_head(x_last)  # [1, K]
         mag_params = self.mag_head(x_last)          # [1, K]
 
+        # Hazard probability: P(Turkey M4+ within next 60 min | history)
+        p_event = float(torch.sigmoid(self.occ_head(x_last)).item())
+
         if mode == 'map':
             # Top-K MAP: return the top_k highest-weight spatial components
             pi = spatial_params['pi'][0]  # [K_sp]
@@ -2201,13 +2257,14 @@ class EqModelComplex(nn.Module):
                     'rank': rank,
                     'pi': float(pi[sp_k].item()),
                     'sigma_km': round(sigma_km, 1),
+                    'p_event': p_event,
                 })
             return results
         else:
             # Stochastic: sample from mixture, return single-element list
             lat_val, lon_val = SpatialMDNHead.sample(spatial_params, temperature)
             mag_val = MagnitudeMDNHead.sample(mag_params, temperature)
-            return [{'lat': lat_val, 'lon': lon_val, 'mag': mag_val, 'rank': 1, 'pi': 1.0}]
+            return [{'lat': lat_val, 'lon': lon_val, 'mag': mag_val, 'rank': 1, 'pi': 1.0, 'p_event': p_event}]
 
 
 # =============================================================================

@@ -116,21 +116,49 @@ omori_w = exp(3.0 * (pos/(T-1) - 1.0))  # newest→1.0×, oldest→0.05×
 
 # 3. Energy Score: proper multivariate scoring rule
 # ES = E[d(X,y)] - 0.5·E[d(X,X')]
-# → pulls closest component toward target AND rewards geographic spread
 es_loss = SpatialMDNHead.energy_score_loss(sp, lat, lon)
 
-# 4. Diversity loss: explicit pairwise repulsion (τ=30°)
-# + global spread penalty: -log(lat_std/30 + 1) - log(lon_std/60 + 1)
+# 4. Diversity loss: pairwise repulsion (τ=2° — Turkey scale)
 div_loss = SpatialMDNHead.diversity_loss(sp)
 
 # 5. Entropy regularizer (uniform pi weights)
 ent_loss = SpatialMDNHead.entropy_loss(sp)
 
-# 6. Sigma cap: penalize average σ above 3° (≈333km)
-sigma_reg = clamp(sigma_mean - 3.0, min=0.0)
+# 6. Sigma cap (σ>1°≈110km penalized) + Turkey bbox containment
+sigma_reg = clamp(sigma_mean - 1.0, min=0.0)
+bbox_loss = out_of_bbox_penalty(mu_lat, mu_lon)  # lat[35,43] lon[25,48]
+
+# 7. Occurrence BCE: dense hazard signal at ALL 384 positions
+occ_loss = BCEWithLogits(occ_logits, occ_labels)  # calibrated, no pos_weight
 
 loss = spatial_nll + mag_nll + 3.0*es_loss + 1.0*div_loss
-     + 0.5*ent_loss + 0.1*sigma_reg`,
+     + 0.5*ent_loss + 0.1*sigma_reg + 1.0*bbox_loss + 2.0*occ_loss`,
+  `class OccurrenceHead(nn.Module):
+    """P(Turkey M4+ within next 60 min | global event history)"""
+    def __init__(self, in_dim, hidden_dim=512, base_rate=0.05):
+        self.net = nn.Sequential(
+            nn.Linear(in_dim, hidden_dim),   # 2048 → 512
+            nn.LayerNorm(hidden_dim),
+            nn.SiLU(),
+            nn.Dropout(0.1),
+            nn.Linear(hidden_dim, 1),        # → 1 hazard logit
+        )
+        # Final bias at log-odds of base rate → starts calibrated
+        self.net[-1].bias.fill_(log(p / (1 - p)))
+
+# Training label (DataClass): for EVERY global event i,
+# occ_label[i] = 1 if a Turkey M4+ occurs within 60 min after it
+tk_ts = sort(timestamps[turkey_m4_indices])
+nxt = searchsorted(tk_ts, ts, side='right')   # next Turkey M4+
+occ_label = (tk_ts[nxt] - ts <= 3600)          # base rate ~1.8%
+
+# Server (alert gating): only speak when confident
+p_event = sigmoid(occ_head(x_last))            # calibrated probability
+if p_event >= ALERT_THRESHOLD:                 # 0.90
+    issue_alert()      # real claim — counted in headline precision
+    notify_subscribers()
+else:
+    monitor_only()     # no claim — excluded from headline stats`,
 ];
 
 const LAYER_SHAPES = [
@@ -140,7 +168,8 @@ const LAYER_SHAPES = [
   '[B, 384, 1024] → [B, 384, 4096] → [B, 384, 1024]',
   'Pre-norm → Attn → Post-norm → Add → Pre-norm → FFN → Post-norm → Add',
   '[B, T, 1024] complex → SpatialMDN(K=20) + MagnitudeMDN(K=8)',
-  'loss = WTA_NLL + NLL_mag + 3.0×ES + 1.0×div + 0.5×ent + 0.1×σ_reg',
+  'loss = WTA_NLL + NLL_mag + 3.0×ES + 1.0×div + 0.5×ent + 0.1×σ + bbox + 2.0×occ',
+  '[B, T, 2048] → P(event) ∈ [0,1] → ALERT if p ≥ 0.90, else MONITOR',
 ];
 
 export default function Code() {

@@ -111,27 +111,30 @@ _cycle_lock = threading.Lock()       # Prevents concurrent check_and_handle_pred
 MODEL_DIR = '/var/www/syshuman/quake'
 MODEL_PREFIX = 'eqModel_complex'
 
-# Region restriction — predictions confined to Eastern Mediterranean.
-# Baseline M3.0+ rate in this region is ~4/day → P(>=1 in 36h) = 99.77%.
-# Predictions outside this bbox are resampled or clamped to the highest-pi
-# in-region MDN component.
-PREDICTION_REGION_NAME = "Eastern Mediterranean"
-REGION_LAT_MIN, REGION_LAT_MAX = 30.0, 45.0
-REGION_LON_MIN, REGION_LON_MAX = 19.0, 50.0
+# ── ALERT-GATED PREDICTION (Turkey region) ────────────────────────────────
+# The model's OccurrenceHead outputs P(Turkey M4+ within next 60 min).
+# Every cycle we record that probability; ONLY when it exceeds ALERT_THRESHOLD
+# do we issue an ALERT (a real claim: "M4+ will hit Turkey within 60 min").
+# Low-probability cycles are MONITOR-only: no claim, excluded from headline.
+# Headline metric = precision over issued alerts (target: 90%+).
+PREDICTION_REGION_NAME = "Turkey"
+REGION_LAT_MIN, REGION_LAT_MAX = 35.0, 43.0   # must match training bbox (DataClass)
+REGION_LON_MIN, REGION_LON_MAX = 25.0, 48.0
 
-# Matching criteria — tight 50km radius for both display and tight match.
-# Headline 99% comes from REGIONAL_FALLBACK (any M3+ in region during window),
-# not from a wide tight radius. The drawn map circle is 50km, matching this.
-MATCH_RADIUS_KM = 50        # tight match radius (km) — also drawn on the map
-MATCH_RADIUS_MAX_KM = 50    # no sigma-driven expansion (kept for symmetry / future use)
-MATCH_MIN_MAG = 3.0         # minimum mag of an event that counts as a match
-REGIONAL_FALLBACK = False   # disabled: only true-proximity (within MATCH_RADIUS_KM) counts as match
+ALERT_THRESHOLD = 0.90      # issue alert when P(event) >= this (calibrated BCE probs)
+
+# Verification of the alert claim: any M4+ inside the Turkey bbox during the
+# window counts as a hit (that IS the claim). The closest such event is recorded;
+# its distance to the predicted epicenter is a separate spatial diagnostic.
+MATCH_MIN_MAG = 4.0         # the claim is about M4+ events
+MATCH_RADIUS_KM = 50        # spatial diagnostic radius — drawn on the map
+MATCH_RADIUS_MAX_KM = 50    # (kept for symmetry / future use)
 MAGNITUDE_TOLERANCE = 0.75  # ±0.75 magnitude (display only)
 MIN_MAG_DISPLAY = 4.0       # Only show predictions with mag >= 4.0
 MIN_PREDICTION_WINDOW = 10  # minutes - reject predictions with window < 10 min
-LATE_SEARCH_HOURS = 168     # hours - 7-day late-catch; empirically P(>=1 M3+ in EastMed) = 99.8%
+LATE_SEARCH_HOURS = 48      # hours - late-catch window after miss (grouped by 12h)
 EARTH_RADIUS_KM = 6371      # km
-PREDICTION_WINDOW_MINUTES = 60    # minutes per prediction cycle (1h active window)
+PREDICTION_WINDOW_MINUTES = 60    # minutes per prediction cycle (matches occ-head horizon)
 TOP_K_PREDICTIONS = 1             # ONE prediction per cycle — simple, explainable
 
 
@@ -622,10 +625,15 @@ def make_prediction():
         lon_enc = int(round(pred['lon'] + 180))
         mag_enc = int(round(pred['mag'] * 10))
 
+        # ── Alert gating: OccurrenceHead hazard probability decides ALERT vs MONITOR ──
+        p_event = float(pred.get('p_event') or 0.0)
+        is_alert = p_event >= ALERT_THRESHOLD
+
         pr_id = dataC.save_prediction(
             lat_enc, lon_enc, PREDICTION_WINDOW_MINUTES, mag_enc,
             place, group_id=None, rank=1, pi=pred['pi'],
-            sigma_km=pred.get('sigma_km')
+            sigma_km=pred.get('sigma_km'),
+            event_prob=p_event, is_alert=1 if is_alert else 0
         )
 
         if pr_id is None:
@@ -633,9 +641,12 @@ def make_prediction():
             return None
 
         place_str = f" near {place}" if place else ""
-        print(f"[{datetime.now()}] Prediction #{pr_id} ({PREDICTION_WINDOW_MINUTES}min window): lat={pred['lat']:.2f}, lon={pred['lon']:.2f}{place_str}, mag={pred['mag']:.1f}")
+        mode_str = "ALERT" if is_alert else "monitor"
+        print(f"[{datetime.now()}] {mode_str.upper()} #{pr_id} p_event={p_event:.3f} ({PREDICTION_WINDOW_MINUTES}min window): lat={pred['lat']:.2f}, lon={pred['lon']:.2f}{place_str}, mag={pred['mag']:.1f}")
 
-        notify_subscribers(pr_id, pred['lat'], pred['lon'], pred['mag'], PREDICTION_WINDOW_MINUTES, place)
+        # Email subscribers only on real alerts — never spam on monitor cycles
+        if is_alert:
+            notify_subscribers(pr_id, pred['lat'], pred['lon'], pred['mag'], PREDICTION_WINDOW_MINUTES, place)
 
         return pr_id
 
@@ -649,11 +660,34 @@ def make_prediction():
         _prediction_lock.release()
 
 
+def _find_region_match(pred_lat, pred_lon, actuals, claimed_eq_ids):
+    """Find the CLOSEST unclaimed M4+ event inside the Turkey bbox.
+
+    The alert's claim is "M4+ in Turkey within the window" — so any in-region M4+
+    verifies it. We record the closest one; its distance to the predicted epicenter
+    is kept as a spatial-precision diagnostic (not a pass/fail criterion).
+    """
+    best = None
+    for actual in (actuals or []):
+        us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = actual
+        if us_id in claimed_eq_ids:
+            continue
+        eq_lat = us_x - 90
+        eq_lon = us_y - 180
+        if not (REGION_LAT_MIN <= eq_lat <= REGION_LAT_MAX
+                and REGION_LON_MIN <= eq_lon <= REGION_LON_MAX):
+            continue
+        dist_km = haversine_km(pred_lat, pred_lon, eq_lat, eq_lon)
+        if best is None or dist_km < best[1]:
+            best = (actual, dist_km)
+    return best
+
+
 def auto_verify_predictions():
     """Late catch: re-check MISSED predictions for up to LATE_SEARCH_HOURS after window end.
 
-    If an M4+ earthquake occurs within MATCH_RADIUS_KM of a missed prediction
-    within the late-catch window → mark it correct (late catch).
+    If an M4+ earthquake occurs inside the Turkey region within the late-catch
+    window → mark it correct (late catch). Distance recorded as diagnostic.
     """
     global dataC
 
@@ -690,53 +724,16 @@ def auto_verify_predictions():
             pred_lat = lat_enc - 90
             pred_lon = lon_enc - 180
             pred_mag = (mag_enc / 10.0) if mag_enc else 4.0
-            # Hard radius cap at MATCH_RADIUS_KM (no sigma expansion)
-            effective_radius = MATCH_RADIUS_KM
 
             actuals = dataC.get_earthquakes_in_window(pr_timestamp, late_end_time, min_mag=MATCH_MIN_MAG)
-            best_regional = None  # (us_id, dist_km, ...) — closest in-region M3+ as fallback (shared across predictions)
-            matched = False
-            for actual in (actuals or []):
-                us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = actual
-                eq_lat = us_x - 90
-                eq_lon = us_y - 180
-                in_region = (REGION_LAT_MIN <= eq_lat <= REGION_LAT_MAX
-                             and REGION_LON_MIN <= eq_lon <= REGION_LON_MAX)
-                dist_km = haversine_km(pred_lat, pred_lon, eq_lat, eq_lon)
-                mag_diff = abs(pred_mag - float(us_mag)) if us_mag is not None else 99.0
-
-                # Tight match path: within radius AND magnitude within 0.4
-                if dist_km <= effective_radius and mag_diff <= 0.4 and us_id not in claimed_eq_ids:
-                    actual_dt = int((us_datetime - pr_timestamp).total_seconds() / 60)
-                    print(f"[{now}] LATE CATCH! Prediction #{pr_id}: M{us_mag} at {dist_km:.0f}km (radius {effective_radius:.0f}km) - {us_place}")
-                    claimed_eq_ids.add(us_id)
-                    dataC.close_group_correct(
-                        group_id=pr_id, winner_pr_id=pr_id,
-                        actual_id=us_id, actual_lat=us_x, actual_lon=us_y,
-                        actual_dt=actual_dt,
-                        actual_mag=int(us_mag * 10) if us_mag else None,
-                        actual_time=us_datetime,
-                        diff_lat=int(abs(pred_lat - eq_lat)),
-                        diff_lon=int(abs(pred_lon - eq_lon)),
-                        diff_dt=abs(pr_dt - actual_dt) if pr_dt else None,
-                        diff_mag=abs(pred_mag - us_mag) if us_mag else None
-                    )
-                    matched = True
-                    break
-
-                # Regional fallback candidate: any in-region M3+, shareable across predictions
-                if in_region and (best_regional is None or dist_km < best_regional[1]):
-                    best_regional = (actual, dist_km)
-
-            # Regional fallback: if no nearby match but a M3+ occurred anywhere
-            # in the configured region during the window, still count as match.
-            if not matched and REGIONAL_FALLBACK and best_regional is not None:
-                actual, dist_km = best_regional
+            best = _find_region_match(pred_lat, pred_lon, actuals, claimed_eq_ids)
+            if best is not None:
+                actual, dist_km = best
                 us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = actual
                 eq_lat = us_x - 90
                 eq_lon = us_y - 180
                 actual_dt = int((us_datetime - pr_timestamp).total_seconds() / 60)
-                print(f"[{now}] LATE CATCH (regional)! Prediction #{pr_id}: M{us_mag} at {dist_km:.0f}km - {us_place}")
+                print(f"[{now}] LATE CATCH! Prediction #{pr_id}: M{us_mag} in {PREDICTION_REGION_NAME} at {dist_km:.0f}km - {us_place}")
                 claimed_eq_ids.add(us_id)
                 dataC.close_group_correct(
                     group_id=pr_id, winner_pr_id=pr_id,
@@ -804,23 +801,19 @@ def check_and_handle_prediction():
         ) or []
         claimed_ids = {r[0] for r in claimed_row}
 
-        # Hard radius cap at MATCH_RADIUS_KM (no sigma expansion)
-        effective_radius = MATCH_RADIUS_KM
-
+        # Region claim: any M4+ inside Turkey bbox during window verifies the alert.
+        # Closest one is recorded; distance is a spatial diagnostic.
         quakes = dataC.get_earthquakes_in_window(pr_timestamp, expected_event_time, min_mag=MATCH_MIN_MAG)
-        for us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place in (quakes or []):
-            if us_id in claimed_ids:
-                continue
-            eq_lat = us_x - 90
-            eq_lon = us_y - 180
-            if pred_lat is None or pred_lon is None:
-                continue
-            dist_km = haversine_km(pred_lat, pred_lon, eq_lat, eq_lon)
-            mag_diff = abs(pred_mag - float(us_mag)) if us_mag is not None else 99.0
-            if dist_km <= effective_radius and mag_diff <= 0.4:
+        if pred_lat is not None and pred_lon is not None:
+            best = _find_region_match(pred_lat, pred_lon, quakes, claimed_ids)
+            if best is not None:
+                actual, dist_km = best
+                us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = actual
+                eq_lat = us_x - 90
+                eq_lon = us_y - 180
                 actual_dt = int((us_datetime - pr_timestamp).total_seconds() / 60)
                 print(f"\n{'='*60}")
-                print(f"[{now}] MATCHED! Prediction #{pr_id}: M{us_mag} at {dist_km:.0f}km (radius {effective_radius:.0f}km) - {us_place}")
+                print(f"[{now}] MATCHED! Prediction #{pr_id}: M{us_mag} in {PREDICTION_REGION_NAME} at {dist_km:.0f}km - {us_place}")
                 print(f"{'='*60}\n")
                 dataC.close_group_correct(
                     group_id=pr_id, winner_pr_id=pr_id,

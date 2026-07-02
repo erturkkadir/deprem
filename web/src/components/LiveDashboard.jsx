@@ -328,7 +328,22 @@ function LiveDashboard() {
                   </div>
 
                   {/* Details row */}
-                  <div className="px-4 py-2.5 grid grid-cols-2 sm:grid-cols-5 gap-3 border-b border-zinc-800">
+                  <div className="px-4 py-2.5 grid grid-cols-3 sm:grid-cols-6 gap-3 border-b border-zinc-800">
+                    <div>
+                      <div className="text-[9px] text-zinc-500 uppercase mb-0.5">{t('live.hazard')}</div>
+                      {(() => {
+                        const p = pred.event_prob;
+                        if (p == null) return <div className="text-zinc-500 font-bold">—</div>;
+                        const pct = Math.round(p * 100);
+                        const cls = pred.is_alert ? 'text-red-400' : p >= 0.5 ? 'text-yellow-400' : 'text-green-400';
+                        return (
+                          <div className={`font-bold font-mono ${cls}`}>
+                            {pct}%
+                            {pred.is_alert && <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse">{t('live.alert')}</span>}
+                          </div>
+                        );
+                      })()}
+                    </div>
                     <div>
                       <div className="text-[9px] text-zinc-500 uppercase mb-0.5">{t('live.latitude')}</div>
                       <div className="text-orange-400 font-bold font-mono">{pred.predicted_lat?.toFixed(1)}°</div>
@@ -423,7 +438,7 @@ function LiveDashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <span>
-                    {t('live.eachCyclePredicts', { minutes: 90, radius: 250, hours: 48 })}
+                    {t('live.eachCyclePredicts', { minutes: 60, hours: 48 })}
                   </span>
                 </div>
               </>

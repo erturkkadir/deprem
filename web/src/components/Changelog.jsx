@@ -3,6 +3,26 @@ import { useTranslation } from 'react-i18next';
 
 const releases = [
   {
+    version: 'v1.5',
+    date: '2026-07-02',
+    title: 'Alert Gating: OccurrenceHead & Precision-First Paradigm',
+    type: 'architecture',
+    notes: [
+      'NEW OccurrenceHead: binary hazard head on the transformer predicting P(Turkey M4+ within next 60 min) — dense supervision with a label at every one of 384 sequence positions (base rate ~1.8%)',
+      'Alert gating: the server only issues an ALERT when p_event ≥ 0.90; low-hazard cycles are monitor-only (no claim, no email, excluded from headline stats)',
+      'Headline metric redefined as ALERT PRECISION — success rate counts only issued alerts; monitor cycle count shown separately for full transparency',
+      'Turkey-focused pipeline: training targets, prediction region, and verification all use the same bbox (lat 35–43°N, lon 25–48°E); global M2+ events remain the input context',
+      'Verification = any M4+ inside the Turkey bbox within the 60-min window (that is the claim); epicenter distance kept as a separate spatial diagnostic (50 km map circle)',
+      'Plain-BCE calibration: no pos_weight so the hazard probability stays calibrated — the 0.90 threshold maps directly to the 90% precision target',
+      'Data pipeline: direct SQL replaces stored proc, adds UNIX_TIMESTAMP column; occurrence labels computed via searchsorted over Turkey M4+ timestamps (leak-free, strictly-after semantics)',
+      'Loss now 8 terms: WTA NLL + mag NLL + 3.0×EnergyScore + 1.0×diversity(τ=2°) + 0.5×entropy + 0.1×σ-reg + bbox containment + 2.0×occurrence BCE',
+      'Sigma floors raised (0.5° spatial ≈55km, 0.2 mag) — stops NLL memorization that caused train/val divergence',
+      'Email alerts now sent ONLY on real alerts — subscribers are never notified during monitor cycles',
+      'UI: Hazard % indicator with pulsing ALERT badge on Live Monitor (en/tr/ja)',
+      'DB: pr_event_prob + pr_is_alert columns; stats API returns alert-precision headline plus all-cycle diagnostics',
+    ],
+  },
+  {
     version: 'v1.4',
     date: '2026-03-17',
     title: 'Model Tuning, Diversity Loss & UI Overhaul',

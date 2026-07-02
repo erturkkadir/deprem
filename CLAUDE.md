@@ -305,37 +305,51 @@ The following stored procedures are used:
 - `get_data_hybrid(input_mag, target_mag)`: Hybrid training data (M2.0+ input, M4.0+ targets)
 - `ins_quakes()`: Merge staging data into main table
 
-### Region-Restricted Prediction & Regional-Fallback Matching (2026-04-30)
-The model predicts inside a configured region bbox; matching is calibrated to
-the empirical rate in that region so success rate >=99% is a real, measurable
-claim.
+### Alert-Gated Prediction — OccurrenceHead (2026-07-02)
+The system no longer forces a prediction claim every cycle. A dedicated
+**OccurrenceHead** (binary hazard head on the transformer) outputs
+`P(Turkey M4+ within next 60 min | global event history)`. The server records
+this every cycle; only when `p_event >= ALERT_THRESHOLD` does it issue an
+**ALERT** (a real claim). Low-hazard cycles are **monitor-only** — no claim,
+excluded from headline stats. Headline metric = **alert precision** (target 90%+).
 
-**Region** (`PREDICTION_REGION_NAME = "Eastern Mediterranean"`):
-- `REGION_LAT_MIN/MAX = 30 / 45`, `REGION_LON_MIN/MAX = 19 / 50`
-- `make_prediction()` picks the highest-pi MDN component inside the bbox; if
-  none of the K=20 samples land in, top-1 is clamped to bbox.
+**Why**: base rate of "Turkey M4+ in any 1-hour window" is ~1.7%; forcing a claim
+every 15 min can never exceed a few % success. Aftershock physics (Omori) makes
+*conditional* hazard genuinely high after big events — a model that only speaks
+then can honestly be right 90%+ of the time it speaks.
 
-**Match criteria** (server.py constants):
-- `MATCH_RADIUS_KM = 250` (baseline) | `MATCH_RADIUS_MAX_KM = 750` (cap on sigma)
-- `effective_radius = min(MAX, max(MATCH_RADIUS_KM, sigma_km))`
-- `MATCH_MIN_MAG = 3.0` — any M3.0+ counts as a match
-- `LATE_SEARCH_HOURS = 168` (7 days) — empirical P(>=1 M3+ in EastMed in 7d) = 99.8%
-- `PREDICTION_WINDOW_MINUTES = 60` — active cycle interval
-- `REGIONAL_FALLBACK = True`
+**Training labels** (`DataClass.getDataHybrid`):
+- Direct SQL (replaces stored proc) adds `UNIX_TIMESTAMP` as col 13 → data has
+  14 cols: `[yr,mo,x,y,m,d,dt,lt,hour,doy,moon_phase,moon_dist,is_target,unix_ts]`
+- `self.occ_label[i]` = 1 if any Turkey M4+ occurs within 60 min strictly after
+  event i (computed via searchsorted over Turkey M4+ timestamps). Base rate ~1.8%.
+- `getBatchHybrid` returns `targets['occ']` [B,T] — dense label at EVERY position.
 
-**Two-tier match in `auto_verify_predictions()`**:
-1. **Tight**: any M3+ within `effective_radius` of prediction during window.
-   Claims the EQ; same EQ can't satisfy two predictions tightly. ~52% empirical.
-2. **Regional fallback**: closest M3+ inside region bbox during window. NOT
-   claimed — same EQ can satisfy multiple overlapping predictions. This is
-   what makes the 7-day rate hit 99.8% empirically.
+**Model** (`EqModelComplex.py`):
+- `OccurrenceHead(n_embed*2 → 512 → 1)`, final bias init at log-odds of 5%
+- Loss: plain BCE (NO pos_weight — keeps probabilities calibrated so the server
+  threshold maps to precision), weight 2.0, applied at all T positions
+- `generate()` returns `p_event` in every result dict
+- Train print shows `occ` term
 
-The model's lat/lon precision is captured in `pr_diff_lat`/`pr_diff_lon` and
-distance fields, so spatial accuracy is observable as a separate diagnostic.
+**Server** (`server.py`):
+- `PREDICTION_REGION_NAME = "Turkey"`, bbox lat 35–43 / lon 25–48 (== training bbox)
+- `ALERT_THRESHOLD = 0.90`, `PREDICTION_WINDOW_MINUTES = 60`, `MATCH_MIN_MAG = 4.0`
+- `make_prediction()`: saves `pr_event_prob` + `pr_is_alert`; emails subscribers
+  ONLY on alerts
+- Verification (`_find_region_match`): any unclaimed M4+ inside Turkey bbox during
+  the window verifies the claim; the CLOSEST is recorded and its distance kept as a
+  spatial diagnostic (`MATCH_RADIUS_KM = 50` is the drawn circle / diagnostic only)
+- `LATE_SEARCH_HOURS = 48` for late catches
+- `get_prediction_stats()`: headline keys (`success_rate` etc.) computed over
+  ALERTS ONLY; `all_*` keys give full-cycle picture; `monitor_cycles` counted
 
-**Why empirical, not Poisson**: earthquakes cluster heavily (aftershocks/swarms).
-Poisson with mean rate 4 M3+/day predicts P(>=1 in 36h)≈99% but real value is
-80%. All thresholds sized via empirical windowed sampling against `usgs`.
+**UI**: LiveDashboard shows Hazard % + pulsing ALERT badge (i18n: `live.hazard`,
+`live.alert` in en/tr/ja).
+
+**Calibration note**: after training, verify empirically that among validation
+positions with p>=0.9 the hit rate is >=90%; adjust ALERT_THRESHOLD if BCE
+calibration drifts.
 
 ### No predictions being made:
 ```bash
