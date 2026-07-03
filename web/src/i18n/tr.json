@@ -46,7 +46,10 @@
     "earthquakeMatched": "— deprem eşleşti",
     "eachCyclePredicts": "Model her {{minutes}} dk'da Türkiye için tehlike olasılığı üretir. Yalnızca p ≥ %90 ALARM olur (istatistiğe girer); aksi halde yalnızca izleme. Geç yakalama {{hours}}s'e kadar arar.",
     "hazard": "Risk",
-    "alert": "ALARM"
+    "alert": "ALARM",
+    "alerts": "Alarmlar",
+    "alertPrecision": "Alarm İsabeti",
+    "allCycles": "Tüm Döngüler"
   },
   "predictions": {
     "title": "Tahminler",

@@ -46,7 +46,10 @@
     "earthquakeMatched": "— earthquake matched",
     "eachCyclePredicts": "Every {{minutes}} min the model outputs a hazard probability for Turkey. Only p ≥ 90% becomes an ALERT (counted in stats); otherwise monitor-only. Late-catch searches up to {{hours}}h.",
     "hazard": "Hazard",
-    "alert": "ALERT"
+    "alert": "ALERT",
+    "alerts": "Alerts",
+    "alertPrecision": "Alert Precision",
+    "allCycles": "All Cycles"
   },
   "predictions": {
     "title": "Predictions",

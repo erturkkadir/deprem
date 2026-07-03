@@ -222,13 +222,22 @@ function LiveDashboard() {
   // Clock params
   const totalSecs = (pred?.predicted_dt || 60) * 60;
 
-  // Stats
+  // Stats: matched/pending/missed over ALL cycles; alert precision is the headline
   const counts = useMemo(() => {
-    if (!stats) return { total: 0, matched: 0, pending: 0, missed: 0, rate: 0 };
-    const total = parseInt(stats.total_predictions) || 0;
-    const verified = parseInt(stats.verified_predictions) || 0;
-    const matched = parseInt(stats.correct_predictions) || 0;
-    return { total, matched, pending: total - verified, missed: verified - matched, rate: parseFloat(stats.success_rate) || 0 };
+    if (!stats) return { total: 0, matched: 0, pending: 0, missed: 0, rate: 0, allRate: 0, alerts: 0, alertsVerified: 0 };
+    const total = parseInt(stats.all_cycles ?? stats.total_predictions) || 0;
+    const verified = parseInt(stats.all_verified ?? stats.verified_predictions) || 0;
+    const matched = parseInt(stats.all_correct ?? stats.correct_predictions) || 0;
+    return {
+      total,
+      matched,
+      pending: total - verified,
+      missed: verified - matched,
+      allRate: parseFloat(stats.all_success_rate) || 0,
+      alerts: parseInt(stats.total_predictions) || 0,           // headline keys = alerts only
+      alertsVerified: parseInt(stats.verified_predictions) || 0,
+      rate: parseFloat(stats.success_rate) || 0,                // alert precision
+    };
   }, [stats]);
 
   // Window boundaries for badge marking
@@ -417,13 +426,15 @@ function LiveDashboard() {
                   )}
                 </div>
 
-                {/* ── STATS ROW ── */}
-                <div className="grid grid-cols-4 gap-2">
+                {/* ── STATS ROW — all cycles + alert headline ── */}
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                   {[
                     { val: counts.matched, label: t('live.matched'), color: 'text-green-500' },
                     { val: counts.pending, label: t('live.pending'), color: 'text-yellow-500' },
                     { val: counts.missed,  label: t('live.missed'),  color: 'text-red-500' },
-                    { val: `${counts.rate.toFixed(0)}%`, label: t('live.successRate'), color: counts.rate > 30 ? 'text-green-500' : counts.rate > 0 ? 'text-orange-500' : 'text-zinc-500' },
+                    { val: `${counts.allRate.toFixed(0)}%`, label: t('live.allCycles'), color: counts.allRate > 30 ? 'text-green-500' : counts.allRate > 0 ? 'text-orange-500' : 'text-zinc-500' },
+                    { val: counts.alerts, label: t('live.alerts'), color: counts.alerts > 0 ? 'text-red-400' : 'text-zinc-500' },
+                    { val: counts.alertsVerified > 0 ? `${counts.rate.toFixed(0)}%` : '—', label: t('live.alertPrecision'), color: counts.rate >= 90 ? 'text-green-500' : counts.alertsVerified > 0 ? 'text-orange-500' : 'text-zinc-500' },
                   ].map(({ val, label, color }) => (
                     <div key={label} className="bg-zinc-800/50 border border-zinc-700 rounded-lg p-2.5 text-center">
                       <div className={`text-xl font-bold ${color}`}>{val}</div>

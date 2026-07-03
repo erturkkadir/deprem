@@ -46,7 +46,10 @@
     "earthquakeMatched": "— 地震が一致",
     "eachCyclePredicts": "モデルは{{minutes}}分ごとにトルコのハザード確率を出力します。p ≥ 90%のみ警報となり（統計に計上）、それ以外は監視のみ。遅延キャッチは最大{{hours}}時間まで検索します。",
     "hazard": "ハザード",
-    "alert": "警報"
+    "alert": "警報",
+    "alerts": "警報",
+    "alertPrecision": "警報精度",
+    "allCycles": "全サイクル"
   },
   "predictions": {
     "title": "予測一覧",

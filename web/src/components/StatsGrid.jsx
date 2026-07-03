@@ -34,13 +34,17 @@ export default function StatsGrid() {
   };
 
   // Use liveData.stats if available (updates every 10s), fallback to stats (updates every 2min)
+  // All-cycle keys (all_*) show the full picture; headline keys are alerts-only.
   const liveStats = liveData?.stats;
-  const total = liveStats?.total_predictions ?? stats.totalPredictions ?? 0;
-  const verified = liveStats?.verified_predictions ?? stats.verifiedPredictions ?? 0;
-  const matched = liveStats?.correct_predictions ?? stats.correctPredictions ?? 0;
+  const total = parseInt(liveStats?.all_cycles ?? liveStats?.total_predictions ?? stats.totalPredictions) || 0;
+  const verified = parseInt(liveStats?.all_verified ?? liveStats?.verified_predictions ?? stats.verifiedPredictions) || 0;
+  const matched = parseInt(liveStats?.all_correct ?? liveStats?.correct_predictions ?? stats.correctPredictions) || 0;
   const missed = verified - matched;
   const pending = total - verified; // Should be 1 (current active prediction)
-  const successRate = liveStats?.success_rate ?? stats.successRate ?? 0;
+  const successRate = parseFloat(liveStats?.all_success_rate ?? liveStats?.success_rate ?? stats.successRate) || 0;
+  const alerts = parseInt(liveStats?.total_predictions) || 0;          // alerts-only headline
+  const alertsVerified = parseInt(liveStats?.verified_predictions) || 0;
+  const alertPrecision = parseFloat(liveStats?.success_rate) || 0;
 
   return (
     <section className="py-4">
@@ -50,7 +54,7 @@ export default function StatsGrid() {
           <span className="text-zinc-500 text-xs">{t('stats.updated', { time: timeSinceUpdate() })}</span>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
           <StatCard
             value={total}
             label={t('stats.total')}
@@ -74,9 +78,20 @@ export default function StatsGrid() {
           />
           <StatCard
             value={`${successRate.toFixed(1)}%`}
-            label={t('stats.successRate')}
+            label={t('live.allCycles')}
             color="green"
-            animate={successRate > 50}
+          />
+          <StatCard
+            value={alerts}
+            label={t('live.alerts')}
+            color="orange"
+            animate={alerts > 0 && alerts !== alertsVerified}
+          />
+          <StatCard
+            value={alertsVerified > 0 ? `${alertPrecision.toFixed(0)}%` : '—'}
+            label={t('live.alertPrecision')}
+            color="green"
+            animate={alertPrecision >= 90}
           />
         </div>
       </div>
