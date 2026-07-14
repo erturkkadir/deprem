@@ -111,28 +111,29 @@ _cycle_lock = threading.Lock()       # Prevents concurrent check_and_handle_pred
 MODEL_DIR = '/var/www/syshuman/quake'
 MODEL_PREFIX = 'eqModel_complex'
 
-# ── ALERT-GATED PREDICTION (Turkey region) ────────────────────────────────
-# The model's OccurrenceHead outputs P(Turkey M4+ within next 60 min).
-# Every cycle we record that probability; ONLY when it exceeds ALERT_THRESHOLD
-# do we issue an ALERT (a real claim: "M4+ will hit Turkey within 60 min").
-# Low-probability cycles are MONITOR-only: no claim, excluded from headline.
-# Headline metric = precision over issued alerts (target: 90%+).
-PREDICTION_REGION_NAME = "Turkey"
-REGION_LAT_MIN, REGION_LAT_MAX = 35.0, 43.0   # must match training bbox (DataClass)
-REGION_LON_MIN, REGION_LON_MAX = 25.0, 48.0
+# ── ALERT-GATED BINARY FORECAST (E. Mediterranean region) ─────────────────
+# The model's OccurrenceHead outputs P(region M4+ within next 60 min).
+# Every cycle is a BINARY FORECAST: ALERT (p >= threshold, event expected) or
+# MONITOR (no event expected). Both are real forecasts and both are graded:
+#   alert+event=TP  alert+quiet=FP  monitor+quiet=TN  monitor+event=FN
+# correct = (forecast == reality). Headline = accuracy over verified cycles;
+# alert precision and event recall reported alongside.
+PREDICTION_REGION_NAME = "E. Mediterranean"
+REGION_LAT_MIN, REGION_LAT_MAX = 30.0, 45.0   # must match training bbox (DataClass)
+REGION_LON_MIN, REGION_LON_MAX = 19.0, 50.0
 
 ALERT_THRESHOLD = 0.90      # issue alert when P(event) >= this (calibrated BCE probs)
 
-# Verification of the alert claim: any M4+ inside the Turkey bbox during the
-# window counts as a hit (that IS the claim). The closest such event is recorded;
-# its distance to the predicted epicenter is a separate spatial diagnostic.
-MATCH_MIN_MAG = 4.0         # the claim is about M4+ events
+# An "event" = any M4+ inside the region bbox during the cycle window. The
+# closest one to the predicted epicenter is recorded; its distance is a
+# spatial diagnostic only.
+MATCH_MIN_MAG = 4.0         # the forecast is about M4+ events
 MATCH_RADIUS_KM = 50        # spatial diagnostic radius — drawn on the map
 MATCH_RADIUS_MAX_KM = 50    # (kept for symmetry / future use)
 MAGNITUDE_TOLERANCE = 0.75  # ±0.75 magnitude (display only)
 MIN_MAG_DISPLAY = 4.0       # Only show predictions with mag >= 4.0
 MIN_PREDICTION_WINDOW = 10  # minutes - reject predictions with window < 10 min
-LATE_SEARCH_HOURS = 48      # hours - late-catch window after miss (grouped by 12h)
+RECHECK_HOURS = 24          # re-grade recent cycles as late catalog data arrives
 EARTH_RADIUS_KM = 6371      # km
 PREDICTION_WINDOW_MINUTES = 60    # minutes per prediction cycle (matches occ-head horizon)
 TOP_K_PREDICTIONS = 1             # ONE prediction per cycle — simple, explainable
@@ -439,7 +440,17 @@ def notify_subscribers(pr_id, lat, lon, mag, dt_minutes, place):
 
 
 def get_latest_checkpoint():
-    """Find the latest checkpoint file by timestamp"""
+    """Prefer the BEST-validation checkpoint (calibrated, not overfit).
+
+    train.py writes eqModel_complex_best.pth whenever validation loss improves.
+    The latest timestamped checkpoint keeps training long past the best-val
+    point and memorizes the training set — its occurrence probabilities become
+    badly overconfident. Serving must always use the best-val weights.
+    """
+    best = f'{MODEL_DIR}/{MODEL_PREFIX}_best.pth'
+    if os.path.exists(best):
+        return best
+
     pattern = f'{MODEL_DIR}/{MODEL_PREFIX}_*.pth'
     checkpoints = glob.glob(pattern)
 
@@ -546,13 +557,22 @@ def reload_checkpoint_weights():
         return False
 
 
+_checkpoint_mtime = None  # best.pth keeps the same path — detect updates via mtime
+
+
 def reload_if_new_checkpoint():
     """Check for new checkpoint and reload if found"""
-    global current_checkpoint
+    global current_checkpoint, _checkpoint_mtime
     import time
 
     latest = get_latest_checkpoint()
-    if latest and latest != current_checkpoint:
+    if not latest:
+        return False
+    try:
+        mtime = os.path.getmtime(latest)
+    except OSError:
+        return False
+    if latest != current_checkpoint or mtime != _checkpoint_mtime:
         print(f"[{datetime.now()}] New checkpoint detected: {os.path.basename(latest)}")
 
         # Wait for file to finish writing (check if file size is stable)
@@ -568,7 +588,10 @@ def reload_if_new_checkpoint():
             return False
 
         # Just reload weights, not the entire data
-        return reload_checkpoint_weights()
+        ok = reload_checkpoint_weights()
+        if ok:
+            _checkpoint_mtime = mtime
+        return ok
     return False
 
 
@@ -660,17 +683,18 @@ def make_prediction():
         _prediction_lock.release()
 
 
-def _find_region_match(pred_lat, pred_lon, actuals, claimed_eq_ids):
-    """Find the CLOSEST unclaimed M4+ event inside the Turkey bbox.
+def _find_region_match(pred_lat, pred_lon, actuals, claimed_eq_ids=None):
+    """Find the CLOSEST M4+ event inside the region bbox.
 
-    The alert's claim is "M4+ in Turkey within the window" — so any in-region M4+
-    verifies it. We record the closest one; its distance to the predicted epicenter
-    is kept as a spatial-precision diagnostic (not a pass/fail criterion).
+    An "event" = any M4+ inside the region during the window. We record the
+    closest one to the predicted epicenter; its distance is kept as a
+    spatial-precision diagnostic (not a pass/fail criterion). Cycle windows
+    are sequential and non-overlapping, so no claim bookkeeping is needed.
     """
     best = None
     for actual in (actuals or []):
         us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = actual
-        if us_id in claimed_eq_ids:
+        if claimed_eq_ids and us_id in claimed_eq_ids:
             continue
         eq_lat = us_x - 90
         eq_lon = us_y - 180
@@ -683,11 +707,31 @@ def _find_region_match(pred_lat, pred_lon, actuals, claimed_eq_ids):
     return best
 
 
-def auto_verify_predictions():
-    """Late catch: re-check MISSED predictions for up to LATE_SEARCH_HOURS after window end.
+def _actual_dict(pr_timestamp, pred_lat, pred_lon, pred_mag, pr_dt, best):
+    """Build the actual-event dict for DataClass.finalize_cycle from a match."""
+    actual, dist_km = best
+    us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = actual
+    eq_lat = us_x - 90
+    eq_lon = us_y - 180
+    actual_dt = int((us_datetime - pr_timestamp).total_seconds() / 60)
+    return {
+        'id': us_id, 'lat_enc': us_x, 'lon_enc': us_y,
+        'dt': actual_dt, 'mag_enc': int(us_mag * 10) if us_mag else None,
+        'time': us_datetime,
+        'diff_lat': int(abs(pred_lat - eq_lat)),
+        'diff_lon': int(abs(pred_lon - eq_lon)),
+        'diff_dt': abs((pr_dt or PREDICTION_WINDOW_MINUTES) - actual_dt),
+        'diff_mag': abs(pred_mag - us_mag) if us_mag else None,
+    }, dist_km, us_mag, us_place
 
-    If an M4+ earthquake occurs inside the Turkey region within the late-catch
-    window → mark it correct (late catch). Distance recorded as diagnostic.
+
+def auto_verify_predictions():
+    """Re-grade recently verified cycles as late catalog data arrives.
+
+    USGS/EMSC entries for a region M4+ can appear tens of minutes after the
+    event. A cycle graded "no event" at window end may need to flip once the
+    catalog catches up: event_occurred 0→1, correct = (is_alert == occurred).
+    Only cycles from the last RECHECK_HOURS with no recorded event are re-checked.
     """
     global dataC
 
@@ -698,26 +742,17 @@ def auto_verify_predictions():
         sql = """
             SELECT pr_id, pr_timestamp, pr_dt_predicted,
                    pr_lat_predicted, pr_lon_predicted, pr_mag_predicted,
-                   pr_sigma_km
+                   pr_is_alert
             FROM predictions
-            WHERE pr_verified = 1 AND pr_correct = 0 AND pr_actual_id IS NULL
+            WHERE pr_verified = 1 AND (pr_event_occurred = 0 OR pr_event_occurred IS NULL)
               AND (pr_rank = 1 OR pr_rank IS NULL)
               AND pr_timestamp > DATE_SUB(NOW(), INTERVAL %s HOUR)
         """
-        missed = dataC._safe_fetch(sql, (LATE_SEARCH_HOURS + 24,)) or []  # +24h buffer for window duration
+        recent = dataC._safe_fetch(sql, (RECHECK_HOURS,)) or []
         now = datetime.now()
 
-        # Collect already-claimed earthquake IDs so one EQ can only match one prediction
-        claimed_ids_row = dataC._safe_fetch(
-            "SELECT pr_actual_id FROM predictions WHERE pr_actual_id IS NOT NULL", ()
-        ) or []
-        claimed_eq_ids = {row[0] for row in claimed_ids_row}
-
-        for pr_id, pr_timestamp, pr_dt, lat_enc, lon_enc, mag_enc, pr_sigma_km in missed:
-            expected_event_time = pr_timestamp + timedelta(minutes=pr_dt or PREDICTION_WINDOW_MINUTES)
-            late_end_time = expected_event_time + timedelta(hours=LATE_SEARCH_HOURS)
-            if now > late_end_time:
-                continue
+        for pr_id, pr_timestamp, pr_dt, lat_enc, lon_enc, mag_enc, is_alert in recent:
+            window_end = pr_timestamp + timedelta(minutes=pr_dt or PREDICTION_WINDOW_MINUTES)
             if lat_enc is None or lon_enc is None:
                 continue
 
@@ -725,27 +760,14 @@ def auto_verify_predictions():
             pred_lon = lon_enc - 180
             pred_mag = (mag_enc / 10.0) if mag_enc else 4.0
 
-            actuals = dataC.get_earthquakes_in_window(pr_timestamp, late_end_time, min_mag=MATCH_MIN_MAG)
-            best = _find_region_match(pred_lat, pred_lon, actuals, claimed_eq_ids)
+            actuals = dataC.get_earthquakes_in_window(pr_timestamp, window_end, min_mag=MATCH_MIN_MAG)
+            best = _find_region_match(pred_lat, pred_lon, actuals)
             if best is not None:
-                actual, dist_km = best
-                us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = actual
-                eq_lat = us_x - 90
-                eq_lon = us_y - 180
-                actual_dt = int((us_datetime - pr_timestamp).total_seconds() / 60)
-                print(f"[{now}] LATE CATCH! Prediction #{pr_id}: M{us_mag} in {PREDICTION_REGION_NAME} at {dist_km:.0f}km - {us_place}")
-                claimed_eq_ids.add(us_id)
-                dataC.close_group_correct(
-                    group_id=pr_id, winner_pr_id=pr_id,
-                    actual_id=us_id, actual_lat=us_x, actual_lon=us_y,
-                    actual_dt=actual_dt,
-                    actual_mag=int(us_mag * 10) if us_mag else None,
-                    actual_time=us_datetime,
-                    diff_lat=int(abs(pred_lat - eq_lat)),
-                    diff_lon=int(abs(pred_lon - eq_lon)),
-                    diff_dt=abs(pr_dt - actual_dt) if pr_dt else None,
-                    diff_mag=abs(pred_mag - us_mag) if us_mag else None
-                )
+                actual_d, dist_km, us_mag, us_place = _actual_dict(
+                    pr_timestamp, pred_lat, pred_lon, pred_mag, pr_dt, best)
+                verdict = "CAUGHT (late data)" if is_alert else "MISSED EVENT (late data)"
+                print(f"[{now}] {verdict} #{pr_id}: M{us_mag} in {PREDICTION_REGION_NAME} at {dist_km:.0f}km - {us_place}")
+                dataC.finalize_cycle(pr_id, event_occurred=1, is_alert=is_alert, actual=actual_d)
 
     except Exception as e:
         print(f"Error in auto-verification: {e}")
@@ -754,11 +776,16 @@ def auto_verify_predictions():
 
 
 def check_and_handle_prediction():
-    """Single prediction cycle:
-      PENDING → check for M4+ within 250km during 20min window
-             → MATCHED (correct=True) → make new prediction
-             → window expires → MISSED (correct=False) → make new prediction
-             → LATE CATCH checked by auto_verify_predictions() for next 48h (grouped by 12h)
+    """Single forecast cycle (binary accounting):
+      PENDING → region M4+ occurs during window → finalize NOW:
+                  alert   → correct (TP, caught)
+                  monitor → incorrect (FN, missed event)
+                → new cycle starts immediately
+             → window expires quietly → finalize:
+                  monitor → correct (TN, correct quiet forecast)
+                  alert   → incorrect (FP, false alarm)
+                → new cycle starts
+      auto_verify_predictions() re-grades recent quiet cycles as late catalog data arrives.
     """
     global dataC
 
@@ -785,58 +812,41 @@ def check_and_handle_prediction():
             make_prediction()
             return {'action': 'new_prediction', 'reason': 'previous_closed'}
 
-        # Active pending prediction
+        # Active pending forecast
         pr_id = latest['id']
         pr_timestamp = datetime.fromisoformat(latest['timestamp'])
         pr_dt = latest.get('predicted_dt') or PREDICTION_WINDOW_MINUTES
         pred_lat = latest.get('predicted_lat')
         pred_lon = latest.get('predicted_lon')
         pred_mag = latest.get('predicted_mag') or 4.0
-        expected_event_time = pr_timestamp + timedelta(minutes=pr_dt)
+        is_alert = 1 if latest.get('is_alert') else 0
+        window_end = pr_timestamp + timedelta(minutes=pr_dt)
 
-        # Check for M4+ earthquakes within the prediction window
-        # Exclude earthquakes already claimed by another prediction
-        claimed_row = dataC._safe_fetch(
-            "SELECT pr_actual_id FROM predictions WHERE pr_actual_id IS NOT NULL", ()
-        ) or []
-        claimed_ids = {r[0] for r in claimed_row}
-
-        # Region claim: any M4+ inside Turkey bbox during window verifies the alert.
-        # Closest one is recorded; distance is a spatial diagnostic.
-        quakes = dataC.get_earthquakes_in_window(pr_timestamp, expected_event_time, min_mag=MATCH_MIN_MAG)
+        # Did a region M4+ occur inside the window (so far)?
+        quakes = dataC.get_earthquakes_in_window(pr_timestamp, window_end, min_mag=MATCH_MIN_MAG)
         if pred_lat is not None and pred_lon is not None:
-            best = _find_region_match(pred_lat, pred_lon, quakes, claimed_ids)
+            best = _find_region_match(pred_lat, pred_lon, quakes)
             if best is not None:
-                actual, dist_km = best
-                us_id, us_datetime, us_x, us_y, us_m, us_mag, us_place = actual
-                eq_lat = us_x - 90
-                eq_lon = us_y - 180
-                actual_dt = int((us_datetime - pr_timestamp).total_seconds() / 60)
+                actual_d, dist_km, us_mag, us_place = _actual_dict(
+                    pr_timestamp, pred_lat, pred_lon, pred_mag, pr_dt, best)
+                verdict = 'CAUGHT (alert was right)' if is_alert else 'MISSED EVENT (monitor cycle)'
                 print(f"\n{'='*60}")
-                print(f"[{now}] MATCHED! Prediction #{pr_id}: M{us_mag} in {PREDICTION_REGION_NAME} at {dist_km:.0f}km - {us_place}")
+                print(f"[{now}] EVENT! #{pr_id} {verdict}: M{us_mag} in {PREDICTION_REGION_NAME} at {dist_km:.0f}km - {us_place}")
                 print(f"{'='*60}\n")
-                dataC.close_group_correct(
-                    group_id=pr_id, winner_pr_id=pr_id,
-                    actual_id=us_id, actual_lat=us_x, actual_lon=us_y,
-                    actual_dt=actual_dt,
-                    actual_mag=int(us_mag * 10) if us_mag else None,
-                    actual_time=us_datetime,
-                    diff_lat=int(abs(pred_lat - eq_lat)),
-                    diff_lon=int(abs(pred_lon - eq_lon)),
-                    diff_dt=abs(pr_dt - actual_dt) if pr_dt else None,
-                    diff_mag=abs(pred_mag - us_mag) if us_mag else None
-                )
+                dataC.finalize_cycle(pr_id, event_occurred=1, is_alert=is_alert, actual=actual_d)
                 make_prediction()
-                return {'action': 'matched', 'prediction_id': pr_id, 'distance_km': round(dist_km), 'place': us_place, 'mag': us_mag}
+                return {'action': 'caught' if is_alert else 'missed_event',
+                        'prediction_id': pr_id, 'distance_km': round(dist_km), 'place': us_place, 'mag': us_mag}
 
-        # Window expired — mark missed
-        if now > expected_event_time:
-            print(f"[{now}] Prediction #{pr_id} expired ({pr_dt}min), marking MISSED")
-            dataC.close_group_missed(pr_id)
+        # Window expired quietly — monitor forecast was right, alert was a false alarm
+        if now > window_end:
+            verdict = 'FALSE ALARM' if is_alert else 'correct quiet forecast'
+            print(f"[{now}] Cycle #{pr_id} expired ({pr_dt}min): no region M4+ — {verdict}")
+            dataC.finalize_cycle(pr_id, event_occurred=0, is_alert=is_alert)
             make_prediction()
-            return {'action': 'missed', 'prediction_id': pr_id}
+            return {'action': 'false_alarm' if is_alert else 'quiet_correct', 'prediction_id': pr_id}
 
-        remaining = (expected_event_time - now).total_seconds() / 60
+        remaining = (window_end - now).total_seconds() / 60
         return {'action': 'pending', 'prediction_id': pr_id, 'remaining_minutes': round(remaining, 1)}
 
     except Exception as e:

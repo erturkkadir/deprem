@@ -44,12 +44,17 @@
     "missedChecking": "Kaçırıldı — {{hours}}s kontrol ediliyor",
     "expiredNextStarting": "Süresi doldu — sonraki başlıyor",
     "earthquakeMatched": "— deprem eşleşti",
-    "eachCyclePredicts": "Model her {{minutes}} dk'da Türkiye için tehlike olasılığı üretir. Yalnızca p ≥ %90 ALARM olur (istatistiğe girer); aksi halde yalnızca izleme. Geç yakalama {{hours}}s'e kadar arar.",
+    "eachCyclePredicts": "Model her {{minutes}} dk'da tahmin yapar: ALARM (D. Akdeniz'de M4+ bekleniyor, p ≥ %90) veya İZLEME (deprem beklenmiyor). İkisi de gerçekle karşılaştırılır — doğru öngörülen sakin saat doğru sayılır, kaçırılan deprem aleyhine yazılır.",
     "hazard": "Risk",
     "alert": "ALARM",
     "alerts": "Alarmlar",
     "alertPrecision": "Alarm İsabeti",
-    "allCycles": "Tüm Döngüler"
+    "allCycles": "Tüm Döngüler",
+    "accuracy": "Doğruluk",
+    "correctForecasts": "Doğru Tahmin",
+    "caught": "Yakalanan",
+    "missedEvents": "Kaçırılan Deprem",
+    "falseAlarms": "Yanlış Alarm"
   },
   "predictions": {
     "title": "Tahminler",
@@ -291,8 +296,8 @@
     "layer7Details": [
       "WTA NLL: yalnızca kazanan bileşen ortalama/sigma gradyanı alır — K=20 bileşenin her biri bir Türk fay hattını sahiplenir",
       "Energy Score (Gneiting & Raftery 2007): uygun skorlama kuralı — doğruluk + çeşitlilik tek terimde",
-      "Çeşitlilik kaybı: τ=2° ölçeğinde ikili itme (Türkiye ölçeği) — bileşenler KAF, DAF, Ege, Helen yayına dağılır",
-      "Türkiye-bbox sınırlaması: enlem 35–43 / boylam 25–48 dışındaki bileşen ortalamalarına karesel ceza",
+      "Çeşitlilik kaybı: τ=2° ölçeğinde ikili itme (bölge ölçeği) — bileşenler KAF, DAF, Ege, Helen yayına dağılır",
+      "Bölge-bbox sınırlaması: enlem 30–45 / boylam 19–50 (D. Akdeniz) dışındaki bileşen ortalamalarına karesel ceza",
       "Sigma tabanları (0.5° konum, 0.2 büyüklük) + σ>1° tavanı: NLL ezberlemesini önler — train/val ayrışma düzeltmesi",
       "Occurrence BCE (ağırlık 2.0): pos_weight OLMADAN düz BCE — olasılıklar kalibre kalır, sunucu eşiği doğrudan isabete karşılık gelir",
       "Doğrulama aynı toplam formülü kullanır (ağırlıksız) — train ve val aynı ölçekte hareket eder"
@@ -300,8 +305,8 @@
     "layer8Title": "8. Occurrence Head ve Alarm Kapılaması",
     "layer8Idea": "Dürüst %90+ isabetin anahtarı: ikili tehlike kafası P(60 dk içinde Türkiye M4+) tahmin eder. Sunucu yalnızca p ≥ 0.90 iken ALARM verir — sakin dönemler yalnızca izleme modudur, iddia yoktur. Artçı fiziği (Omori yasası) koşullu tehlikeyi gerçekten öngörülebilir kılar.",
     "layer8Details": [
-      "Yoğun denetim: 1.5M küresel olayın her biri ikili etiket alır — 60 dk içinde Türkiye M4+ izledi mi? (baz oran ~%1.8)",
-      "Etiketler Türkiye M4+ zaman damgaları üzerinde searchsorted ile hesaplanır — O(N log N), sızıntı yok (kesinlikle-sonra semantiği)",
+      "Yoğun denetim: 1.5M küresel olayın her biri ikili etiket alır — 60 dk içinde bölgede M4+ izledi mi? (baz oran ~%2.6)",
+      "Etiketler bölge M4+ zaman damgaları üzerinde searchsorted ile hesaplanır — O(N log N), sızıntı yok (kesinlikle-sonra semantiği)",
       "Düz BCE sigmoid çıktılarını kalibre tutar: p=0.9 \"10 seferin 9'u\" demektir — eşik doğrudan isabet hedefidir",
       "Manşet metriği = verilen alarmların isabeti; izleme döngüleri hariçtir (model iddia etmedi)",
       "Alarmlar fizik gereği nadirdir — çoğunlukla önemli Türkiye depremlerinin ardından gelen artçı dizilerinde. Nadir-ama-doğru, her-zaman-yanlıştan iyidir.",

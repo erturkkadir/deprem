@@ -118,13 +118,13 @@ omori_w = exp(3.0 * (pos/(T-1) - 1.0))  # newest→1.0×, oldest→0.05×
 # ES = E[d(X,y)] - 0.5·E[d(X,X')]
 es_loss = SpatialMDNHead.energy_score_loss(sp, lat, lon)
 
-# 4. Diversity loss: pairwise repulsion (τ=2° — Turkey scale)
+# 4. Diversity loss: pairwise repulsion (τ=2° — regional scale)
 div_loss = SpatialMDNHead.diversity_loss(sp)
 
 # 5. Entropy regularizer (uniform pi weights)
 ent_loss = SpatialMDNHead.entropy_loss(sp)
 
-# 6. Sigma cap (σ>1°≈110km penalized) + Turkey bbox containment
+# 6. Sigma cap (σ>1°≈110km penalized) + region bbox containment
 sigma_reg = clamp(sigma_mean - 1.0, min=0.0)
 bbox_loss = out_of_bbox_penalty(mu_lat, mu_lon)  # lat[35,43] lon[25,48]
 
@@ -134,7 +134,7 @@ occ_loss = BCEWithLogits(occ_logits, occ_labels)  # calibrated, no pos_weight
 loss = spatial_nll + mag_nll + 3.0*es_loss + 1.0*div_loss
      + 0.5*ent_loss + 0.1*sigma_reg + 1.0*bbox_loss + 2.0*occ_loss`,
   `class OccurrenceHead(nn.Module):
-    """P(Turkey M4+ within next 60 min | global event history)"""
+    """P(region M4+ within next 60 min | global event history)"""
     def __init__(self, in_dim, hidden_dim=512, base_rate=0.05):
         self.net = nn.Sequential(
             nn.Linear(in_dim, hidden_dim),   # 2048 → 512
@@ -147,9 +147,9 @@ loss = spatial_nll + mag_nll + 3.0*es_loss + 1.0*div_loss
         self.net[-1].bias.fill_(log(p / (1 - p)))
 
 # Training label (DataClass): for EVERY global event i,
-# occ_label[i] = 1 if a Turkey M4+ occurs within 60 min after it
+# occ_label[i] = 1 if a region M4+ occurs within 60 min after it
 tk_ts = sort(timestamps[turkey_m4_indices])
-nxt = searchsorted(tk_ts, ts, side='right')   # next Turkey M4+
+nxt = searchsorted(tk_ts, ts, side='right')   # next region M4+
 occ_label = (tk_ts[nxt] - ts <= 3600)          # base rate ~1.8%
 
 # Server (alert gating): only speak when confident

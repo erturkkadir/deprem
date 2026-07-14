@@ -3,6 +3,23 @@ import { useTranslation } from 'react-i18next';
 
 const releases = [
   {
+    version: 'v1.6',
+    date: '2026-07-14',
+    title: 'Binary Forecast Accounting, E. Mediterranean Region & Best-Checkpoint Serving',
+    type: 'architecture',
+    notes: [
+      'Honest binary-forecast accounting: EVERY cycle is a graded forecast — ALERT (event expected) or MONITOR (no event expected). A quiet hour correctly forecast as quiet now counts as CORRECT (true negative) instead of "missed"; a real event during a monitor cycle counts as a missed event (false negative)',
+      'Headline metric = forecast accuracy = (caught events + correct quiet forecasts) / verified cycles; alert precision (TP/(TP+FP)) and event recall shown alongside so the quiet base rate cannot hide misses',
+      'Region expanded: Turkey bbox (35–43°N / 25–48°E) → Eastern Mediterranean (30–45°N / 19–50°E) — adds Greece, the Hellenic arc, Cyprus and the Caucasus edge; training positives grow ~50% (8.3k → ~12k events) and the 60-min base rate rises to ~2.6%',
+      'Best-checkpoint serving: train.py now exports eqModel_complex_best.pth whenever validation loss improves, and the server serves ONLY those weights — the previous setup served the newest checkpoint, which had memorized the training set (train −0.24 vs val 7.0) and produced wildly overconfident hazard probabilities (avg 0.44 vs true rate ~2%), causing 24 false alarms in 11 days',
+      'Anti-overfit training: learning rate 1e-4 → 3e-5, weight decay 0.01 → 0.05',
+      'Verification simplified: window verdict is re-checked for 24h as late catalog data arrives (USGS/EMSC latency), then final — the old 48h "late catch" that could flip a miss into a hit was removed',
+      'DB: pr_event_occurred column records ground truth per cycle; all 263 historical cycles re-graded under the new accounting (day-one accuracy 88.2%, dragged down only by the old miscalibrated model\'s false alarms)',
+      'MDN component init + bbox containment loss updated to the new region (Gulf of Corinth, Ionian coast, Crete, Cyprus, Caucasus zones added)',
+      'UI: stats row now shows Accuracy, Correct Forecasts, Events Caught, Missed Events, False Alarms, Alert Precision (en/tr/ja)',
+    ],
+  },
+  {
     version: 'v1.5',
     date: '2026-07-02',
     title: 'Alert Gating: OccurrenceHead & Precision-First Paradigm',

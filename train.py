@@ -43,7 +43,7 @@ n_layer = 6        # Reduced from 8 to fit GPU alongside Ollama
 dropout = 0.1      # Increased from 0.01 - prevents overfitting
 
 # Training hyperparameters
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 3e-5   # reduced from 1e-4 — model was memorizing train set (train -0.2 vs val 7.0)
 ACCUMULATION_STEPS = 32  # Effective batch size = B * ACCUMULATION_STEPS = 32 (B=1)
 LABEL_SMOOTHING = 0.1   # Reduces overconfidence
 INPUT_MAG = 2.0    # Min magnitude for input context
@@ -53,9 +53,9 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def get_latest_checkpoint():
-    """Find the latest checkpoint file"""
+    """Find the latest FULL checkpoint file (excludes _best.pth — no optimizer state)"""
     pattern = f'{MODEL_DIR}/{MODEL_PREFIX}_*.pth'
-    checkpoints = glob.glob(pattern)
+    checkpoints = [p for p in glob.glob(pattern) if not p.endswith('_best.pth')]
 
     if checkpoints:
         checkpoints.sort(key=os.path.getmtime, reverse=True)
@@ -121,10 +121,29 @@ def save_checkpoint(model, optimizer, iteration, best_val_loss, loss):
     return checkpoint_path
 
 
+def save_best_checkpoint(model, iteration, val_loss):
+    """Save the BEST-validation weights to a fixed path (atomic replace).
+
+    The server serves from this file: calibrated probabilities come from the
+    best-generalizing weights, NOT the latest (which keeps training past the
+    best point and memorizes the training set).
+    """
+    best_path = f'{MODEL_DIR}/{MODEL_PREFIX}_best.pth'
+    tmp_path = best_path + '.tmp'
+    torch.save({
+        'model': model.state_dict(),
+        'iteration': iteration,
+        'best_val_loss': val_loss,
+        'loss': val_loss,
+    }, tmp_path)
+    os.replace(tmp_path, best_path)
+    print(f"  -> Best checkpoint updated: {best_path} (iter={iteration}, val={val_loss:.4f})")
+
+
 def cleanup_old_checkpoints():
-    """Remove old checkpoints, keeping only the most recent ones"""
+    """Remove old checkpoints, keeping only the most recent ones (never the best one)"""
     pattern = f'{MODEL_DIR}/{MODEL_PREFIX}_*.pth'
-    checkpoints = glob.glob(pattern)
+    checkpoints = [p for p in glob.glob(pattern) if not p.endswith('_best.pth')]
 
     if len(checkpoints) > KEEP_CHECKPOINTS:
         checkpoints.sort(key=os.path.getmtime, reverse=True)
@@ -246,7 +265,7 @@ def train():
     print(f"Model parameters: {total_params:,}")
 
     # Optimizer with weight decay
-    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=0.05)  # stronger decay vs memorization
 
     # Learning rate scheduler: warmup + cosine decay (counted in optimizer steps)
     WARMUP_STEPS = 500    # Optimizer steps (not raw iterations) — reduced for MDN
@@ -385,6 +404,7 @@ def train():
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
                     print(f"  -> New best val loss!")
+                    save_best_checkpoint(model, iteration, val_loss)
 
                 running_loss = 0.0
                 running_targets = 0.0

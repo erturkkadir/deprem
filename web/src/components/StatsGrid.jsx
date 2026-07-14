@@ -34,17 +34,18 @@ export default function StatsGrid() {
   };
 
   // Use liveData.stats if available (updates every 10s), fallback to stats (updates every 2min)
-  // All-cycle keys (all_*) show the full picture; headline keys are alerts-only.
+  // Binary forecast accounting: every cycle graded (alert==event ? correct : wrong).
   const liveStats = liveData?.stats;
-  const total = parseInt(liveStats?.all_cycles ?? liveStats?.total_predictions ?? stats.totalPredictions) || 0;
-  const verified = parseInt(liveStats?.all_verified ?? liveStats?.verified_predictions ?? stats.verifiedPredictions) || 0;
-  const matched = parseInt(liveStats?.all_correct ?? liveStats?.correct_predictions ?? stats.correctPredictions) || 0;
-  const missed = verified - matched;
+  const total = parseInt(liveStats?.total_predictions ?? stats.totalPredictions) || 0;
+  const verified = parseInt(liveStats?.verified_predictions ?? stats.verifiedPredictions) || 0;
+  const correct = parseInt(liveStats?.correct_predictions ?? stats.correctPredictions) || 0;
   const pending = total - verified; // Should be 1 (current active prediction)
-  const successRate = parseFloat(liveStats?.all_success_rate ?? liveStats?.success_rate ?? stats.successRate) || 0;
-  const alerts = parseInt(liveStats?.total_predictions) || 0;          // alerts-only headline
-  const alertsVerified = parseInt(liveStats?.verified_predictions) || 0;
-  const alertPrecision = parseFloat(liveStats?.success_rate) || 0;
+  const accuracy = parseFloat(liveStats?.success_rate ?? stats.successRate) || 0;
+  const caught = parseInt(liveStats?.events_caught) || 0;
+  const missedEvents = parseInt(liveStats?.events_missed) || 0;
+  const falseAlarms = parseInt(liveStats?.false_alarms) || 0;
+  const alertsGraded = caught + falseAlarms;
+  const alertPrecision = parseFloat(liveStats?.alert_precision) || 0;
 
   return (
     <section className="py-4">
@@ -56,39 +57,38 @@ export default function StatsGrid() {
 
         <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
           <StatCard
+            value={`${accuracy.toFixed(1)}%`}
+            label={t('live.accuracy')}
+            color="green"
+            animate={accuracy >= 90}
+          />
+          <StatCard
             value={total}
             label={t('stats.total')}
             color="blue"
           />
           <StatCard
-            value={matched}
-            label={t('stats.matched')}
+            value={correct}
+            label={t('live.correctForecasts')}
             color="green"
           />
           <StatCard
-            value={missed}
-            label={t('stats.missed')}
+            value={caught}
+            label={t('live.caught')}
+            color="green"
+          />
+          <StatCard
+            value={missedEvents}
+            label={t('live.missedEvents')}
             color="purple"
           />
           <StatCard
-            value={pending}
-            label={t('stats.pending')}
+            value={falseAlarms}
+            label={t('live.falseAlarms')}
             color="orange"
-            animate={pending > 0}
           />
           <StatCard
-            value={`${successRate.toFixed(1)}%`}
-            label={t('live.allCycles')}
-            color="green"
-          />
-          <StatCard
-            value={alerts}
-            label={t('live.alerts')}
-            color="orange"
-            animate={alerts > 0 && alerts !== alertsVerified}
-          />
-          <StatCard
-            value={alertsVerified > 0 ? `${alertPrecision.toFixed(0)}%` : '—'}
+            value={alertsGraded > 0 ? `${alertPrecision.toFixed(0)}%` : '—'}
             label={t('live.alertPrecision')}
             color="green"
             animate={alertPrecision >= 90}

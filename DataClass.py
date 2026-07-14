@@ -339,11 +339,15 @@ class DataC():
             "ALTER TABLE predictions ADD COLUMN pr_pi FLOAT DEFAULT NULL",
             # MDN spatial uncertainty radius in km
             "ALTER TABLE predictions ADD COLUMN pr_sigma_km FLOAT DEFAULT NULL",
-            # OccurrenceHead hazard probability P(Turkey M4+ within 60min)
+            # OccurrenceHead hazard probability P(region M4+ within 60min)
             "ALTER TABLE predictions ADD COLUMN pr_event_prob FLOAT DEFAULT NULL",
             # 1 = alert (p_event >= threshold, counted in headline precision), 0 = monitor-only
             "ALTER TABLE predictions ADD COLUMN pr_is_alert TINYINT DEFAULT 0",
             "ALTER TABLE predictions ADD INDEX idx_is_alert (pr_is_alert)",
+            # Binary-forecast accounting: did an in-region M4+ actually occur in the window?
+            # pr_correct = (pr_is_alert == pr_event_occurred): a quiet monitor cycle is a
+            # CORRECT "no event" forecast, not a miss.
+            "ALTER TABLE predictions ADD COLUMN pr_event_occurred TINYINT DEFAULT NULL",
         ]
         for sql in migrations:
             try:
@@ -551,7 +555,7 @@ class DataC():
             rank: Prediction rank within group (1=highest confidence)
             pi: MDN mixture weight (confidence score, 0.0-1.0)
             sigma_km: MDN spatial uncertainty radius in km
-            event_prob: OccurrenceHead hazard probability P(Turkey M4+ within 60min)
+            event_prob: OccurrenceHead hazard probability P(region M4+ within 60min)
             is_alert: 1 if event_prob >= ALERT_THRESHOLD (headline-counted), 0 = monitor-only
         """
         sql = """
@@ -673,6 +677,45 @@ class DataC():
         except Exception as e:
             print(f"Error closing group missed: {e}")
             return False
+
+    def finalize_cycle(self, pr_id, event_occurred, is_alert, actual=None):
+        """Finalize a prediction cycle with binary-forecast accounting.
+
+        correct = (is_alert == event_occurred):
+          alert  + event    -> TP (caught)
+          alert  + no event -> FP (false alarm)
+          monitor + no event -> TN (correct quiet forecast)
+          monitor + event    -> FN (missed event)
+
+        actual: optional dict with keys id, lat_enc, lon_enc, dt, mag_enc, time,
+                diff_lat, diff_lon, diff_dt, diff_mag — recorded for the map/diagnostics
+                whenever an event occurred (regardless of alert status).
+        """
+        correct = 1 if bool(is_alert) == bool(event_occurred) else 0
+        try:
+            with self._lock:
+                self._safe_execute(
+                    "UPDATE predictions SET pr_verified = TRUE, pr_event_occurred = %s, pr_correct = %s "
+                    "WHERE pr_id = %s",
+                    (1 if event_occurred else 0, correct, pr_id)
+                )
+                if actual:
+                    self._safe_execute(
+                        """UPDATE predictions SET
+                            pr_actual_id = %s, pr_lat_actual = %s, pr_lon_actual = %s,
+                            pr_dt_actual = %s, pr_mag_actual = %s, pr_actual_time = %s,
+                            pr_diff_lat = %s, pr_diff_lon = %s, pr_diff_dt = %s, pr_diff_mag = %s
+                        WHERE pr_id = %s""",
+                        (actual.get('id'), actual.get('lat_enc'), actual.get('lon_enc'),
+                         actual.get('dt'), actual.get('mag_enc'), actual.get('time'),
+                         actual.get('diff_lat'), actual.get('diff_lon'),
+                         actual.get('diff_dt'), actual.get('diff_mag'), pr_id)
+                    )
+                self.mydb.commit()
+            return correct
+        except Exception as e:
+            print(f"Error finalizing cycle {pr_id}: {e}")
+            return None
 
     def get_unverified_predictions(self, older_than_hours=24):
         """Get predictions that haven't been verified yet"""
@@ -997,39 +1040,59 @@ class DataC():
             return False
 
     def get_prediction_stats(self, min_mag=4.0):
-        """Prediction statistics.
+        """Prediction statistics — BINARY FORECAST accounting.
 
-        HEADLINE metric = ALERT PRECISION: among cycles where the model issued an
-        alert (pr_is_alert=1, i.e. hazard probability >= threshold), what fraction
-        came true? Monitor-only cycles (low hazard, no claim made) are reported
-        separately and do NOT count against the headline — the model made no claim.
+        Every cycle the model makes a binary forecast: ALERT (event expected) or
+        MONITOR (no event expected). At window end the forecast is graded against
+        reality:
+          TP = alert  & event occurred    (caught)
+          FP = alert  & no event          (false alarm)
+          TN = monitor & no event         (correct quiet forecast)
+          FN = monitor & event occurred   (missed event)
+
+        HEADLINE = accuracy = (TP+TN)/verified. Alert precision = TP/(TP+FP)
+        and event recall = TP/(TP+FN) are reported alongside — accuracy alone
+        can be inflated by the quiet base rate, so all three are surfaced.
         """
         sql = """
         SELECT
             COUNT(*) as total,
-            SUM(CASE WHEN pr_is_alert = 1 THEN 1 ELSE 0 END) as alerts,
-            SUM(CASE WHEN pr_is_alert = 1 AND pr_verified = 1 THEN 1 ELSE 0 END) as alerts_verified,
-            SUM(CASE WHEN pr_is_alert = 1 AND pr_correct = 1 THEN 1 ELSE 0 END) as alerts_correct,
             SUM(CASE WHEN pr_verified = 1 THEN 1 ELSE 0 END) as verified,
-            SUM(CASE WHEN pr_correct = 1 THEN 1 ELSE 0 END) as correct
+            SUM(CASE WHEN pr_verified = 1 AND pr_correct = 1 THEN 1 ELSE 0 END) as correct,
+            SUM(CASE WHEN pr_is_alert = 1 THEN 1 ELSE 0 END) as alerts,
+            SUM(CASE WHEN pr_verified = 1 AND pr_is_alert = 1 AND pr_event_occurred = 1 THEN 1 ELSE 0 END) as tp,
+            SUM(CASE WHEN pr_verified = 1 AND pr_is_alert = 1 AND (pr_event_occurred = 0 OR pr_event_occurred IS NULL) THEN 1 ELSE 0 END) as fp,
+            SUM(CASE WHEN pr_verified = 1 AND pr_is_alert = 0 AND pr_event_occurred = 1 THEN 1 ELSE 0 END) as fn
         FROM predictions
         WHERE (pr_rank = 1 OR pr_rank IS NULL)
         """
         try:
             row = self._safe_fetch(sql, (), fetch_one=True)
-            total = row[0] or 0
-            alerts = row[1] or 0
-            alerts_verified = row[2] or 0
-            alerts_correct = row[3] or 0
-            verified = row[4] or 0
-            correct = row[5] or 0
+            total = int(row[0] or 0)
+            verified = int(row[1] or 0)
+            correct = int(row[2] or 0)
+            alerts = int(row[3] or 0)
+            tp = int(row[4] or 0)
+            fp = int(row[5] or 0)
+            fn = int(row[6] or 0)
+            events = tp + fn
             return {
-                # Headline: precision over issued alerts
-                'total_predictions': alerts,
-                'verified_predictions': alerts_verified,
-                'correct_predictions': alerts_correct,
-                'success_rate': round((alerts_correct / alerts_verified * 100) if alerts_verified > 0 else 0.0, 1),
-                # Full picture (all cycles incl. monitor-only)
+                # Headline: forecast accuracy over all verified cycles
+                'total_predictions': total,
+                'verified_predictions': verified,
+                'correct_predictions': correct,
+                'success_rate': round((correct / verified * 100) if verified > 0 else 0.0, 1),
+                # Alert quality
+                'alerts': alerts,
+                'alerts_correct': tp,
+                'false_alarms': fp,
+                'alert_precision': round((tp / (tp + fp) * 100) if (tp + fp) > 0 else 0.0, 1),
+                # Event coverage
+                'events_occurred': events,
+                'events_caught': tp,
+                'events_missed': fn,
+                'event_recall': round((tp / events * 100) if events > 0 else 0.0, 1),
+                # Back-compat keys used by older UI builds
                 'all_cycles': total,
                 'monitor_cycles': total - alerts,
                 'all_verified': verified,
@@ -1039,6 +1102,8 @@ class DataC():
         except Exception as e:
             print(f"Error getting prediction stats: {e}")
             return {'total_predictions': 0, 'verified_predictions': 0, 'correct_predictions': 0, 'success_rate': 0.0,
+                    'alerts': 0, 'alerts_correct': 0, 'false_alarms': 0, 'alert_precision': 0.0,
+                    'events_occurred': 0, 'events_caught': 0, 'events_missed': 0, 'event_recall': 0.0,
                     'all_cycles': 0, 'monitor_cycles': 0, 'all_verified': 0, 'all_correct': 0, 'all_success_rate': 0.0}
         
     def db2File(self, min_mag):
@@ -1501,7 +1566,7 @@ class DataC():
             cursor = db.cursor()
 
             # Direct SELECT (mirrors get_data_hybrid proc) + UNIX_TIMESTAMP as col 13.
-            # The timestamp enables occurrence labels: "Turkey M4+ within next 60 min?"
+            # The timestamp enables occurrence labels: "region M4+ within next 60 min?"
             cursor.execute("""
                 SELECT
                     YEAR(us_datetime) - 1970 as year,
@@ -1553,22 +1618,23 @@ class DataC():
 
                 # Store target indices for efficient sampling
                 # Column 12 = is_target  (M4+ flag)
-                # ALSO restrict to Turkey bounding box (lat 35-43, lon 25-48)
-                # Encoded: lat 125-133, lon 205-228
+                # ALSO restrict to region bounding box: Eastern Mediterranean
+                # (lat 30-45 N, lon 19-50 E) — Turkey + Greece + Aegean + Cyprus +
+                # Caucasus edge. Encoded: lat 120-135, lon 199-230
                 lat_enc = self.data[:, 2]
                 lon_enc = self.data[:, 3]
-                in_turkey = (lat_enc >= 125) & (lat_enc <= 133) & (lon_enc >= 205) & (lon_enc <= 228)
-                self.target_indices = np.where((self.data[:, 12] == 1) & in_turkey)[0]
+                in_region = (lat_enc >= 120) & (lat_enc <= 135) & (lon_enc >= 199) & (lon_enc <= 230)
+                self.target_indices = np.where((self.data[:, 12] == 1) & in_region)[0]
                 target_count = len(self.target_indices)
 
-                # ── Occurrence labels: for EVERY event i (global stream), will a Turkey M4+
+                # ── Occurrence labels: for EVERY event i (global stream), will a region M4+
                 #    occur strictly after event i within OCC_HORIZON_MIN minutes? ──
                 # This is the dense binary signal for the OccurrenceHead (alert gating).
                 OCC_HORIZON_MIN = 60
                 ts = self.data[:, 13]
-                tk_ts = np.sort(ts[self.target_indices])  # Turkey M4+ event times, ascending
+                tk_ts = np.sort(ts[self.target_indices])  # region M4+ event times, ascending
                 if len(tk_ts) > 0:
-                    nxt = np.searchsorted(tk_ts, ts, side='right')  # next Turkey M4+ strictly after
+                    nxt = np.searchsorted(tk_ts, ts, side='right')  # next region M4+ strictly after
                     has_next = nxt < len(tk_ts)
                     gap = np.full(len(ts), np.inf)
                     gap[has_next] = tk_ts[nxt[has_next]] - ts[has_next]
@@ -1578,8 +1644,8 @@ class DataC():
                 occ_rate = float(self.occ_label.mean())
 
                 print(f"Loaded {len(self.data):,} records (M{input_mag}+) — input: GLOBAL")
-                print(f"  Training targets (M{target_mag}+ in Turkey region): {target_count:,} ({100*target_count/len(self.data):.2f}%)")
-                print(f"  Occurrence labels (Turkey M4+ within {OCC_HORIZON_MIN}min): base rate {100*occ_rate:.2f}%")
+                print(f"  Training targets (M{target_mag}+ in E. Mediterranean region): {target_count:,} ({100*target_count/len(self.data):.2f}%)")
+                print(f"  Occurrence labels (region M4+ within {OCC_HORIZON_MIN}min): base rate {100*occ_rate:.2f}%")
                 print(f"  Earth-state features: hour[0-23], doy[0-365], moon_phase[0-29], moon_dist[0-9]")
 
                 self._update_data_splits()
@@ -1765,16 +1831,16 @@ class DataC():
         next_data = torch.stack([data_tensor[int(pos)-T+1:int(pos)+1] for pos in target_positions])  # [B, T, 12]
         next_is_target = torch.stack([is_target_col[int(pos)-T+1:int(pos)+1] for pos in target_positions])  # [B, T]
 
-        # Target mask: True where the NEXT position is M4+ AND inside Turkey region
-        # Turkey bounding box: lat 35°-43° N, lon 25°-48° E
-        # Encoded: lat 125-133 (= actual+90), lon 205-228 (= actual+180)
+        # Target mask: True where the NEXT position is M4+ AND inside the region
+        # E. Mediterranean bounding box: lat 30°-45° N, lon 19°-50° E
+        # Encoded: lat 120-135 (= actual+90), lon 199-230 (= actual+180)
         next_lat = next_data[:, :, 2]
         next_lon = next_data[:, :, 3]
-        in_turkey = (next_lat >= 125) & (next_lat <= 133) & (next_lon >= 205) & (next_lon <= 228)
-        target_mask = (next_is_target == 1) & in_turkey  # [B, T] boolean
+        in_region = (next_lat >= 120) & (next_lat <= 135) & (next_lon >= 199) & (next_lon <= 230)
+        target_mask = (next_is_target == 1) & in_region  # [B, T] boolean
 
         # Occurrence targets: at input position j (model has seen events up to row j),
-        # label = will a Turkey M4+ occur within the next 60 min after event j's time?
+        # label = will a region M4+ occur within the next 60 min after event j's time?
         # Dense signal: EVERY position gets a label (not just M4+ target positions).
         occ_tensor = torch.from_numpy(self.occ_label)
         occ = torch.stack([occ_tensor[int(pos)-T:int(pos)] for pos in target_positions])  # [B, T]

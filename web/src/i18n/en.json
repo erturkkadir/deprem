@@ -44,12 +44,17 @@
     "missedChecking": "Missed — checking {{hours}}h",
     "expiredNextStarting": "Expired — next starting",
     "earthquakeMatched": "— earthquake matched",
-    "eachCyclePredicts": "Every {{minutes}} min the model outputs a hazard probability for Turkey. Only p ≥ 90% becomes an ALERT (counted in stats); otherwise monitor-only. Late-catch searches up to {{hours}}h.",
+    "eachCyclePredicts": "Every {{minutes}} min the model forecasts: ALERT (M4+ expected in the E. Mediterranean, p ≥ 90%) or MONITOR (no event expected). Both are graded against reality — a quiet hour correctly forecast counts as correct, a missed event counts against it.",
     "hazard": "Hazard",
     "alert": "ALERT",
     "alerts": "Alerts",
     "alertPrecision": "Alert Precision",
-    "allCycles": "All Cycles"
+    "allCycles": "All Cycles",
+    "accuracy": "Accuracy",
+    "correctForecasts": "Correct Forecasts",
+    "caught": "Events Caught",
+    "missedEvents": "Missed Events",
+    "falseAlarms": "False Alarms"
   },
   "predictions": {
     "title": "Predictions",
@@ -287,21 +292,21 @@
       "pi (mixture weight) is returned as a confidence score per prediction"
     ],
     "layer7Title": "7. Training Loss (7 signals)",
-    "layer7Idea": "Seven simultaneous signals: WTA NLL specializes components, Energy Score rewards accuracy + spread, bbox containment keeps components inside Turkey, and a dense Occurrence BCE (384 labels/sequence) teaches the hazard probability used for alert gating.",
+    "layer7Idea": "Seven simultaneous signals: WTA NLL specializes components, Energy Score rewards accuracy + spread, bbox containment keeps components inside the E. Mediterranean region, and a dense Occurrence BCE (384 labels/sequence) teaches the hazard probability used for alert gating.",
     "layer7Details": [
       "WTA NLL: only the winning component gets mean/sigma gradient — each of K=20 components owns a Turkish fault zone",
       "Energy Score (Gneiting & Raftery 2007): proper scoring rule — accuracy + diversity in one term",
       "Diversity loss: pairwise repulsion at τ=2° (Turkey scale) — components spread across NAF, EAF, Aegean, Hellenic arc",
-      "Turkey-bbox containment: quadratic penalty for component means outside lat 35–43 / lon 25–48",
+      "Region-bbox containment: quadratic penalty for component means outside lat 30–45 / lon 19–50 (E. Mediterranean)",
       "Sigma floors (0.5° spatial, 0.2 mag) + σ>1° cap: prevent NLL memorization — the train/val divergence fix",
       "Occurrence BCE (weight 2.0): plain BCE with NO pos_weight — keeps probabilities calibrated so the server threshold maps directly to precision",
       "Validation uses the same total formula (unweighted) — train and val move on the same scale"
     ],
     "layer8Title": "8. Occurrence Head & Alert Gating",
-    "layer8Idea": "The key to honest 90%+ precision: a binary hazard head predicts P(Turkey M4+ within 60 min). The server only issues an ALERT when p ≥ 0.90 — quiet periods are monitor-only, no claim made. Aftershock physics (Omori law) makes conditional hazard genuinely predictable.",
+    "layer8Idea": "The key to honest 90%+ precision: a binary hazard head predicts P(E. Mediterranean M4+ within 60 min). The server only issues an ALERT when p ≥ 0.90 — quiet periods are monitor-only, no claim made. Aftershock physics (Omori law) makes conditional hazard genuinely predictable.",
     "layer8Details": [
-      "Dense supervision: every one of 1.5M global events gets a binary label — did a Turkey M4+ follow within 60 min? (base rate ~1.8%)",
-      "Labels computed via searchsorted over Turkey M4+ timestamps — O(N log N), no leakage (strictly-after semantics)",
+      "Dense supervision: every one of 1.5M global events gets a binary label — did a region M4+ follow within 60 min? (base rate ~2.6%)",
+      "Labels computed via searchsorted over region M4+ timestamps — O(N log N), no leakage (strictly-after semantics)",
       "Plain BCE keeps sigmoid outputs calibrated: p=0.9 means \"9 times out of 10\" — the threshold IS the precision target",
       "Headline metric = precision over issued alerts; monitor cycles are excluded (the model made no claim)",
       "Alerts are rare by physics — mostly during aftershock sequences after significant Turkish events. Rare-but-right beats always-wrong.",

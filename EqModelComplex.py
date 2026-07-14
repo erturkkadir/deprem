@@ -1540,30 +1540,30 @@ class SpatialMDNHead(nn.Module):
         # softplus(0.7) ≈ 1.1° (~120km) — tight regional coverage for Turkey focus
         nn.init.constant_(self.sigma_proj.bias, 0.7)
 
-        # Turkey-region init: K=20 components spread along major fault zones
-        # All components stay within Turkey + immediate surroundings (lat 35-43, lon 25-48)
-        # Covers North Anatolian Fault, East Anatolian Fault, Aegean, Hellenic arc, Caucasus
+        # E. Mediterranean region init: K=20 components spread along major fault zones
+        # All components stay within the region bbox (lat 30-45, lon 19-50)
+        # Covers NAF, EAF, Aegean, Hellenic arc, Ionian/Greece, Cyprus arc, Caucasus
         seismic_zones = [
             (40.7,  29.0),  # Marmara / Istanbul (NAF western segment)
             (40.8,  31.5),  # Düzce / Bolu (NAF)
             (40.5,  35.5),  # Amasya (NAF central)
             (40.2,  38.5),  # Erzincan (NAF eastern)
-            (39.7,  40.0),  # Erzurum
+            (38.2,  22.0),  # Gulf of Corinth (Greece)
             (38.5,  39.5),  # Elazığ / Bingöl (EAF)
             (37.6,  37.0),  # Kahramanmaraş (EAF — 2023 quake)
             (36.5,  36.2),  # Hatay / Antakya
-            (37.0,  35.0),  # Adana / Misis fault
+            (39.5,  20.5),  # Epirus / Ionian coast (Greece-Albania)
             (37.1,  29.0),  # Burdur / Fethiye fault zone
             (38.4,  27.1),  # İzmir / Aegean
             (39.6,  27.0),  # Balıkesir / Edremit gulf
             (40.4,  26.5),  # Çanakkale / Saros gulf
-            (35.5,  27.5),  # Hellenic arc — Crete
+            (35.3,  25.5),  # Hellenic arc — Crete
             (36.0,  30.0),  # Antalya / Cyprus arc
-            (37.0,  43.0),  # SE Turkey / Iraq border
+            (35.0,  33.5),  # Cyprus
             (38.5,  44.0),  # Van / Iran border
-            (41.0,  41.0),  # Black Sea coast / Caucasus
+            (41.5,  44.5),  # Caucasus (Georgia)
+            (36.7,  21.7),  # SW Peloponnese / Kalamata
             (39.0,  33.5),  # Central Anatolia (Tuz Gölü fault)
-            (38.0,  31.5),  # Konya / Akşehir basin
         ]
         K = self.K
         with torch.no_grad():
@@ -1868,7 +1868,7 @@ class MagnitudeMDNHead(nn.Module):
 
 
 class OccurrenceHead(nn.Module):
-    """Binary hazard head: P(Turkey M4+ within the next 60 minutes | history).
+    """Binary hazard head: P(region M4+ within the next 60 minutes | history).
 
     This is the alert-gating signal. Unlike the MDN heads (which answer WHERE/HOW BIG),
     this head answers IF — enabling the server to stay silent in quiet periods and only
@@ -2142,12 +2142,12 @@ class EqModelComplex(nn.Module):
             sigma_mean = (sp['sigma_lat'].mean() + sp['sigma_lon'].mean()) / 2.0
             sigma_reg = torch.clamp(sigma_mean - 1.0, min=0.0)
 
-            # Turkey-bbox containment: penalize component means OUTSIDE lat[35,43] / lon[25,48]
-            # Quadratic penalty grows large as components drift toward global coords.
+            # Region-bbox containment: penalize component means OUTSIDE lat[30,45] / lon[19,50]
+            # (E. Mediterranean). Quadratic penalty grows large as components drift globally.
             mu_lat_v = sp['mu_lat']
             mu_lon_v = sp['mu_lon']
-            lat_out = torch.clamp(mu_lat_v - 43.0, min=0.0) ** 2 + torch.clamp(35.0 - mu_lat_v, min=0.0) ** 2
-            lon_out = torch.clamp(mu_lon_v - 48.0, min=0.0) ** 2 + torch.clamp(25.0 - mu_lon_v, min=0.0) ** 2
+            lat_out = torch.clamp(mu_lat_v - 45.0, min=0.0) ** 2 + torch.clamp(30.0 - mu_lat_v, min=0.0) ** 2
+            lon_out = torch.clamp(mu_lon_v - 50.0, min=0.0) ** 2 + torch.clamp(19.0 - mu_lon_v, min=0.0) ** 2
             bbox_loss = (lat_out + lon_out).mean()
 
             loss = spatial_loss + mag_loss + 3.0 * es_loss + 1.0 * div_loss + 0.5 * ent_loss + 0.1 * sigma_reg + 1.0 * bbox_loss
@@ -2177,8 +2177,8 @@ class EqModelComplex(nn.Module):
             sigma_reg = torch.clamp(sigma_mean - 1.0, min=0.0)
             mu_lat_v = sp['mu_lat']
             mu_lon_v = sp['mu_lon']
-            lat_out = torch.clamp(mu_lat_v - 43.0, min=0.0) ** 2 + torch.clamp(35.0 - mu_lat_v, min=0.0) ** 2
-            lon_out = torch.clamp(mu_lon_v - 48.0, min=0.0) ** 2 + torch.clamp(25.0 - mu_lon_v, min=0.0) ** 2
+            lat_out = torch.clamp(mu_lat_v - 45.0, min=0.0) ** 2 + torch.clamp(30.0 - mu_lat_v, min=0.0) ** 2
+            lon_out = torch.clamp(mu_lon_v - 50.0, min=0.0) ** 2 + torch.clamp(19.0 - mu_lon_v, min=0.0) ** 2
             bbox_loss = (lat_out + lon_out).mean()
 
             loss = spatial_loss + mag_loss + 3.0 * es_loss + 1.0 * div_loss + 0.5 * ent_loss + 0.1 * sigma_reg + 1.0 * bbox_loss
@@ -2226,7 +2226,7 @@ class EqModelComplex(nn.Module):
         spatial_params = self.spatial_head(x_last)  # [1, K]
         mag_params = self.mag_head(x_last)          # [1, K]
 
-        # Hazard probability: P(Turkey M4+ within next 60 min | history)
+        # Hazard probability: P(region M4+ within next 60 min | history)
         p_event = float(torch.sigmoid(self.occ_head(x_last)).item())
 
         if mode == 'map':

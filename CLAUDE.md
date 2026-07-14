@@ -305,51 +305,62 @@ The following stored procedures are used:
 - `get_data_hybrid(input_mag, target_mag)`: Hybrid training data (M2.0+ input, M4.0+ targets)
 - `ins_quakes()`: Merge staging data into main table
 
-### Alert-Gated Prediction — OccurrenceHead (2026-07-02)
-The system no longer forces a prediction claim every cycle. A dedicated
-**OccurrenceHead** (binary hazard head on the transformer) outputs
-`P(Turkey M4+ within next 60 min | global event history)`. The server records
-this every cycle; only when `p_event >= ALERT_THRESHOLD` does it issue an
-**ALERT** (a real claim). Low-hazard cycles are **monitor-only** — no claim,
-excluded from headline stats. Headline metric = **alert precision** (target 90%+).
+### Binary Forecast Accounting + E. Mediterranean Region (v1.6, 2026-07-14)
+Supersedes the alerts-only headline of v1.5. **Every cycle is a graded binary
+forecast**: ALERT (p_event >= 0.90, event expected) or MONITOR (no event
+expected). Both are compared to reality at window end:
+`correct = (is_alert == event_occurred)` — a quiet hour correctly forecast
+quiet is a TRUE NEGATIVE (correct), an event during a monitor cycle is a
+MISSED EVENT (incorrect). Headline = **forecast accuracy** over verified
+cycles; **alert precision** (TP/(TP+FP)) and **event recall** (TP/(TP+FN))
+are surfaced alongside so the quiet base rate can't hide misses.
 
-**Why**: base rate of "Turkey M4+ in any 1-hour window" is ~1.7%; forcing a claim
-every 15 min can never exceed a few % success. Aftershock physics (Omori) makes
-*conditional* hazard genuinely high after big events — a model that only speaks
-then can honestly be right 90%+ of the time it speaks.
+**Region** (expanded 2026-07-14): Eastern Mediterranean, lat 30–45 N /
+lon 19–50 E (encoded 120–135 / 199–230) — Turkey + Greece + Aegean + Hellenic
+arc + Cyprus + Caucasus edge. Training targets 17,959 (was 8,351 Turkey-only);
+occ label base rate 3.89% (was 1.83%). Same bbox everywhere: DataClass target
+mask + occ labels, model bbox-containment loss + component init, server
+REGION_* constants.
 
 **Training labels** (`DataClass.getDataHybrid`):
-- Direct SQL (replaces stored proc) adds `UNIX_TIMESTAMP` as col 13 → data has
-  14 cols: `[yr,mo,x,y,m,d,dt,lt,hour,doy,moon_phase,moon_dist,is_target,unix_ts]`
-- `self.occ_label[i]` = 1 if any Turkey M4+ occurs within 60 min strictly after
-  event i (computed via searchsorted over Turkey M4+ timestamps). Base rate ~1.8%.
-- `getBatchHybrid` returns `targets['occ']` [B,T] — dense label at EVERY position.
+- Direct SQL adds `UNIX_TIMESTAMP` as col 13 → 14 cols:
+  `[yr,mo,x,y,m,d,dt,lt,hour,doy,moon_phase,moon_dist,is_target,unix_ts]`
+- `self.occ_label[i]` = 1 if any region M4+ occurs within 60 min strictly after
+  event i (searchsorted, leak-free). `targets['occ']` [B,T] dense at every position.
 
 **Model** (`EqModelComplex.py`):
-- `OccurrenceHead(n_embed*2 → 512 → 1)`, final bias init at log-odds of 5%
-- Loss: plain BCE (NO pos_weight — keeps probabilities calibrated so the server
-  threshold maps to precision), weight 2.0, applied at all T positions
-- `generate()` returns `p_event` in every result dict
-- Train print shows `occ` term
+- `OccurrenceHead(n_embed*2 → 512 → 1)`, plain BCE (calibrated), weight 2.0
+- bbox containment loss clamps to lat[30,45]/lon[19,50]; MDN init includes
+  Corinth, Ionian, Crete, Cyprus, Caucasus zones
 
-**Server** (`server.py`):
-- `PREDICTION_REGION_NAME = "Turkey"`, bbox lat 35–43 / lon 25–48 (== training bbox)
-- `ALERT_THRESHOLD = 0.90`, `PREDICTION_WINDOW_MINUTES = 60`, `MATCH_MIN_MAG = 4.0`
-- `make_prediction()`: saves `pr_event_prob` + `pr_is_alert`; emails subscribers
-  ONLY on alerts
-- Verification (`_find_region_match`): any unclaimed M4+ inside Turkey bbox during
-  the window verifies the claim; the CLOSEST is recorded and its distance kept as a
-  spatial diagnostic (`MATCH_RADIUS_KM = 50` is the drawn circle / diagnostic only)
-- `LATE_SEARCH_HOURS = 48` for late catches
-- `get_prediction_stats()`: headline keys (`success_rate` etc.) computed over
-  ALERTS ONLY; `all_*` keys give full-cycle picture; `monitor_cycles` counted
+**Best-checkpoint serving (critical)**:
+- `train.py` writes `eqModel_complex_best.pth` (atomic os.replace) whenever
+  val loss improves; excluded from cleanup and from training resume
+- `server.py get_latest_checkpoint()` prefers `_best.pth`; reload detection
+  uses mtime (path never changes). NEVER serve the latest checkpoint — v1.5
+  served latest, model memorized train set (train -0.24 / val 7.0) and emitted
+  avg p_event 0.44 vs true ~2% → 24 false alarms in 11 days, 0% precision.
+- Anti-overfit: LR 3e-5 (was 1e-4), weight_decay 0.05 (was 0.01)
 
-**UI**: LiveDashboard shows Hazard % + pulsing ALERT badge (i18n: `live.hazard`,
-`live.alert` in en/tr/ja).
+**Server verification** (`server.py`):
+- `finalize_cycle(pr_id, event_occurred, is_alert, actual)` in DataClass sets
+  pr_verified/pr_event_occurred/pr_correct (+ closest actual for the map)
+- Event during window → finalize immediately (TP if alert, FN if monitor) → new cycle
+- Window expires quietly → TN if monitor, FP if alert → new cycle
+- `auto_verify_predictions()` re-grades cycles from last `RECHECK_HOURS=24` as
+  late catalog data arrives (USGS/EMSC latency); old 48h late-catch removed
+- DB: `pr_event_occurred TINYINT` column (migration in `_ensure_prediction_columns`)
 
-**Calibration note**: after training, verify empirically that among validation
-positions with p>=0.9 the hit rate is >=90%; adjust ALERT_THRESHOLD if BCE
-calibration drifts.
+**Stats** (`get_prediction_stats`): headline `success_rate` = accuracy;
+plus `alerts, alerts_correct, false_alarms, alert_precision, events_occurred,
+events_caught, events_missed, event_recall` (+ legacy `all_*` keys).
+
+**UI**: stats row = Accuracy / Correct Forecasts / Events Caught / Missed
+Events / False Alarms / Alert Precision (LiveDashboard + StatsGrid, en/tr/ja).
+
+**Calibration note**: after training converges, verify empirically that among
+validation positions with p>=0.9 the hit rate is >=90%; adjust ALERT_THRESHOLD
+if BCE calibration drifts. Old v1.5 checkpoints archived in `old_checkpoints_v15/`.
 
 ### No predictions being made:
 ```bash
