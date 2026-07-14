@@ -44,7 +44,7 @@
     "missedChecking": "Missed — checking {{hours}}h",
     "expiredNextStarting": "Expired — next starting",
     "earthquakeMatched": "— earthquake matched",
-    "eachCyclePredicts": "Every {{minutes}} min the model forecasts: ALERT (M4+ expected in the E. Mediterranean, p ≥ 90%) or MONITOR (no event expected). Both are graded against reality — a quiet hour correctly forecast counts as correct, a missed event counts against it.",
+    "eachCyclePredicts": "Every {{minutes}} min the model forecasts the next M4+ location in the E. Mediterranean plus a hazard probability (p ≥ 90% = ALERT). If an M4+ occurs in the window it is graded by location: within 250 km of the prediction = matched, farther = missed. A correctly forecast quiet hour also counts as correct.",
     "hazard": "Hazard",
     "alert": "ALERT",
     "alerts": "Alerts",
@@ -92,7 +92,7 @@
     "last": "Last",
     "pageOf": "Page {{current}} of {{total}}",
     "loading": "Loading...",
-    "statusCaught": "Caught",
+    "statusCaught": "Matched",
     "statusQuietOk": "Quiet ✓",
     "statusFalseAlarm": "False Alarm",
     "statusMissedEvent": "Missed Event"

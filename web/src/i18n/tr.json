@@ -44,7 +44,7 @@
     "missedChecking": "Kaçırıldı — {{hours}}s kontrol ediliyor",
     "expiredNextStarting": "Süresi doldu — sonraki başlıyor",
     "earthquakeMatched": "— deprem eşleşti",
-    "eachCyclePredicts": "Model her {{minutes}} dk'da tahmin yapar: ALARM (D. Akdeniz'de M4+ bekleniyor, p ≥ %90) veya İZLEME (deprem beklenmiyor). İkisi de gerçekle karşılaştırılır — doğru öngörülen sakin saat doğru sayılır, kaçırılan deprem aleyhine yazılır.",
+    "eachCyclePredicts": "Model her {{minutes}} dk'da D. Akdeniz için sonraki M4+ konumunu ve tehlike olasılığını (p ≥ %90 = ALARM) tahmin eder. Pencerede M4+ olursa konuma göre notlanır: tahmine 250 km içinde = eşleşti, uzaksa = kaçırıldı. Doğru öngörülen sakin saat de doğru sayılır.",
     "hazard": "Risk",
     "alert": "ALARM",
     "alerts": "Alarmlar",
@@ -92,7 +92,7 @@
     "last": "Son",
     "pageOf": "Sayfa {{current}} / {{total}}",
     "loading": "Yükleniyor...",
-    "statusCaught": "Yakalandı",
+    "statusCaught": "Eşleşti",
     "statusQuietOk": "Sakin ✓",
     "statusFalseAlarm": "Yanlış Alarm",
     "statusMissedEvent": "Kaçırıldı"

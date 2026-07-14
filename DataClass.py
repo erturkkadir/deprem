@@ -678,20 +678,27 @@ class DataC():
             print(f"Error closing group missed: {e}")
             return False
 
-    def finalize_cycle(self, pr_id, event_occurred, is_alert, actual=None):
-        """Finalize a prediction cycle with binary-forecast accounting.
+    def finalize_cycle(self, pr_id, event_occurred, is_alert, actual=None, spatial_match=None):
+        """Finalize a prediction cycle.
 
-        correct = (is_alert == event_occurred):
-          alert  + event    -> TP (caught)
-          alert  + no event -> FP (false alarm)
-          monitor + no event -> TN (correct quiet forecast)
-          monitor + event    -> FN (missed event)
+        Grading:
+          event occurred + predicted location matched (spatial_match) -> correct (caught)
+          event occurred + location NOT matched                        -> wrong  (missed)
+          no event + monitor                                           -> correct (quiet)
+          no event + alert                                             -> wrong  (false alarm)
+
+        The alert gate governs emails and the alert-precision metric; cycle
+        correctness for event cycles is decided by SPATIAL match (did the
+        earthquake land near the predicted epicenter?).
 
         actual: optional dict with keys id, lat_enc, lon_enc, dt, mag_enc, time,
                 diff_lat, diff_lon, diff_dt, diff_mag — recorded for the map/diagnostics
                 whenever an event occurred (regardless of alert status).
         """
-        correct = 1 if bool(is_alert) == bool(event_occurred) else 0
+        if event_occurred:
+            correct = 1 if spatial_match else 0
+        else:
+            correct = 0 if is_alert else 1
         try:
             with self._lock:
                 self._safe_execute(
@@ -863,16 +870,15 @@ class DataC():
                       'verified', 'correct', 'actual_time', 'actual_place', 'group_id',
                       'is_alert', 'event_prob', 'event_occurred']
             predictions = [dict(zip(columns, row)) for row in rows]
-            # Outcome: pending | caught | false_alarm | quiet_ok | missed_event
+            # Outcome: pending | caught | missed_event | false_alarm | quiet_ok
+            # Event cycles graded by spatial match (pr_correct); quiet cycles by alert gate.
             for p_ in predictions:
                 if not p_['verified']:
                     p_['outcome'] = 'pending'
-                elif p_['is_alert'] and p_['event_occurred']:
-                    p_['outcome'] = 'caught'
+                elif p_['event_occurred']:
+                    p_['outcome'] = 'caught' if p_['correct'] else 'missed_event'
                 elif p_['is_alert']:
                     p_['outcome'] = 'false_alarm'
-                elif p_['event_occurred']:
-                    p_['outcome'] = 'missed_event'
                 else:
                     p_['outcome'] = 'quiet_ok'
             return {'predictions': predictions, 'total': total}
@@ -1058,17 +1064,16 @@ class DataC():
     def get_prediction_stats(self, min_mag=4.0):
         """Prediction statistics — BINARY FORECAST accounting.
 
-        Every cycle the model makes a binary forecast: ALERT (event expected) or
-        MONITOR (no event expected). At window end the forecast is graded against
-        reality:
-          TP = alert  & event occurred    (caught)
-          FP = alert  & no event          (false alarm)
-          TN = monitor & no event         (correct quiet forecast)
-          FN = monitor & event occurred   (missed event)
+        Every cycle is graded at window end:
+          event occurred + location matched (<=250km) -> caught (correct)
+          event occurred + location too far           -> missed (wrong)
+          no event + monitor                          -> correct quiet forecast
+          no event + alert                            -> false alarm (wrong)
 
-        HEADLINE = accuracy = (TP+TN)/verified. Alert precision = TP/(TP+FP)
-        and event recall = TP/(TP+FN) are reported alongside — accuracy alone
-        can be inflated by the quiet base rate, so all three are surfaced.
+        HEADLINE = accuracy = correct/verified. Alert precision (alerts that
+        were followed by an event) and event recall (events whose location was
+        matched) are reported alongside — accuracy alone can be inflated by
+        the quiet base rate, so all three are surfaced.
         """
         sql = """
         SELECT
@@ -1076,9 +1081,10 @@ class DataC():
             SUM(CASE WHEN pr_verified = 1 THEN 1 ELSE 0 END) as verified,
             SUM(CASE WHEN pr_verified = 1 AND pr_correct = 1 THEN 1 ELSE 0 END) as correct,
             SUM(CASE WHEN pr_is_alert = 1 THEN 1 ELSE 0 END) as alerts,
-            SUM(CASE WHEN pr_verified = 1 AND pr_is_alert = 1 AND pr_event_occurred = 1 THEN 1 ELSE 0 END) as tp,
+            SUM(CASE WHEN pr_verified = 1 AND pr_event_occurred = 1 AND pr_correct = 1 THEN 1 ELSE 0 END) as caught,
+            SUM(CASE WHEN pr_verified = 1 AND pr_event_occurred = 1 AND pr_correct = 0 THEN 1 ELSE 0 END) as missed,
             SUM(CASE WHEN pr_verified = 1 AND pr_is_alert = 1 AND (pr_event_occurred = 0 OR pr_event_occurred IS NULL) THEN 1 ELSE 0 END) as fp,
-            SUM(CASE WHEN pr_verified = 1 AND pr_is_alert = 0 AND pr_event_occurred = 1 THEN 1 ELSE 0 END) as fn
+            SUM(CASE WHEN pr_verified = 1 AND pr_is_alert = 1 AND pr_event_occurred = 1 THEN 1 ELSE 0 END) as alert_hits
         FROM predictions
         WHERE (pr_rank = 1 OR pr_rank IS NULL)
         """
@@ -1088,9 +1094,10 @@ class DataC():
             verified = int(row[1] or 0)
             correct = int(row[2] or 0)
             alerts = int(row[3] or 0)
-            tp = int(row[4] or 0)
-            fp = int(row[5] or 0)
-            fn = int(row[6] or 0)
+            tp = int(row[4] or 0)          # events caught (location matched)
+            fn = int(row[5] or 0)          # events missed (too far)
+            fp = int(row[6] or 0)          # false alarms (alert, no event)
+            alert_hits = int(row[7] or 0)  # alerts followed by an event
             events = tp + fn
             return {
                 # Headline: forecast accuracy over all verified cycles
@@ -1098,11 +1105,11 @@ class DataC():
                 'verified_predictions': verified,
                 'correct_predictions': correct,
                 'success_rate': round((correct / verified * 100) if verified > 0 else 0.0, 1),
-                # Alert quality
+                # Alert quality (alert = hazard claim; hit = any region event followed)
                 'alerts': alerts,
-                'alerts_correct': tp,
+                'alerts_correct': alert_hits,
                 'false_alarms': fp,
-                'alert_precision': round((tp / (tp + fp) * 100) if (tp + fp) > 0 else 0.0, 1),
+                'alert_precision': round((alert_hits / (alert_hits + fp) * 100) if (alert_hits + fp) > 0 else 0.0, 1),
                 # Event coverage
                 'events_occurred': events,
                 'events_caught': tp,

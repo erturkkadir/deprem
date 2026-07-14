@@ -124,12 +124,13 @@ REGION_LON_MIN, REGION_LON_MAX = 19.0, 50.0
 
 ALERT_THRESHOLD = 0.90      # issue alert when P(event) >= this (calibrated BCE probs)
 
-# An "event" = any M4+ inside the region bbox during the cycle window. The
-# closest one to the predicted epicenter is recorded; its distance is a
-# spatial diagnostic only.
+# An "event" = any M4+ inside the region bbox during the cycle window. When an
+# event occurs, the cycle is graded by SPATIAL match: closest event within
+# MATCH_RADIUS_KM of the predicted epicenter -> caught (correct); farther ->
+# missed (wrong). The alert gate governs emails + the alert-precision metric.
 MATCH_MIN_MAG = 4.0         # the forecast is about M4+ events
-MATCH_RADIUS_KM = 50        # spatial diagnostic radius — drawn on the map
-MATCH_RADIUS_MAX_KM = 50    # (kept for symmetry / future use)
+MATCH_RADIUS_KM = 250       # spatial match radius (also drawn on the map)
+MATCH_RADIUS_MAX_KM = 250   # (kept for symmetry / future use)
 MAGNITUDE_TOLERANCE = 0.75  # ±0.75 magnitude (display only)
 MIN_MAG_DISPLAY = 4.0       # Only show predictions with mag >= 4.0
 MIN_PREDICTION_WINDOW = 10  # minutes - reject predictions with window < 10 min
@@ -739,19 +740,25 @@ def auto_verify_predictions():
         return
 
     try:
+        # (a) verified quiet cycles: re-check for late-arriving catalog data
+        # (b) orphaned unverified cycles whose window ended >10 min ago
+        #     (superseded by a manual /api/predict before their window closed)
         sql = """
             SELECT pr_id, pr_timestamp, pr_dt_predicted,
                    pr_lat_predicted, pr_lon_predicted, pr_mag_predicted,
-                   pr_is_alert
+                   pr_is_alert, pr_verified
             FROM predictions
-            WHERE pr_verified = 1 AND (pr_event_occurred = 0 OR pr_event_occurred IS NULL)
-              AND (pr_rank = 1 OR pr_rank IS NULL)
+            WHERE (pr_rank = 1 OR pr_rank IS NULL)
               AND pr_timestamp > DATE_SUB(NOW(), INTERVAL %s HOUR)
+              AND (
+                    (pr_verified = 1 AND (pr_event_occurred = 0 OR pr_event_occurred IS NULL))
+                 OR (pr_verified = 0)
+              )
         """
         recent = dataC._safe_fetch(sql, (RECHECK_HOURS,)) or []
         now = datetime.now()
 
-        for pr_id, pr_timestamp, pr_dt, lat_enc, lon_enc, mag_enc, is_alert in recent:
+        for pr_id, pr_timestamp, pr_dt, lat_enc, lon_enc, mag_enc, is_alert, verified in recent:
             window_end = pr_timestamp + timedelta(minutes=pr_dt or PREDICTION_WINDOW_MINUTES)
             if lat_enc is None or lon_enc is None:
                 continue
@@ -765,9 +772,15 @@ def auto_verify_predictions():
             if best is not None:
                 actual_d, dist_km, us_mag, us_place = _actual_dict(
                     pr_timestamp, pred_lat, pred_lon, pred_mag, pr_dt, best)
-                verdict = "CAUGHT (late data)" if is_alert else "MISSED EVENT (late data)"
+                spatial_match = dist_km <= MATCH_RADIUS_KM
+                verdict = "MATCHED (late data)" if spatial_match else "MISSED — event too far (late data)"
                 print(f"[{now}] {verdict} #{pr_id}: M{us_mag} in {PREDICTION_REGION_NAME} at {dist_km:.0f}km - {us_place}")
-                dataC.finalize_cycle(pr_id, event_occurred=1, is_alert=is_alert, actual=actual_d)
+                dataC.finalize_cycle(pr_id, event_occurred=1, is_alert=is_alert,
+                                     actual=actual_d, spatial_match=spatial_match)
+            elif not verified and now > window_end + timedelta(minutes=10):
+                # Orphaned cycle expired quietly — finalize it so it doesn't dangle
+                print(f"[{now}] Orphaned cycle #{pr_id} finalized: no region M4+ in window")
+                dataC.finalize_cycle(pr_id, event_occurred=0, is_alert=is_alert)
 
     except Exception as e:
         print(f"Error in auto-verification: {e}")
@@ -829,13 +842,15 @@ def check_and_handle_prediction():
             if best is not None:
                 actual_d, dist_km, us_mag, us_place = _actual_dict(
                     pr_timestamp, pred_lat, pred_lon, pred_mag, pr_dt, best)
-                verdict = 'CAUGHT (alert was right)' if is_alert else 'MISSED EVENT (monitor cycle)'
+                spatial_match = dist_km <= MATCH_RADIUS_KM
+                verdict = 'MATCHED' if spatial_match else 'MISSED — event too far'
                 print(f"\n{'='*60}")
                 print(f"[{now}] EVENT! #{pr_id} {verdict}: M{us_mag} in {PREDICTION_REGION_NAME} at {dist_km:.0f}km - {us_place}")
                 print(f"{'='*60}\n")
-                dataC.finalize_cycle(pr_id, event_occurred=1, is_alert=is_alert, actual=actual_d)
+                dataC.finalize_cycle(pr_id, event_occurred=1, is_alert=is_alert,
+                                     actual=actual_d, spatial_match=spatial_match)
                 make_prediction()
-                return {'action': 'caught' if is_alert else 'missed_event',
+                return {'action': 'caught' if spatial_match else 'missed_event',
                         'prediction_id': pr_id, 'distance_km': round(dist_km), 'place': us_place, 'mag': us_mag}
 
         # Window expired quietly — monitor forecast was right, alert was a false alarm
