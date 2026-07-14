@@ -7,41 +7,14 @@ import AllPredictionsMap from './AllPredictionsMap';
 
 const FILTER_KEYS = ['', 'pending', 'matched', 'missed'];
 
-// Returns { status, lateHalfDay } where lateHalfDay = 1-based 12h bucket (1=0-12h, 2=12-24h, etc.) or null
+// Binary forecast outcome: pending | caught | quiet_ok | false_alarm | missed_event
+// The API computes `outcome` from (is_alert, event_occurred); fall back to old
+// correct-flag logic for rows from older API builds.
 function getStatus(pred) {
-  if (!pred.verified) {
-    if (pred.prediction_time) {
-      let timeStr = pred.prediction_time;
-      if (!timeStr.endsWith('Z') && !timeStr.includes('+')) timeStr += 'Z';
-      const predTime = new Date(timeStr);
-      const now = new Date();
-      const windowMinutes = pred.predicted_dt || 90;
-      const windowEndTime = new Date(predTime.getTime() + windowMinutes * 60 * 1000);
-      if (now > windowEndTime) return { status: 'missed', lateHalfDay: null };
-    }
-    return { status: 'pending', lateHalfDay: null };
-  }
-  if (!pred.correct) return { status: 'missed', lateHalfDay: null };
-
-  // Matched — check if it's a late catch (actual_time > window end)
-  if (pred.actual_time && pred.prediction_time) {
-    try {
-      let predTimeStr = pred.prediction_time;
-      if (!predTimeStr.endsWith('Z') && !predTimeStr.includes('+')) predTimeStr += 'Z';
-      let actualTimeStr = pred.actual_time;
-      if (!actualTimeStr.endsWith('Z') && !actualTimeStr.includes('+')) actualTimeStr += 'Z';
-      const predTime = new Date(predTimeStr);
-      const actualTime = new Date(actualTimeStr);
-      const windowMinutes = pred.predicted_dt || 90;
-      const windowEnd = new Date(predTime.getTime() + windowMinutes * 60 * 1000);
-      if (actualTime > windowEnd) {
-        const hoursAfterWindow = (actualTime - windowEnd) / 3600000;
-        const halfDay = Math.floor(hoursAfterWindow / 12) + 1; // 1=0-12h, 2=12-24h, 3=24-36h, 4=36-48h
-        return { status: 'late', lateHalfDay: halfDay };
-      }
-    } catch { /* fall through */ }
-  }
-  return { status: 'matched', lateHalfDay: null };
+  if (pred.outcome) return { status: pred.outcome };
+  if (!pred.verified) return { status: 'pending' };
+  if (!pred.correct) return { status: 'missed_event' };
+  return { status: pred.actual_time ? 'caught' : 'quiet_ok' };
 }
 
 function FilterButton({ active, label, count, onClick, colorClass }) {
@@ -67,9 +40,7 @@ function FilterButton({ active, label, count, onClick, colorClass }) {
 }
 
 function StatusBadge({ pred, t }) {
-  const { status, lateHalfDay } = getStatus(pred);
-
-  const LATE_BUCKET_KEYS = ['predictions.lateBucket0', 'predictions.lateBucket1', 'predictions.lateBucket2', 'predictions.lateBucket3'];
+  const { status } = getStatus(pred);
 
   if (status === 'pending') {
     return (
@@ -80,25 +51,35 @@ function StatusBadge({ pred, t }) {
     );
   }
 
-  if (status === 'matched') {
+  if (status === 'caught') {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-green-900/30 text-green-400 border border-green-600">
         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
         </svg>
-        {t('predictions.statusMatched')}
+        {t('predictions.statusCaught')}
       </span>
     );
   }
 
-  if (status === 'late') {
-    const bucket = lateHalfDay >= 1 && lateHalfDay <= 4 ? t(LATE_BUCKET_KEYS[lateHalfDay - 1]) : `+${lateHalfDay * 12 - 12}h`;
+  if (status === 'quiet_ok') {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-cyan-900/30 text-cyan-400 border border-cyan-600">
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-emerald-900/20 text-emerald-500 border border-emerald-700">
         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
         </svg>
-        {t('predictions.statusLateCatch')} <span className="ml-0.5 opacity-70 text-[9px]">{bucket}</span>
+        {t('predictions.statusQuietOk')}
+      </span>
+    );
+  }
+
+  if (status === 'false_alarm') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-orange-900/30 text-orange-400 border border-orange-600">
+        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+        </svg>
+        {t('predictions.statusFalseAlarm')}
       </span>
     );
   }
@@ -108,7 +89,7 @@ function StatusBadge({ pred, t }) {
       <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
         <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
       </svg>
-      {t('predictions.statusMissed')}
+      {t('predictions.statusMissedEvent')}
     </span>
   );
 }

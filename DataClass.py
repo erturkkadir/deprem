@@ -846,7 +846,10 @@ class DataC():
             p.pr_correct,
             p.pr_actual_time,
             u.us_place as actual_place,
-            COALESCE(p.pr_group_id, p.pr_id) as group_id
+            COALESCE(p.pr_group_id, p.pr_id) as group_id,
+            p.pr_is_alert,
+            p.pr_event_prob,
+            p.pr_event_occurred
         FROM predictions p
         LEFT JOIN usgs u ON p.pr_actual_id = u.us_id
         WHERE {filter_clause}
@@ -857,8 +860,21 @@ class DataC():
             rows = self._safe_fetch(sql, tuple(params + [limit, offset]))
             columns = ['id', 'prediction_time', 'predicted_lat', 'predicted_lon', 'predicted_dt', 'predicted_mag', 'predicted_place',
                       'actual_lat', 'actual_lon', 'actual_dt', 'actual_mag', 'diff_lat', 'diff_lon', 'diff_dt', 'diff_mag',
-                      'verified', 'correct', 'actual_time', 'actual_place', 'group_id']
+                      'verified', 'correct', 'actual_time', 'actual_place', 'group_id',
+                      'is_alert', 'event_prob', 'event_occurred']
             predictions = [dict(zip(columns, row)) for row in rows]
+            # Outcome: pending | caught | false_alarm | quiet_ok | missed_event
+            for p_ in predictions:
+                if not p_['verified']:
+                    p_['outcome'] = 'pending'
+                elif p_['is_alert'] and p_['event_occurred']:
+                    p_['outcome'] = 'caught'
+                elif p_['is_alert']:
+                    p_['outcome'] = 'false_alarm'
+                elif p_['event_occurred']:
+                    p_['outcome'] = 'missed_event'
+                else:
+                    p_['outcome'] = 'quiet_ok'
             return {'predictions': predictions, 'total': total}
         except Exception as e:
             print(f"Error getting predictions with actuals: {e}")

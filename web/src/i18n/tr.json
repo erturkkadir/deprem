@@ -61,8 +61,8 @@
     "total": "{{count}} toplam",
     "filterAll": "Tümü",
     "filterPending": "Bekleyen",
-    "filterMatched": "Eşleşen",
-    "filterMissed": "Kaçırılan",
+    "filterMatched": "Doğru",
+    "filterMissed": "Hatalı",
     "mapAll": "Tümünü Haritala",
     "mapFiltered": "{{filter}} Haritala",
     "noPredictions": "Henüz tahmin yok",
@@ -91,7 +91,11 @@
     "next": "Sonraki",
     "last": "Son",
     "pageOf": "Sayfa {{current}} / {{total}}",
-    "loading": "Yükleniyor..."
+    "loading": "Yükleniyor...",
+    "statusCaught": "Yakalandı",
+    "statusQuietOk": "Sakin ✓",
+    "statusFalseAlarm": "Yanlış Alarm",
+    "statusMissedEvent": "Kaçırıldı"
   },
   "stats": {
     "title": "İstatistikler",
