@@ -45,6 +45,7 @@ export default function StatsGrid() {
   const missedEvents = parseInt(liveStats?.events_missed) || 0;
   const falseAlarms = parseInt(liveStats?.false_alarms) || 0;
   const quietCorrect = parseInt(liveStats?.quiet_correct ?? (correct - caught)) || 0;
+  const eventSuccess = liveStats?.event_success != null ? parseFloat(liveStats.event_success) : null;
   const alertsGraded = caught + falseAlarms;
   const alertPrecision = parseFloat(liveStats?.alert_precision) || 0;
 
@@ -56,12 +57,12 @@ export default function StatsGrid() {
           <span className="text-zinc-500 text-xs">{t('stats.updated', { time: timeSinceUpdate() })}</span>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
           <StatCard
-            value={`${accuracy.toFixed(1)}%`}
-            label={t('live.accuracy')}
+            value={eventSuccess != null ? `${eventSuccess.toFixed(0)}%` : '—'}
+            label={t('live.eventSuccess')}
             color="green"
-            animate={accuracy >= 90}
+            animate={eventSuccess != null && eventSuccess >= 90}
           />
           <StatCard
             value={total}
@@ -77,11 +78,6 @@ export default function StatsGrid() {
             value={missedEvents}
             label={t('live.missedEvents')}
             color="purple"
-          />
-          <StatCard
-            value={quietCorrect}
-            label={t('live.quietCorrect')}
-            color="green"
           />
           <StatCard
             value={falseAlarms}

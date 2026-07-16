@@ -63,11 +63,9 @@ function StatusBadge({ pred, t }) {
   }
 
   if (status === 'quiet_ok') {
+    // Neutral: no event in window — not graded (the goal is predicting earthquakes)
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-emerald-900/20 text-emerald-500 border border-emerald-700">
-        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-        </svg>
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-zinc-800 text-zinc-400 border border-zinc-600">
         {t('predictions.statusQuietOk')}
       </span>
     );

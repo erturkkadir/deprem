@@ -230,6 +230,7 @@ function LiveDashboard() {
     const verified = parseInt(stats.verified_predictions) || 0;
     const caught = parseInt(stats.events_caught) || 0;
     const correct = parseInt(stats.correct_predictions) || 0;
+    const events = (parseInt(stats.events_occurred) || 0);
     return {
       total,
       correct,
@@ -237,6 +238,8 @@ function LiveDashboard() {
       accuracy: parseFloat(stats.success_rate) || 0,
       alerts: parseInt(stats.alerts) || 0,
       caught,
+      events,
+      eventSuccess: stats.event_success != null ? parseFloat(stats.event_success) : null,
       quietCorrect: parseInt(stats.quiet_correct ?? (correct - caught)) || 0,
       missedEvents: parseInt(stats.events_missed) || 0,
       falseAlarms: parseInt(stats.false_alarms) || 0,
@@ -431,13 +434,12 @@ function LiveDashboard() {
                   )}
                 </div>
 
-                {/* ── STATS ROW — binary forecast accounting ── */}
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                {/* ── STATS ROW — event-only accounting: predict earthquakes, nothing else ── */}
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                   {[
-                    { val: `${counts.accuracy.toFixed(1)}%`, label: t('live.accuracy'), color: counts.accuracy >= 90 ? 'text-green-500' : counts.accuracy > 0 ? 'text-orange-500' : 'text-zinc-500' },
+                    { val: counts.eventSuccess != null ? `${counts.eventSuccess.toFixed(0)}%` : '—', label: t('live.eventSuccess'), color: counts.eventSuccess == null ? 'text-zinc-500' : counts.eventSuccess >= 90 ? 'text-green-500' : 'text-orange-500' },
                     { val: counts.caught, label: t('live.caught'), color: counts.caught > 0 ? 'text-green-400' : 'text-zinc-500' },
                     { val: counts.missedEvents, label: t('live.missedEvents'), color: counts.missedEvents > 0 ? 'text-red-500' : 'text-zinc-500' },
-                    { val: counts.quietCorrect, label: t('live.quietCorrect'), color: 'text-emerald-500' },
                     { val: counts.falseAlarms, label: t('live.falseAlarms'), color: counts.falseAlarms > 0 ? 'text-orange-400' : 'text-zinc-500' },
                     { val: counts.alertsGraded > 0 ? `${counts.precision.toFixed(0)}%` : '—', label: t('live.alertPrecision'), color: counts.precision >= 90 ? 'text-green-500' : counts.alertsGraded > 0 ? 'text-orange-500' : 'text-zinc-500' },
                   ].map(({ val, label, color }) => (

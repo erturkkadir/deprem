@@ -1067,16 +1067,15 @@ class DataC():
     def get_prediction_stats(self, min_mag=4.0):
         """Prediction statistics — BINARY FORECAST accounting.
 
-        Every cycle is graded at window end:
-          event occurred + location matched (<=250km) -> caught (correct)
-          event occurred + location too far           -> missed (wrong)
-          no event + monitor                          -> correct quiet forecast
-          no event + alert                            -> false alarm (wrong)
+        EVENT-ONLY accounting (quiet cycles carry no credit): the goal is to
+        predict earthquakes before they happen — nothing else.
+          event occurred + location matched (<=250km) -> caught
+          event occurred + location too far           -> missed
+          no event + alert                            -> false alarm (wrong claim)
+          no event + monitor                          -> not graded (neutral)
 
-        HEADLINE = accuracy = correct/verified. Alert precision (alerts that
-        were followed by an event) and event recall (events whose location was
-        matched) are reported alongside — accuracy alone can be inflated by
-        the quiet base rate, so all three are surfaced.
+        HEADLINE = event_success = caught / events occurred. Alert precision
+        (alerts followed by an event) reported alongside.
         """
         sql = """
         SELECT
@@ -1102,36 +1101,30 @@ class DataC():
             fp = int(row[6] or 0)          # false alarms (alert, no event)
             alert_hits = int(row[7] or 0)  # alerts followed by an event
             events = tp + fn
+            event_success = round(tp / events * 100, 1) if events > 0 else None
             return {
-                # Headline: forecast accuracy over all verified cycles
+                # Headline: event success — among real earthquakes, how many did
+                # we locate within the match radius? Quiet hours carry NO credit.
                 'total_predictions': total,
                 'verified_predictions': verified,
-                'correct_predictions': correct,
-                'success_rate': round((correct / verified * 100) if verified > 0 else 0.0, 1),
+                'correct_predictions': tp,
+                'success_rate': event_success if event_success is not None else 0.0,
+                'event_success': event_success,
+                # Event coverage
+                'events_occurred': events,
+                'events_caught': tp,
+                'events_missed': fn,
                 # Alert quality (alert = hazard claim; hit = any region event followed)
                 'alerts': alerts,
                 'alerts_correct': alert_hits,
                 'false_alarms': fp,
                 'alert_precision': round((alert_hits / (alert_hits + fp) * 100) if (alert_hits + fp) > 0 else 0.0, 1),
-                # Event coverage
-                'events_occurred': events,
-                'events_caught': tp,
-                'events_missed': fn,
-                'quiet_correct': correct - tp,   # correct quiet forecasts (no event, no alert)
-                'event_recall': round((tp / events * 100) if events > 0 else 0.0, 1),
-                # Back-compat keys used by older UI builds
-                'all_cycles': total,
-                'monitor_cycles': total - alerts,
-                'all_verified': verified,
-                'all_correct': correct,
-                'all_success_rate': round((correct / verified * 100) if verified > 0 else 0.0, 1),
             }
         except Exception as e:
             print(f"Error getting prediction stats: {e}")
             return {'total_predictions': 0, 'verified_predictions': 0, 'correct_predictions': 0, 'success_rate': 0.0,
-                    'alerts': 0, 'alerts_correct': 0, 'false_alarms': 0, 'alert_precision': 0.0,
-                    'events_occurred': 0, 'events_caught': 0, 'events_missed': 0, 'event_recall': 0.0,
-                    'all_cycles': 0, 'monitor_cycles': 0, 'all_verified': 0, 'all_correct': 0, 'all_success_rate': 0.0}
+                    'event_success': None, 'alerts': 0, 'alerts_correct': 0, 'false_alarms': 0, 'alert_precision': 0.0,
+                    'events_occurred': 0, 'events_caught': 0, 'events_missed': 0}
         
     def db2File(self, min_mag):
         # Create completely fresh connection for export
