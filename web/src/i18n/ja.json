@@ -61,8 +61,8 @@
     "total": "合計 {{count}}件",
     "filterAll": "すべて",
     "filterPending": "保留中",
-    "filterMatched": "正解",
-    "filterMissed": "不正解",
+    "filterMatched": "一致",
+    "filterMissed": "見逃し",
     "mapAll": "すべてを地図表示",
     "mapFiltered": "{{filter}}を地図表示",
     "noPredictions": "予測データがありません",
@@ -95,7 +95,8 @@
     "statusCaught": "一致",
     "statusQuietOk": "静穏 ✓",
     "statusFalseAlarm": "誤警報",
-    "statusMissedEvent": "見逃し"
+    "statusMissedEvent": "見逃し",
+    "filterQuiet": "静穏"
   },
   "stats": {
     "title": "統計",

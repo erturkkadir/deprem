@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { fetchPredictions } from '../store/earthquakeSlice';
 import AllPredictionsMap from './AllPredictionsMap';
 
-const FILTER_KEYS = ['', 'pending', 'matched', 'missed'];
+const FILTER_KEYS = ['', 'pending', 'matched', 'missed', 'quiet'];
 
 // Binary forecast outcome: pending | caught | quiet_ok | false_alarm | missed_event
 // The API computes `outcome` from (is_alert, event_occurred); fall back to old
@@ -236,6 +236,7 @@ export default function PredictionsTable() {
     { key: 'pending', label: t('predictions.filterPending') },
     { key: 'matched', label: t('predictions.filterMatched') },
     { key: 'missed', label: t('predictions.filterMissed') },
+    { key: 'quiet', label: t('predictions.filterQuiet') },
   ];
 
   // Fetch predictions on mount and when filter/page changes
@@ -298,6 +299,7 @@ export default function PredictionsTable() {
     pending: 'bg-yellow-900/30 text-yellow-400',
     matched: 'bg-green-900/30 text-green-400',
     missed: 'bg-red-900/30 text-red-400',
+    quiet: 'bg-emerald-900/20 text-emerald-500',
   };
 
   const formatTime = (timeStr) => {

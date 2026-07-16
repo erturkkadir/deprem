@@ -815,10 +815,13 @@ class DataC():
         filter_clause = "p.pr_mag_predicted >= %s AND (p.pr_rank = 1 OR p.pr_rank IS NULL)"
         params = [encoded_mag]
 
+        # Outcome-based filters (matched/missed = event cycles only; quiet = no-event cycles)
         if filter_type == 'matched':
-            filter_clause += " AND p.pr_correct = TRUE"
+            filter_clause += " AND p.pr_verified = TRUE AND p.pr_event_occurred = 1 AND p.pr_correct = TRUE"
         elif filter_type == 'missed':
-            filter_clause += " AND p.pr_verified = TRUE AND p.pr_correct = FALSE"
+            filter_clause += " AND p.pr_verified = TRUE AND p.pr_event_occurred = 1 AND p.pr_correct = FALSE"
+        elif filter_type == 'quiet':
+            filter_clause += " AND p.pr_verified = TRUE AND (p.pr_event_occurred = 0 OR p.pr_event_occurred IS NULL)"
         elif filter_type == 'pending':
             filter_clause += " AND p.pr_verified = FALSE"
 

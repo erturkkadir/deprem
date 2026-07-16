@@ -61,8 +61,8 @@
     "total": "{{count}} total",
     "filterAll": "All",
     "filterPending": "Pending",
-    "filterMatched": "Correct",
-    "filterMissed": "Wrong",
+    "filterMatched": "Matched",
+    "filterMissed": "Missed",
     "mapAll": "Map All",
     "mapFiltered": "Map {{filter}}",
     "noPredictions": "No predictions yet",
@@ -95,7 +95,8 @@
     "statusCaught": "Matched",
     "statusQuietOk": "Quiet ✓",
     "statusFalseAlarm": "False Alarm",
-    "statusMissedEvent": "Missed Event"
+    "statusMissedEvent": "Missed Event",
+    "filterQuiet": "Quiet"
   },
   "stats": {
     "title": "Statistics",

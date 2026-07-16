@@ -61,8 +61,8 @@
     "total": "{{count}} toplam",
     "filterAll": "Tümü",
     "filterPending": "Bekleyen",
-    "filterMatched": "Doğru",
-    "filterMissed": "Hatalı",
+    "filterMatched": "Eşleşen",
+    "filterMissed": "Kaçırılan",
     "mapAll": "Tümünü Haritala",
     "mapFiltered": "{{filter}} Haritala",
     "noPredictions": "Henüz tahmin yok",
@@ -95,7 +95,8 @@
     "statusCaught": "Eşleşti",
     "statusQuietOk": "Sakin ✓",
     "statusFalseAlarm": "Yanlış Alarm",
-    "statusMissedEvent": "Kaçırıldı"
+    "statusMissedEvent": "Kaçırıldı",
+    "filterQuiet": "Sakin"
   },
   "stats": {
     "title": "İstatistikler",
