@@ -52,9 +52,10 @@
     "allCycles": "Tüm Döngüler",
     "accuracy": "Doğruluk",
     "correctForecasts": "Doğru Tahmin",
-    "caught": "Yakalanan",
+    "caught": "Eşleşen Deprem",
     "missedEvents": "Kaçırılan Deprem",
-    "falseAlarms": "Yanlış Alarm"
+    "falseAlarms": "Yanlış Alarm",
+    "quietCorrect": "Sakin ✓"
   },
   "predictions": {
     "title": "Tahminler",

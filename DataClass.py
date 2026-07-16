@@ -1117,6 +1117,7 @@ class DataC():
                 'events_occurred': events,
                 'events_caught': tp,
                 'events_missed': fn,
+                'quiet_correct': correct - tp,   # correct quiet forecasts (no event, no alert)
                 'event_recall': round((tp / events * 100) if events > 0 else 0.0, 1),
                 # Back-compat keys used by older UI builds
                 'all_cycles': total,

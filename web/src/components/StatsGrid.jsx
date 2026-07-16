@@ -44,6 +44,7 @@ export default function StatsGrid() {
   const caught = parseInt(liveStats?.events_caught) || 0;
   const missedEvents = parseInt(liveStats?.events_missed) || 0;
   const falseAlarms = parseInt(liveStats?.false_alarms) || 0;
+  const quietCorrect = parseInt(liveStats?.quiet_correct ?? (correct - caught)) || 0;
   const alertsGraded = caught + falseAlarms;
   const alertPrecision = parseFloat(liveStats?.alert_precision) || 0;
 
@@ -68,11 +69,6 @@ export default function StatsGrid() {
             color="blue"
           />
           <StatCard
-            value={correct}
-            label={t('live.correctForecasts')}
-            color="green"
-          />
-          <StatCard
             value={caught}
             label={t('live.caught')}
             color="green"
@@ -81,6 +77,11 @@ export default function StatsGrid() {
             value={missedEvents}
             label={t('live.missedEvents')}
             color="purple"
+          />
+          <StatCard
+            value={quietCorrect}
+            label={t('live.quietCorrect')}
+            color="green"
           />
           <StatCard
             value={falseAlarms}
