@@ -34,20 +34,13 @@ export default function StatsGrid() {
   };
 
   // Use liveData.stats if available (updates every 10s), fallback to stats (updates every 2min)
-  // Binary forecast accounting: every cycle graded (alert==event ? correct : wrong).
+  // "Ya bildik ya bilemedik": only earthquakes are graded; late catch = success.
   const liveStats = liveData?.stats;
   const total = parseInt(liveStats?.total_predictions ?? stats.totalPredictions) || 0;
-  const verified = parseInt(liveStats?.verified_predictions ?? stats.verifiedPredictions) || 0;
-  const correct = parseInt(liveStats?.correct_predictions ?? stats.correctPredictions) || 0;
-  const pending = total - verified; // Should be 1 (current active prediction)
-  const accuracy = parseFloat(liveStats?.success_rate ?? stats.successRate) || 0;
   const caught = parseInt(liveStats?.events_caught) || 0;
+  const late = parseInt(liveStats?.late_catches) || 0;
   const missedEvents = parseInt(liveStats?.events_missed) || 0;
-  const falseAlarms = parseInt(liveStats?.false_alarms) || 0;
-  const quietCorrect = parseInt(liveStats?.quiet_correct ?? (correct - caught)) || 0;
   const eventSuccess = liveStats?.event_success != null ? parseFloat(liveStats.event_success) : null;
-  const alertsGraded = caught + falseAlarms;
-  const alertPrecision = parseFloat(liveStats?.alert_precision) || 0;
 
   return (
     <section className="py-4">
@@ -57,7 +50,7 @@ export default function StatsGrid() {
           <span className="text-zinc-500 text-xs">{t('stats.updated', { time: timeSinceUpdate() })}</span>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <StatCard
             value={eventSuccess != null ? `${eventSuccess.toFixed(0)}%` : '—'}
             label={t('live.eventSuccess')}
@@ -75,20 +68,14 @@ export default function StatsGrid() {
             color="green"
           />
           <StatCard
+            value={late}
+            label={t('live.lateCatches')}
+            color="blue"
+          />
+          <StatCard
             value={missedEvents}
             label={t('live.missedEvents')}
             color="purple"
-          />
-          <StatCard
-            value={falseAlarms}
-            label={t('live.falseAlarms')}
-            color="orange"
-          />
-          <StatCard
-            value={alertsGraded > 0 ? `${alertPrecision.toFixed(0)}%` : '—'}
-            label={t('live.alertPrecision')}
-            color="green"
-            animate={alertPrecision >= 90}
           />
         </div>
       </div>

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { fetchPredictions } from '../store/earthquakeSlice';
 import AllPredictionsMap from './AllPredictionsMap';
 
-const FILTER_KEYS = ['', 'pending', 'matched', 'missed', 'quiet'];
+const FILTER_KEYS = ['', 'pending', 'matched', 'late', 'missed'];
 
 // Binary forecast outcome: pending | caught | quiet_ok | false_alarm | missed_event
 // The API computes `outcome` from (is_alert, event_occurred); fall back to old
@@ -62,8 +62,19 @@ function StatusBadge({ pred, t }) {
     );
   }
 
+  if (status === 'late') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-cyan-900/30 text-cyan-400 border border-cyan-600">
+        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+        </svg>
+        {t('predictions.statusLateCatch')}
+      </span>
+    );
+  }
+
   if (status === 'quiet_ok') {
-    // Neutral: no event in window — not graded (the goal is predicting earthquakes)
+    // Neutral: nothing to grade — normally hidden by the backend list filter
     return (
       <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-zinc-800 text-zinc-400 border border-zinc-600">
         {t('predictions.statusQuietOk')}
@@ -233,8 +244,8 @@ export default function PredictionsTable() {
     { key: '', label: t('predictions.filterAll') },
     { key: 'pending', label: t('predictions.filterPending') },
     { key: 'matched', label: t('predictions.filterMatched') },
+    { key: 'late', label: t('predictions.filterLate') },
     { key: 'missed', label: t('predictions.filterMissed') },
-    { key: 'quiet', label: t('predictions.filterQuiet') },
   ];
 
   // Fetch predictions on mount and when filter/page changes
@@ -296,8 +307,8 @@ export default function PredictionsTable() {
     '': 'bg-orange-900/30 text-orange-400',
     pending: 'bg-yellow-900/30 text-yellow-400',
     matched: 'bg-green-900/30 text-green-400',
+    late: 'bg-cyan-900/30 text-cyan-400',
     missed: 'bg-red-900/30 text-red-400',
-    quiet: 'bg-emerald-900/20 text-emerald-500',
   };
 
   const formatTime = (timeStr) => {

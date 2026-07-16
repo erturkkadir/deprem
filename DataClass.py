@@ -678,33 +678,35 @@ class DataC():
             print(f"Error closing group missed: {e}")
             return False
 
-    def finalize_cycle(self, pr_id, event_occurred, is_alert, actual=None, spatial_match=None):
-        """Finalize a prediction cycle.
+    def finalize_cycle(self, pr_id, event_occurred, is_alert=0, actual=None, spatial_match=None):
+        """Finalize a prediction cycle. "Ya bildik ya bilemedik" + late catch.
 
-        Grading:
-          event occurred + predicted location matched (spatial_match) -> correct (caught)
-          event occurred + location NOT matched                        -> wrong  (missed)
-          no event + monitor                                           -> correct (quiet)
-          no event + alert                                             -> wrong  (false alarm)
-
-        The alert gate governs emails and the alert-precision metric; cycle
-        correctness for event cycles is decided by SPATIAL match (did the
-        earthquake land near the predicted epicenter?).
+        event_occurred values:
+          1 = region M4+ inside the window
+              spatial_match -> caught (correct)   | no match -> missed (wrong,
+              upgradable to late catch by auto_verify within 48h)
+          2 = LATE CATCH: matching quake (<=250km of the prediction) arrived
+              after the window but within LATE_CATCH horizon -> correct
+          0 = nothing relevant happened -> neutral, not scored, hidden from list
+        There is NO false-alarm outcome — an unfulfilled alert is simply an
+        ungraded cycle (or becomes a late catch if the quake arrives late).
 
         actual: optional dict with keys id, lat_enc, lon_enc, dt, mag_enc, time,
-                diff_lat, diff_lon, diff_dt, diff_mag — recorded for the map/diagnostics
-                whenever an event occurred (regardless of alert status).
+                diff_lat, diff_lon, diff_dt, diff_mag — recorded for the map
+                whenever a quake is associated with the cycle.
         """
-        if event_occurred:
+        if event_occurred == 2:
+            correct = 1
+        elif event_occurred == 1:
             correct = 1 if spatial_match else 0
         else:
-            correct = 0 if is_alert else 1
+            correct = 0
         try:
             with self._lock:
                 self._safe_execute(
                     "UPDATE predictions SET pr_verified = TRUE, pr_event_occurred = %s, pr_correct = %s "
                     "WHERE pr_id = %s",
-                    (1 if event_occurred else 0, correct, pr_id)
+                    (int(event_occurred), correct, pr_id)
                 )
                 if actual:
                     self._safe_execute(
@@ -815,13 +817,18 @@ class DataC():
         filter_clause = "p.pr_mag_predicted >= %s AND (p.pr_rank = 1 OR p.pr_rank IS NULL)"
         params = [encoded_mag]
 
-        # Outcome-based filters (matched/missed = event cycles only; quiet = no-event cycles)
+        # Ungraded cycles (nothing happened) are meaningless to display — the goal
+        # is predicting earthquakes. They are ALWAYS excluded from the list; only
+        # pending, matched, late-catch, and missed rows are shown.
+        filter_clause += (" AND NOT (p.pr_verified = TRUE"
+                          " AND (p.pr_event_occurred = 0 OR p.pr_event_occurred IS NULL))")
+
         if filter_type == 'matched':
             filter_clause += " AND p.pr_verified = TRUE AND p.pr_event_occurred = 1 AND p.pr_correct = TRUE"
+        elif filter_type == 'late':
+            filter_clause += " AND p.pr_verified = TRUE AND p.pr_event_occurred = 2"
         elif filter_type == 'missed':
             filter_clause += " AND p.pr_verified = TRUE AND p.pr_event_occurred = 1 AND p.pr_correct = FALSE"
-        elif filter_type == 'quiet':
-            filter_clause += " AND p.pr_verified = TRUE AND (p.pr_event_occurred = 0 OR p.pr_event_occurred IS NULL)"
         elif filter_type == 'pending':
             filter_clause += " AND p.pr_verified = FALSE"
 
@@ -873,15 +880,14 @@ class DataC():
                       'verified', 'correct', 'actual_time', 'actual_place', 'group_id',
                       'is_alert', 'event_prob', 'event_occurred']
             predictions = [dict(zip(columns, row)) for row in rows]
-            # Outcome: pending | caught | missed_event | false_alarm | quiet_ok
-            # Event cycles graded by spatial match (pr_correct); quiet cycles by alert gate.
+            # Outcome: pending | caught | late | missed_event | quiet_ok (hidden)
             for p_ in predictions:
                 if not p_['verified']:
                     p_['outcome'] = 'pending'
+                elif p_['event_occurred'] == 2:
+                    p_['outcome'] = 'late'
                 elif p_['event_occurred']:
                     p_['outcome'] = 'caught' if p_['correct'] else 'missed_event'
-                elif p_['is_alert']:
-                    p_['outcome'] = 'false_alarm'
                 else:
                     p_['outcome'] = 'quiet_ok'
             return {'predictions': predictions, 'total': total}
@@ -1067,26 +1073,24 @@ class DataC():
     def get_prediction_stats(self, min_mag=4.0):
         """Prediction statistics — BINARY FORECAST accounting.
 
-        EVENT-ONLY accounting (quiet cycles carry no credit): the goal is to
-        predict earthquakes before they happen — nothing else.
-          event occurred + location matched (<=250km) -> caught
-          event occurred + location too far           -> missed
-          no event + alert                            -> false alarm (wrong claim)
-          no event + monitor                          -> not graded (neutral)
+        "Ya bildik ya bilemedik" — only earthquakes are graded:
+          caught (event_occurred=1, correct=1): quake <=250km inside the window
+          late   (event_occurred=2):            matching quake arrived after the
+                                                window but within 48h -> success
+          missed (event_occurred=1, correct=0): in-window quake too far, never
+                                                followed by a near one
+        Quiet cycles and unfulfilled alerts are NOT scored (no false-alarm concept).
 
-        HEADLINE = event_success = caught / events occurred. Alert precision
-        (alerts followed by an event) reported alongside.
+        HEADLINE = event_success = (caught + late) / (caught + late + missed).
         """
         sql = """
         SELECT
             COUNT(*) as total,
             SUM(CASE WHEN pr_verified = 1 THEN 1 ELSE 0 END) as verified,
-            SUM(CASE WHEN pr_verified = 1 AND pr_correct = 1 THEN 1 ELSE 0 END) as correct,
-            SUM(CASE WHEN pr_is_alert = 1 THEN 1 ELSE 0 END) as alerts,
             SUM(CASE WHEN pr_verified = 1 AND pr_event_occurred = 1 AND pr_correct = 1 THEN 1 ELSE 0 END) as caught,
+            SUM(CASE WHEN pr_verified = 1 AND pr_event_occurred = 2 THEN 1 ELSE 0 END) as late,
             SUM(CASE WHEN pr_verified = 1 AND pr_event_occurred = 1 AND pr_correct = 0 THEN 1 ELSE 0 END) as missed,
-            SUM(CASE WHEN pr_verified = 1 AND pr_is_alert = 1 AND (pr_event_occurred = 0 OR pr_event_occurred IS NULL) THEN 1 ELSE 0 END) as fp,
-            SUM(CASE WHEN pr_verified = 1 AND pr_is_alert = 1 AND pr_event_occurred = 1 THEN 1 ELSE 0 END) as alert_hits
+            SUM(CASE WHEN pr_is_alert = 1 THEN 1 ELSE 0 END) as alerts
         FROM predictions
         WHERE (pr_rank = 1 OR pr_rank IS NULL)
         """
@@ -1094,37 +1098,29 @@ class DataC():
             row = self._safe_fetch(sql, (), fetch_one=True)
             total = int(row[0] or 0)
             verified = int(row[1] or 0)
-            correct = int(row[2] or 0)
-            alerts = int(row[3] or 0)
-            tp = int(row[4] or 0)          # events caught (location matched)
-            fn = int(row[5] or 0)          # events missed (too far)
-            fp = int(row[6] or 0)          # false alarms (alert, no event)
-            alert_hits = int(row[7] or 0)  # alerts followed by an event
-            events = tp + fn
-            event_success = round(tp / events * 100, 1) if events > 0 else None
+            caught = int(row[2] or 0)
+            late = int(row[3] or 0)
+            missed = int(row[4] or 0)
+            alerts = int(row[5] or 0)
+            events = caught + late + missed
+            event_success = round((caught + late) / events * 100, 1) if events > 0 else None
             return {
-                # Headline: event success — among real earthquakes, how many did
-                # we locate within the match radius? Quiet hours carry NO credit.
                 'total_predictions': total,
                 'verified_predictions': verified,
-                'correct_predictions': tp,
+                'correct_predictions': caught + late,
                 'success_rate': event_success if event_success is not None else 0.0,
                 'event_success': event_success,
-                # Event coverage
                 'events_occurred': events,
-                'events_caught': tp,
-                'events_missed': fn,
-                # Alert quality (alert = hazard claim; hit = any region event followed)
+                'events_caught': caught,
+                'late_catches': late,
+                'events_missed': missed,
                 'alerts': alerts,
-                'alerts_correct': alert_hits,
-                'false_alarms': fp,
-                'alert_precision': round((alert_hits / (alert_hits + fp) * 100) if (alert_hits + fp) > 0 else 0.0, 1),
             }
         except Exception as e:
             print(f"Error getting prediction stats: {e}")
             return {'total_predictions': 0, 'verified_predictions': 0, 'correct_predictions': 0, 'success_rate': 0.0,
-                    'event_success': None, 'alerts': 0, 'alerts_correct': 0, 'false_alarms': 0, 'alert_precision': 0.0,
-                    'events_occurred': 0, 'events_caught': 0, 'events_missed': 0}
+                    'event_success': None, 'events_occurred': 0, 'events_caught': 0, 'late_catches': 0,
+                    'events_missed': 0, 'alerts': 0}
         
     def db2File(self, min_mag):
         # Create completely fresh connection for export

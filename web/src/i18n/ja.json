@@ -44,7 +44,7 @@
     "missedChecking": "不一致 — {{hours}}時間確認中",
     "expiredNextStarting": "期限切れ — 次の予測を開始",
     "earthquakeMatched": "— 地震が一致",
-    "eachCyclePredicts": "モデルは{{minutes}}分ごとに東地中海の次のM4+の位置とハザード確率（p ≥ 90% = 警報）を予測します。実際の地震のみが採点されます：予測から250km以内のM4+ = 一致、遠い場合 = 見逃し、地震のない警報 = 誤警報。静穏時間は採点されません — 目的は地震の事前予測、それだけです。",
+    "eachCyclePredicts": "モデルは{{minutes}}分ごとに東地中海の次のM4+の位置を予測します。採点は地震のみ：ウィンドウ内で予測から250km以内の地震 = 一致、ウィンドウ後48時間以内の同条件 = 遅延キャッチ（成功扱い）、ウィンドウ内の遠い地震のみで近い地震が来なければ = 見逃し。それ以外は採点されません。",
     "hazard": "ハザード",
     "alert": "警報",
     "alerts": "警報",
@@ -56,7 +56,8 @@
     "missedEvents": "見逃した地震",
     "falseAlarms": "誤警報",
     "quietCorrect": "静穏 ✓",
-    "eventSuccess": "地震的中率"
+    "eventSuccess": "地震的中率",
+    "lateCatches": "遅延キャッチ"
   },
   "predictions": {
     "title": "予測一覧",
@@ -72,7 +73,7 @@
     "statusPending": "保留中",
     "statusMatched": "一致",
     "statusMissed": "不一致",
-    "statusLateCatch": "遅延一致",
+    "statusLateCatch": "遅延キャッチ",
     "lateBucket0": "0-12時間",
     "lateBucket1": "12-24時間",
     "lateBucket2": "24-36時間",
@@ -98,7 +99,8 @@
     "statusQuietOk": "静穏",
     "statusFalseAlarm": "誤警報",
     "statusMissedEvent": "見逃し",
-    "filterQuiet": "静穏"
+    "filterQuiet": "静穏",
+    "filterLate": "遅延"
   },
   "stats": {
     "title": "統計",

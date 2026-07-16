@@ -44,7 +44,7 @@
     "missedChecking": "Missed — checking {{hours}}h",
     "expiredNextStarting": "Expired — next starting",
     "earthquakeMatched": "— earthquake matched",
-    "eachCyclePredicts": "Every {{minutes}} min the model forecasts the next M4+ location in the E. Mediterranean plus a hazard probability (p ≥ 90% = ALERT). Only real earthquakes are graded: an M4+ within 250 km of the prediction = matched, farther = missed; an alert with no event = false alarm. Quiet hours are not scored — the goal is predicting earthquakes, nothing else.",
+    "eachCyclePredicts": "Every {{minutes}} min the model forecasts the next M4+ location in the E. Mediterranean. Grading is earthquake-only: a quake within 250 km of the prediction inside the window = matched; the same within 48h after the window = late catch (still a success); an in-window quake too far with no late match = missed. Nothing else is scored.",
     "hazard": "Hazard",
     "alert": "ALERT",
     "alerts": "Alerts",
@@ -56,7 +56,8 @@
     "missedEvents": "Missed Events",
     "falseAlarms": "False Alarms",
     "quietCorrect": "Quiet ✓",
-    "eventSuccess": "Event Success"
+    "eventSuccess": "Event Success",
+    "lateCatches": "Late Catches"
   },
   "predictions": {
     "title": "Predictions",
@@ -98,7 +99,8 @@
     "statusQuietOk": "Quiet",
     "statusFalseAlarm": "False Alarm",
     "statusMissedEvent": "Missed Event",
-    "filterQuiet": "Quiet"
+    "filterQuiet": "Quiet",
+    "filterLate": "Late"
   },
   "stats": {
     "title": "Statistics",
