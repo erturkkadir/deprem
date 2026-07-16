@@ -306,14 +306,29 @@ The following stored procedures are used:
 - `ins_quakes()`: Merge staging data into main table
 
 ### Binary Forecast Accounting + E. Mediterranean Region (v1.6, 2026-07-14)
-Supersedes the alerts-only headline of v1.5. **Every cycle is a graded binary
-forecast**: ALERT (p_event >= 0.90, event expected) or MONITOR (no event
-expected). Both are compared to reality at window end:
-`correct = (is_alert == event_occurred)` — a quiet hour correctly forecast
-quiet is a TRUE NEGATIVE (correct), an event during a monitor cycle is a
-MISSED EVENT (incorrect). Headline = **forecast accuracy** over verified
-cycles; **alert precision** (TP/(TP+FP)) and **event recall** (TP/(TP+FN))
-are surfaced alongside so the quiet base rate can't hide misses.
+Supersedes the alerts-only headline of v1.5. **EVENT-ONLY accounting**
+(final form, 2026-07-16 — user: "sakin'i tahmin etmenin bir anlamı yok,
+amaç depremi önceden tahmin etmek, hepsi bu"):
+- Region M4+ occurs in the 60-min window → graded by **SPATIAL match**:
+  closest event within **250 km** of the predicted epicenter → `caught`
+  ("Eşleşti"); farther → `missed_event`. Alert status does NOT decide
+  correctness for event cycles.
+- No event + alert → `false_alarm` (wrong claim).
+- No event + monitor → `quiet_ok` = **NOT SCORED** (neutral gray badge
+  "Sakin"; carries no credit — quiet hours never inflate the headline).
+**Headline = event_success = events_caught / events_occurred** (None/'—'
+until the first event). The **alert gate** (p_event >= 0.90) only governs
+subscriber emails and alert precision (alerts followed by any region event).
+Stats keys: success_rate == event_success; events_occurred/caught/missed;
+alerts, alerts_correct, false_alarms, alert_precision. UI tiles: Deprem
+İsabeti / Eşleşen / Kaçırılan / Yanlış Alarm / Alarm İsabeti.
+`finalize_cycle(..., spatial_match=)`; API per-row `outcome`:
+pending|caught|missed_event|false_alarm|quiet_ok.
+`auto_verify_predictions()` also finalizes orphaned unverified cycles
+(superseded by manual /api/predict) 10 min after window end.
+NOTE (user decision 2026-07-16): do NOT go global — global M4+ rate 44.8/day
+means ~85% of windows have an event somewhere and per-cycle 250-km matching
+would collapse the metric; regional focus is what makes high success attainable.
 
 **Region** (expanded 2026-07-14): Eastern Mediterranean, lat 30–45 N /
 lon 19–50 E (encoded 120–135 / 199–230) — Turkey + Greece + Aegean + Hellenic
