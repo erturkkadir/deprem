@@ -841,6 +841,17 @@ class DataC():
             print(f"Error counting predictions: {e}")
             total = 0
 
+        # Hidden ungraded cycles (nothing happened) — shown as a note so an
+        # eventless quiet day doesn't look like a broken system
+        try:
+            row = self._safe_fetch(
+                "SELECT COUNT(*) FROM predictions p WHERE (p.pr_rank = 1 OR p.pr_rank IS NULL)"
+                " AND p.pr_verified = TRUE AND (p.pr_event_occurred = 0 OR p.pr_event_occurred IS NULL)",
+                (), fetch_one=True)
+            hidden_quiet = row[0] if row else 0
+        except Exception:
+            hidden_quiet = 0
+
         # Get paginated results (latest first) — only group leaders (rank-1)
         sql = f"""
         SELECT
@@ -890,7 +901,7 @@ class DataC():
                     p_['outcome'] = 'caught' if p_['correct'] else 'missed_event'
                 else:
                     p_['outcome'] = 'quiet_ok'
-            return {'predictions': predictions, 'total': total}
+            return {'predictions': predictions, 'total': total, 'hidden_quiet': hidden_quiet}
         except Exception as e:
             print(f"Error getting predictions with actuals: {e}")
             return {'predictions': [], 'total': 0}

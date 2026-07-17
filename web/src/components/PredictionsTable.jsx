@@ -234,7 +234,7 @@ export default function PredictionsTable() {
   const { t } = useTranslation();
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { predictions, pagination, isLoading } = useSelector((state) => state.earthquake);
+  const { predictions, pagination, isLoading, hiddenQuiet } = useSelector((state) => state.earthquake);
   const [filter, setFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [, setTick] = useState(0);
@@ -362,6 +362,11 @@ export default function PredictionsTable() {
             <span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-1 rounded">
               {t('predictions.total', { count: pagination.total })}
             </span>
+            {hiddenQuiet > 0 && (
+              <span className="text-[10px] text-zinc-600" title={t('predictions.quietHiddenHint')}>
+                {t('predictions.quietHidden', { count: hiddenQuiet })}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button

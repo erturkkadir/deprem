@@ -100,7 +100,9 @@
     "statusFalseAlarm": "誤警報",
     "statusMissedEvent": "見逃し",
     "filterQuiet": "静穏",
-    "filterLate": "遅延"
+    "filterLate": "遅延",
+    "quietHidden": "{{count}}件の地震なしサイクル非表示",
+    "quietHiddenHint": "M4+が発生しなかったサイクルは採点・表示されません — システムは監視を続けています。"
   },
   "stats": {
     "title": "統計",

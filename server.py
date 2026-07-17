@@ -1200,6 +1200,7 @@ def get_predictions():
         return jsonify({
             'success': True,
             'predictions': predictions,
+            'hidden_quiet': result.get('hidden_quiet', 0),
             'pagination': {
                 'page': page,
                 'limit': limit,

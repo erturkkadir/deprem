@@ -100,7 +100,9 @@
     "statusFalseAlarm": "Yanlış Alarm",
     "statusMissedEvent": "Kaçırıldı",
     "filterQuiet": "Sakin",
-    "filterLate": "Geç"
+    "filterLate": "Geç",
+    "quietHidden": "{{count}} olaysız döngü gizli",
+    "quietHiddenHint": "M4+ olmayan döngüler puanlanmaz ve listelenmez — sistem izlemeye devam ediyor."
   },
   "stats": {
     "title": "İstatistikler",

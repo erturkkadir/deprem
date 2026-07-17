@@ -100,7 +100,9 @@
     "statusFalseAlarm": "False Alarm",
     "statusMissedEvent": "Missed Event",
     "filterQuiet": "Quiet",
-    "filterLate": "Late"
+    "filterLate": "Late",
+    "quietHidden": "{{count}} eventless cycles hidden",
+    "quietHiddenHint": "Cycles where no M4+ occurred are not scored and not listed — the system keeps monitoring."
   },
   "stats": {
     "title": "Statistics",

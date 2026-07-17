@@ -284,6 +284,7 @@ const earthquakeSlice = createSlice({
         state.isLoading = false;
         if (action.payload.success) {
           state.predictions = action.payload.predictions || [];
+          state.hiddenQuiet = parseInt(action.payload.hidden_quiet) || 0;
           if (action.payload.pagination) {
             state.pagination = action.payload.pagination;
           }
