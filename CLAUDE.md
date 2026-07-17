@@ -306,27 +306,28 @@ The following stored procedures are used:
 - `ins_quakes()`: Merge staging data into main table
 
 ### Binary Forecast Accounting + E. Mediterranean Region (v1.6, 2026-07-14)
-Supersedes the alerts-only headline of v1.5. **"YA BİLDİK YA BİLEMEDİK" +
-LATE CATCH** (final form, 2026-07-16 — user: only earthquakes matter; no
-quiet credit, no false alarms; an early prediction fulfilled late = late catch):
-- M4+ within **250 km** of the prediction, inside the 60-min window →
-  `caught` ("Eşleşti", pr_event_occurred=1, pr_correct=1)
-- Same but within **LATE_CATCH_HOURS=48** after the window → `late`
-  ("Geç Yakalama", pr_event_occurred=2, pr_correct=1, still a success;
-  claimed pr_actual_ids prevent one quake crediting multiple cycles)
-- In-window region M4+ too far, never followed by a near one → `missed_event`
-  (pr_event_occurred=1, pr_correct=0; upgradable to late for 48h)
-- Nothing relevant → pr_event_occurred=0, NOT scored, hidden from the list
-- **NO false-alarm concept**; the alert gate (p_event>=0.90) only governs emails
-**Headline = event_success = (caught + late) / graded events** ('—' until the
-first event). A far in-window quake does NOT close the cycle early — a near
-one may still arrive before the window ends. `auto_verify_predictions()`
-(RECHECK_HOURS=50): in-window catalog-latency recheck → caught; late-catch
-upgrade (missed→late allowed); orphaned unverified cycles finalized +10 min.
+Supersedes the alerts-only headline of v1.5. **THE RULE (v1.7, 2026-07-17,
+user-final)**: every prediction is the claim "an M4+ will strike within
+**250 km** of this point during this 1-hour window". Every cycle is graded:
+- It happens in the window → `caught` ("Eşleşti", pr_event_occurred=1, pr_correct=1)
+- It does NOT happen → `missed_event` (pr_event_occurred=0, pr_correct=0)
+- It happens at the stated place within **LATE_CATCH_HOURS=24** after the
+  window → `late` ("Geç Yakalama", pr_event_occurred=2, pr_correct=1;
+  auto_verify upgrades a miss; claimed pr_actual_ids prevent one quake
+  crediting multiple cycles)
+- NO quiet concept, NO false-alarm concept, NO far-event handling; the alert
+  gate (p_event>=0.90) only governs subscriber emails
+**Headline = success = (caught + late) / graded cycles.** Expect low values
+until the model earns them — this is the user's explicit metric.
+`auto_verify_predictions()` (RECHECK_HOURS=26): in-window catalog-latency
+recheck → caught; late-catch upgrade; orphaned unverified cycles → missed.
+Scheduler: heavy monitor every 120s + `quick_cycle_check` every 20s so
+expired cycles rotate promptly. Server clock is UTC; the frontend list
+normalizes timestamps via parseUTC() before display.
 Stats keys: success_rate==event_success, events_caught, late_catches,
-events_missed, events_occurred, alerts. UI tiles: Deprem İsabeti / Eşleşen /
-Geç Yakalama / Kaçırılan; list filters All/Pending/Matched/Late/Missed;
-API per-row `outcome`: pending|caught|late|missed_event|quiet_ok(hidden).
+events_missed, alerts. UI tiles: Deprem İsabeti / Eşleşen / Geç Yakalama /
+Kaçırılan; list filters All/Pending/Matched/Late/Missed;
+API per-row `outcome`: pending|caught|late|missed_event.
 NOTE (user decision 2026-07-16): do NOT go global — global M4+ rate 44.8/day
 means ~85% of windows have an event somewhere and per-cycle 250-km matching
 would collapse the metric; regional focus is what makes high success attainable.
