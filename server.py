@@ -124,20 +124,21 @@ REGION_LON_MIN, REGION_LON_MAX = 19.0, 50.0
 
 ALERT_THRESHOLD = 0.90      # issue alert when P(event) >= this (calibrated BCE probs)
 
-# "Ya bildik ya bilemedik" + late catch. A cycle is graded ONLY by earthquakes:
-#   - M4+ within MATCH_RADIUS_KM of the prediction, inside the window -> caught
-#   - same, but arriving within LATE_CATCH_HOURS after the window     -> late catch
-#   - in-window region M4+ too far, never followed by a near one      -> missed
-#   - nothing relevant -> not scored, hidden. NO false-alarm concept;
-#     the alert gate only governs subscriber emails.
+# THE RULE (user-defined, keep it simple): every prediction says
+# "an M4+ will hit within MATCH_RADIUS_KM of (lat,lon) during this 1-hour window".
+#   - it happens in the window                  -> MATCHED
+#   - it doesn't                                -> MISSED
+#   - but if it happens at the said place within LATE_CATCH_HOURS
+#     after the window                          -> LATE CATCH (missed upgraded)
+# EVERY cycle is graded — nothing is hidden. Far-away quakes are irrelevant.
 MATCH_MIN_MAG = 4.0         # the forecast is about M4+ events
 MATCH_RADIUS_KM = 250       # spatial match radius (also drawn on the map)
 MATCH_RADIUS_MAX_KM = 250   # (kept for symmetry / future use)
 MAGNITUDE_TOLERANCE = 0.75  # ±0.75 magnitude (display only)
 MIN_MAG_DISPLAY = 4.0       # Only show predictions with mag >= 4.0
 MIN_PREDICTION_WINDOW = 10  # minutes - reject predictions with window < 10 min
-LATE_CATCH_HOURS = 48       # near quake within this after window end = late catch
-RECHECK_HOURS = 50          # keep re-grading cycles until the late-catch horizon passes
+LATE_CATCH_HOURS = 24       # "1 gün içinde söylenen yerde olursa" -> late catch
+RECHECK_HOURS = 26          # keep re-grading cycles until the late horizon passes
 EARTH_RADIUS_KM = 6371      # km
 PREDICTION_WINDOW_MINUTES = 60    # minutes per prediction cycle (matches occ-head horizon)
 TOP_K_PREDICTIONS = 1             # ONE prediction per cycle — simple, explainable
@@ -730,16 +731,13 @@ def _actual_dict(pr_timestamp, pred_lat, pred_lon, pred_mag, pr_dt, best):
 
 
 def auto_verify_predictions():
-    """Re-grade recent cycles: late catalog data + LATE CATCH upgrades.
+    """Upgrade recent MISSED cycles: late catalog data + LATE CATCH.
 
-    For every cycle from the last RECHECK_HOURS that is not already a success
-    (caught/late):
-      1. Re-search its window (catalog latency): near quake -> caught; far
-         quake -> record as missed (upgradable).
-      2. LATE CATCH: search (window_end, window_end + LATE_CATCH_HOURS] for an
-         unclaimed quake within MATCH_RADIUS_KM of the prediction -> late (success).
-      3. Orphaned unverified cycles (superseded by a manual /api/predict)
-         finalize as ungraded 10 min after window end.
+    For every cycle from the last RECHECK_HOURS that is not already a success:
+      1. Re-search its window (catalog latency): matching quake -> MATCHED.
+      2. LATE CATCH: a quake within MATCH_RADIUS_KM of the prediction in
+         (window_end, window_end + LATE_CATCH_HOURS] -> LATE (success).
+      3. Orphaned unverified cycles finalize as missed 10 min after window end.
     """
     global dataC
 
@@ -750,7 +748,7 @@ def auto_verify_predictions():
         sql = """
             SELECT pr_id, pr_timestamp, pr_dt_predicted,
                    pr_lat_predicted, pr_lon_predicted, pr_mag_predicted,
-                   pr_is_alert, pr_verified, pr_event_occurred, pr_correct
+                   pr_verified
             FROM predictions
             WHERE (pr_rank = 1 OR pr_rank IS NULL)
               AND pr_timestamp > DATE_SUB(NOW(), INTERVAL %s HOUR)
@@ -765,7 +763,7 @@ def auto_verify_predictions():
             "SELECT pr_actual_id FROM predictions WHERE pr_actual_id IS NOT NULL", ()) or []
         claimed_ids = {r[0] for r in claimed_rows}
 
-        for pr_id, pr_timestamp, pr_dt, lat_enc, lon_enc, mag_enc, is_alert, verified, occ, cor in recent:
+        for pr_id, pr_timestamp, pr_dt, lat_enc, lon_enc, mag_enc, verified in recent:
             window_end = pr_timestamp + timedelta(minutes=pr_dt or PREDICTION_WINDOW_MINUTES)
             if lat_enc is None or lon_enc is None:
                 continue
@@ -784,30 +782,23 @@ def auto_verify_predictions():
                 dataC.finalize_cycle(pr_id, event_occurred=1, actual=actual_d, spatial_match=True)
                 continue
 
-            # 2. Late catch: near quake after the window, within the horizon
-            late_end = window_end + timedelta(hours=LATE_CATCH_HOURS)
-            late_actuals = dataC.get_earthquakes_in_window(window_end, min(late_end, now), min_mag=MATCH_MIN_MAG)
-            late_best = _find_region_match(pred_lat, pred_lon, late_actuals, claimed_ids)
-            if late_best is not None and late_best[1] <= MATCH_RADIUS_KM:
-                actual_d, dist_km, us_mag, us_place = _actual_dict(
-                    pr_timestamp, pred_lat, pred_lon, pred_mag, pr_dt, late_best)
-                print(f"[{now}] LATE CATCH #{pr_id}: M{us_mag} at {dist_km:.0f}km, "
-                      f"{actual_d['dt']}min after prediction - {us_place}")
-                claimed_ids.add(actual_d['id'])
-                dataC.finalize_cycle(pr_id, event_occurred=2, actual=actual_d)
-                continue
+            # 2. Late catch: quake at the predicted place after the window
+            if now > window_end:
+                late_end = window_end + timedelta(hours=LATE_CATCH_HOURS)
+                late_actuals = dataC.get_earthquakes_in_window(window_end, min(late_end, now), min_mag=MATCH_MIN_MAG)
+                late_best = _find_region_match(pred_lat, pred_lon, late_actuals, claimed_ids)
+                if late_best is not None and late_best[1] <= MATCH_RADIUS_KM:
+                    actual_d, dist_km, us_mag, us_place = _actual_dict(
+                        pr_timestamp, pred_lat, pred_lon, pred_mag, pr_dt, late_best)
+                    print(f"[{now}] LATE CATCH #{pr_id}: M{us_mag} at {dist_km:.0f}km, "
+                          f"{actual_d['dt']}min after prediction - {us_place}")
+                    claimed_ids.add(actual_d['id'])
+                    dataC.finalize_cycle(pr_id, event_occurred=2, actual=actual_d)
+                    continue
 
-            # 3. In-window quake exists but too far -> record/keep as missed
-            if best is not None and (not verified or (occ or 0) == 0):
-                actual_d, dist_km, us_mag, us_place = _actual_dict(
-                    pr_timestamp, pred_lat, pred_lon, pred_mag, pr_dt, best)
-                print(f"[{now}] MISSED (event too far) #{pr_id}: M{us_mag} at {dist_km:.0f}km - {us_place}")
-                dataC.finalize_cycle(pr_id, event_occurred=1, actual=actual_d, spatial_match=False)
-                continue
-
-            # 4. Orphaned unverified cycle expired with nothing -> neutral
+            # 3. Orphaned unverified cycle past its window -> missed
             if not verified and now > window_end + timedelta(minutes=10):
-                print(f"[{now}] Orphaned cycle #{pr_id} finalized: nothing to grade")
+                print(f"[{now}] Orphaned cycle #{pr_id} finalized: MISSED")
                 dataC.finalize_cycle(pr_id, event_occurred=0)
 
     except Exception as e:
@@ -863,39 +854,28 @@ def check_and_handle_prediction():
         is_alert = 1 if latest.get('is_alert') else 0
         window_end = pr_timestamp + timedelta(minutes=pr_dt)
 
-        # Near quake inside the window -> caught, close immediately.
-        # A FAR in-window quake does NOT close the cycle early — a near one may
-        # still arrive before the window ends (and later, the late-catch pass
-        # can still upgrade a miss).
+        # Did an M4+ hit within MATCH_RADIUS_KM of the prediction during the window?
         quakes = dataC.get_earthquakes_in_window(pr_timestamp, window_end, min_mag=MATCH_MIN_MAG)
-        best = None
         if pred_lat is not None and pred_lon is not None:
             best = _find_region_match(pred_lat, pred_lon, quakes)
             if best is not None and best[1] <= MATCH_RADIUS_KM:
                 actual_d, dist_km, us_mag, us_place = _actual_dict(
                     pr_timestamp, pred_lat, pred_lon, pred_mag, pr_dt, best)
                 print(f"\n{'='*60}")
-                print(f"[{now}] MATCHED! #{pr_id}: M{us_mag} in {PREDICTION_REGION_NAME} at {dist_km:.0f}km - {us_place}")
+                print(f"[{now}] MATCHED! #{pr_id}: M{us_mag} at {dist_km:.0f}km - {us_place}")
                 print(f"{'='*60}\n")
                 dataC.finalize_cycle(pr_id, event_occurred=1, actual=actual_d, spatial_match=True)
                 make_prediction()
                 return {'action': 'caught', 'prediction_id': pr_id,
                         'distance_km': round(dist_km), 'place': us_place, 'mag': us_mag}
 
-        # Window expired — grade what happened (late-catch pass may upgrade later)
+        # Window expired with no matching quake -> MISSED (auto_verify can
+        # upgrade to LATE CATCH for LATE_CATCH_HOURS). Next cycle starts NOW.
         if now > window_end:
-            if best is not None:
-                actual_d, dist_km, us_mag, us_place = _actual_dict(
-                    pr_timestamp, pred_lat, pred_lon, pred_mag, pr_dt, best)
-                print(f"[{now}] Cycle #{pr_id} expired: in-window M{us_mag} was {dist_km:.0f}km away — MISSED (late catch possible for {LATE_CATCH_HOURS}h)")
-                dataC.finalize_cycle(pr_id, event_occurred=1, actual=actual_d, spatial_match=False)
-                action = 'missed_event'
-            else:
-                print(f"[{now}] Cycle #{pr_id} expired: nothing to grade (late catch possible for {LATE_CATCH_HOURS}h)")
-                dataC.finalize_cycle(pr_id, event_occurred=0)
-                action = 'ungraded'
+            print(f"[{now}] Cycle #{pr_id} expired: MISSED (late catch open for {LATE_CATCH_HOURS}h)")
+            dataC.finalize_cycle(pr_id, event_occurred=0)
             make_prediction()
-            return {'action': action, 'prediction_id': pr_id}
+            return {'action': 'missed_event', 'prediction_id': pr_id}
 
         remaining = (window_end - now).total_seconds() / 60
         return {'action': 'pending', 'prediction_id': pr_id, 'remaining_minutes': round(remaining, 1)}
@@ -997,8 +977,7 @@ def start_scheduler():
 
     scheduler = BackgroundScheduler()
 
-    # Single monitoring job every 120 seconds
-    # Allow coalesce=True to merge missed runs, misfire_grace_time to handle delays
+    # Heavy job (USGS refresh + late-catch pass) every 120 seconds
     scheduler.add_job(
         func=monitor_cycle,
         trigger="interval",
@@ -1009,8 +988,27 @@ def start_scheduler():
         misfire_grace_time=60
     )
 
+    # Lightweight cycle rotation every 20 seconds — expired windows finalize
+    # and the next prediction starts promptly (no 2-minute "expired" limbo)
+    def _quick_cycle_check():
+        with app.app_context():
+            try:
+                check_and_handle_prediction()
+            except Exception as e:
+                print(f"Error in quick cycle check: {e}")
+
+    scheduler.add_job(
+        func=_quick_cycle_check,
+        trigger="interval",
+        seconds=20,
+        id='quick_cycle_check',
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=15
+    )
+
     scheduler.start()
-    print("Scheduler started: monitoring every 120 seconds")
+    print("Scheduler started: monitor every 120s, cycle check every 20s")
 
     atexit.register(lambda: scheduler.shutdown())
 
@@ -1200,7 +1198,6 @@ def get_predictions():
         return jsonify({
             'success': True,
             'predictions': predictions,
-            'hidden_quiet': result.get('hidden_quiet', 0),
             'pagination': {
                 'page': page,
                 'limit': limit,

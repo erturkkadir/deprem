@@ -679,17 +679,15 @@ class DataC():
             return False
 
     def finalize_cycle(self, pr_id, event_occurred, is_alert=0, actual=None, spatial_match=None):
-        """Finalize a prediction cycle. "Ya bildik ya bilemedik" + late catch.
+        """Finalize a prediction cycle. THE RULE: every prediction is graded.
 
         event_occurred values:
-          1 = region M4+ inside the window
-              spatial_match -> caught (correct)   | no match -> missed (wrong,
-              upgradable to late catch by auto_verify within 48h)
-          2 = LATE CATCH: matching quake (<=250km of the prediction) arrived
-              after the window but within LATE_CATCH horizon -> correct
-          0 = nothing relevant happened -> neutral, not scored, hidden from list
-        There is NO false-alarm outcome — an unfulfilled alert is simply an
-        ungraded cycle (or becomes a late catch if the quake arrives late).
+          1 = matching quake (<=250km of the prediction) INSIDE the window
+              -> MATCHED (correct)
+          2 = LATE CATCH: matching quake arrived after the window but within
+              the late horizon -> correct (an upgraded miss)
+          0 = no matching quake (yet) -> MISSED (auto_verify may upgrade to
+              late catch while the horizon is open)
 
         actual: optional dict with keys id, lat_enc, lon_enc, dt, mag_enc, time,
                 diff_lat, diff_lon, diff_dt, diff_mag — recorded for the map
@@ -698,7 +696,7 @@ class DataC():
         if event_occurred == 2:
             correct = 1
         elif event_occurred == 1:
-            correct = 1 if spatial_match else 0
+            correct = 1 if spatial_match is not False else 0
         else:
             correct = 0
         try:
@@ -817,18 +815,13 @@ class DataC():
         filter_clause = "p.pr_mag_predicted >= %s AND (p.pr_rank = 1 OR p.pr_rank IS NULL)"
         params = [encoded_mag]
 
-        # Ungraded cycles (nothing happened) are meaningless to display — the goal
-        # is predicting earthquakes. They are ALWAYS excluded from the list; only
-        # pending, matched, late-catch, and missed rows are shown.
-        filter_clause += (" AND NOT (p.pr_verified = TRUE"
-                          " AND (p.pr_event_occurred = 0 OR p.pr_event_occurred IS NULL))")
-
+        # Every prediction is shown and graded: pending, matched, late, missed.
         if filter_type == 'matched':
             filter_clause += " AND p.pr_verified = TRUE AND p.pr_event_occurred = 1 AND p.pr_correct = TRUE"
         elif filter_type == 'late':
             filter_clause += " AND p.pr_verified = TRUE AND p.pr_event_occurred = 2"
         elif filter_type == 'missed':
-            filter_clause += " AND p.pr_verified = TRUE AND p.pr_event_occurred = 1 AND p.pr_correct = FALSE"
+            filter_clause += " AND p.pr_verified = TRUE AND p.pr_correct = FALSE"
         elif filter_type == 'pending':
             filter_clause += " AND p.pr_verified = FALSE"
 
@@ -841,16 +834,6 @@ class DataC():
             print(f"Error counting predictions: {e}")
             total = 0
 
-        # Hidden ungraded cycles (nothing happened) — shown as a note so an
-        # eventless quiet day doesn't look like a broken system
-        try:
-            row = self._safe_fetch(
-                "SELECT COUNT(*) FROM predictions p WHERE (p.pr_rank = 1 OR p.pr_rank IS NULL)"
-                " AND p.pr_verified = TRUE AND (p.pr_event_occurred = 0 OR p.pr_event_occurred IS NULL)",
-                (), fetch_one=True)
-            hidden_quiet = row[0] if row else 0
-        except Exception:
-            hidden_quiet = 0
 
         # Get paginated results (latest first) — only group leaders (rank-1)
         sql = f"""
@@ -891,17 +874,17 @@ class DataC():
                       'verified', 'correct', 'actual_time', 'actual_place', 'group_id',
                       'is_alert', 'event_prob', 'event_occurred']
             predictions = [dict(zip(columns, row)) for row in rows]
-            # Outcome: pending | caught | late | missed_event | quiet_ok (hidden)
+            # Outcome: pending | caught | late | missed_event — every cycle graded
             for p_ in predictions:
                 if not p_['verified']:
                     p_['outcome'] = 'pending'
                 elif p_['event_occurred'] == 2:
                     p_['outcome'] = 'late'
-                elif p_['event_occurred']:
-                    p_['outcome'] = 'caught' if p_['correct'] else 'missed_event'
+                elif p_['correct']:
+                    p_['outcome'] = 'caught'
                 else:
-                    p_['outcome'] = 'quiet_ok'
-            return {'predictions': predictions, 'total': total, 'hidden_quiet': hidden_quiet}
+                    p_['outcome'] = 'missed_event'
+            return {'predictions': predictions, 'total': total}
         except Exception as e:
             print(f"Error getting predictions with actuals: {e}")
             return {'predictions': [], 'total': 0}
@@ -1084,15 +1067,13 @@ class DataC():
     def get_prediction_stats(self, min_mag=4.0):
         """Prediction statistics — BINARY FORECAST accounting.
 
-        "Ya bildik ya bilemedik" — only earthquakes are graded:
-          caught (event_occurred=1, correct=1): quake <=250km inside the window
-          late   (event_occurred=2):            matching quake arrived after the
-                                                window but within 48h -> success
-          missed (event_occurred=1, correct=0): in-window quake too far, never
-                                                followed by a near one
-        Quiet cycles and unfulfilled alerts are NOT scored (no false-alarm concept).
+        THE RULE — every prediction is graded:
+          matched (event_occurred=1, correct=1): quake <=250km inside the window
+          late    (event_occurred=2):            same but within 24h after -> success
+          missed  (verified, correct=0):         nothing at the predicted place
+                                                 (upgradable to late for 24h)
 
-        HEADLINE = event_success = (caught + late) / (caught + late + missed).
+        HEADLINE = success = (matched + late) / graded cycles.
         """
         sql = """
         SELECT
@@ -1100,7 +1081,7 @@ class DataC():
             SUM(CASE WHEN pr_verified = 1 THEN 1 ELSE 0 END) as verified,
             SUM(CASE WHEN pr_verified = 1 AND pr_event_occurred = 1 AND pr_correct = 1 THEN 1 ELSE 0 END) as caught,
             SUM(CASE WHEN pr_verified = 1 AND pr_event_occurred = 2 THEN 1 ELSE 0 END) as late,
-            SUM(CASE WHEN pr_verified = 1 AND pr_event_occurred = 1 AND pr_correct = 0 THEN 1 ELSE 0 END) as missed,
+            SUM(CASE WHEN pr_verified = 1 AND pr_correct = 0 THEN 1 ELSE 0 END) as missed,
             SUM(CASE WHEN pr_is_alert = 1 THEN 1 ELSE 0 END) as alerts
         FROM predictions
         WHERE (pr_rank = 1 OR pr_rank IS NULL)

@@ -44,7 +44,7 @@
     "missedChecking": "Missed — checking {{hours}}h",
     "expiredNextStarting": "Expired — next starting",
     "earthquakeMatched": "— earthquake matched",
-    "eachCyclePredicts": "Every {{minutes}} min the model forecasts the next M4+ location in the E. Mediterranean. Grading is earthquake-only: a quake within 250 km of the prediction inside the window = matched; the same within 48h after the window = late catch (still a success); an in-window quake too far with no late match = missed. Nothing else is scored.",
+    "eachCyclePredicts": "Every {{minutes}} min the model states a claim: \"an M4+ will strike within 250 km of this point during this 1-hour window\". It happens = Matched. It does not = Missed. It happens at the stated place within 24h after the window = Late Catch. Every prediction is graded — nothing is hidden.",
     "hazard": "Hazard",
     "alert": "ALERT",
     "alerts": "Alerts",

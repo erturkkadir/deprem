@@ -234,7 +234,7 @@ export default function PredictionsTable() {
   const { t } = useTranslation();
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { predictions, pagination, isLoading, hiddenQuiet } = useSelector((state) => state.earthquake);
+  const { predictions, pagination, isLoading } = useSelector((state) => state.earthquake);
   const [filter, setFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [, setTick] = useState(0);
@@ -311,10 +311,18 @@ export default function PredictionsTable() {
     missed: 'bg-red-900/30 text-red-400',
   };
 
+  // Server timestamps are UTC but come without a timezone suffix — normalize
+  // so they display in the viewer's local time instead of raw UTC.
+  const parseUTC = (timeStr) => {
+    let s = timeStr;
+    if (typeof s === 'string' && !s.endsWith('Z') && !s.includes('+')) s += 'Z';
+    return new Date(s);
+  };
+
   const formatTime = (timeStr) => {
     if (!timeStr) return '—';
     try {
-      const date = new Date(timeStr);
+      const date = parseUTC(timeStr);
       if (isNaN(date.getTime())) return '—';
       return date.toLocaleString('en-US', {
         year: 'numeric',
@@ -331,7 +339,7 @@ export default function PredictionsTable() {
   const getTimeAgo = (timeStr) => {
     if (!timeStr) return '';
     try {
-      const date = new Date(timeStr);
+      const date = parseUTC(timeStr);
       if (isNaN(date.getTime())) return '';
       const now = new Date();
       const diffMs = now - date;
@@ -362,11 +370,6 @@ export default function PredictionsTable() {
             <span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-1 rounded">
               {t('predictions.total', { count: pagination.total })}
             </span>
-            {hiddenQuiet > 0 && (
-              <span className="text-[10px] text-zinc-600" title={t('predictions.quietHiddenHint')}>
-                {t('predictions.quietHidden', { count: hiddenQuiet })}
-              </span>
-            )}
           </div>
           <div className="flex items-center gap-2">
             <button

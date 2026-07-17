@@ -44,7 +44,7 @@
     "missedChecking": "Kaçırıldı — {{hours}}s kontrol ediliyor",
     "expiredNextStarting": "Süresi doldu — sonraki başlıyor",
     "earthquakeMatched": "— deprem eşleşti",
-    "eachCyclePredicts": "Model her {{minutes}} dk'da D. Akdeniz için sonraki M4+ konumunu tahmin eder. Notlama yalnızca depremle yapılır: pencere içinde tahmine 250 km mesafede deprem = eşleşti; aynısı pencereden sonraki 48 saat içinde = geç yakalama (yine başarı); pencerede uzak deprem olup yakını hiç gelmezse = kaçırıldı. Başka hiçbir şey puanlanmaz.",
+    "eachCyclePredicts": "Model her {{minutes}} dk'da bir iddia ortaya koyar: \"bu noktanın 250 km çevresinde 1 saat içinde M4+ olacak\". Olursa = Eşleşti. Olmazsa = Kaçırıldı. Söylenen yerde pencereden sonraki 24 saat içinde olursa = Geç Yakalama. Her tahmin notlanır — hiçbir şey gizlenmez.",
     "hazard": "Risk",
     "alert": "ALARM",
     "alerts": "Alarmlar",
