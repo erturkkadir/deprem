@@ -55,7 +55,13 @@ export default function AllPredictionsMap({ onClose, initialFilter = 'all' }) {
       .catch(() => setLoading(false));
   }, []);
 
+  // Outcome from the API: pending | caught | late | missed_event
   const getStatus = (pred) => {
+    if (pred.outcome === 'caught') return 'matched';
+    if (pred.outcome === 'late') return 'late';
+    if (pred.outcome === 'missed_event') return 'missed';
+    if (pred.outcome === 'pending') return 'pending';
+    // fallback for old API rows
     if (!pred.verified) return 'pending';
     return pred.correct ? 'matched' : 'missed';
   };
@@ -68,13 +74,15 @@ export default function AllPredictionsMap({ onClose, initialFilter = 'all' }) {
   const counts = {
     all: predictions.length,
     matched: predictions.filter(p => getStatus(p) === 'matched').length,
+    late: predictions.filter(p => getStatus(p) === 'late').length,
     missed: predictions.filter(p => getStatus(p) === 'missed').length,
     pending: predictions.filter(p => getStatus(p) === 'pending').length,
   };
 
   const circleColor = (pred) => {
     const s = getStatus(pred);
-    if (s === 'matched') return matchedColor(pred);  // gradient: green (in-window) → red (48h late)
+    if (s === 'matched') return '#22c55e';
+    if (s === 'late')    return '#22d3ee';
     if (s === 'missed')  return '#ef4444';
     return '#f97316';
   };
@@ -90,6 +98,7 @@ export default function AllPredictionsMap({ onClose, initialFilter = 'all' }) {
               { key: 'all',     label: 'All',     color: 'bg-zinc-700 text-zinc-200' },
               { key: 'pending', label: 'Pending',  color: 'bg-yellow-900/60 text-yellow-400' },
               { key: 'matched', label: 'Matched',  color: 'bg-green-900/60 text-green-400' },
+              { key: 'late',    label: 'Late',     color: 'bg-cyan-900/60 text-cyan-400' },
               { key: 'missed',  label: 'Missed',   color: 'bg-red-900/60 text-red-400' },
             ].map(f => (
               <button
@@ -109,6 +118,7 @@ export default function AllPredictionsMap({ onClose, initialFilter = 'all' }) {
           <div className="hidden sm:flex gap-3 text-xs text-zinc-400 ml-2">
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-orange-500 inline-block border border-white/40"></span>Pending</span>
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500 inline-block border border-white/40"></span>Matched</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-cyan-400 inline-block border border-white/40"></span>Late</span>
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500 inline-block border border-white/40"></span>Missed</span>
             <span className="flex items-center gap-1 ml-1">
               <span className="w-4 h-0 border-t border-dashed border-zinc-400 inline-block"></span>
@@ -128,28 +138,6 @@ export default function AllPredictionsMap({ onClose, initialFilter = 'all' }) {
 
       {/* Map */}
       <div className="flex-1 relative">
-        {/* Gradient legend — shown when viewing matched predictions */}
-        {!loading && filter === 'matched' && (
-          <div className="absolute top-4 left-4 z-[1000] bg-zinc-900/90 backdrop-blur-sm border border-zinc-700 rounded-lg p-3 shadow-xl">
-            <div className="text-xs font-semibold text-zinc-300 mb-2">Match Timing</div>
-            <div className="flex items-stretch gap-2">
-              <div
-                className="w-4 rounded"
-                style={{
-                  height: '120px',
-                  background: 'linear-gradient(to bottom, hsl(120,75%,45%), hsl(60,75%,45%), hsl(0,75%,45%))',
-                }}
-              />
-              <div className="flex flex-col justify-between text-[10px] text-zinc-400 font-mono py-0.5">
-                <span>In window</span>
-                <span>12h late</span>
-                <span>24h late</span>
-                <span>36h late</span>
-                <span>48h+ late</span>
-              </div>
-            </div>
-          </div>
-        )}
         {loading ? (
           <div className="flex items-center justify-center h-full text-zinc-400">
             <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mr-3" />
@@ -157,8 +145,8 @@ export default function AllPredictionsMap({ onClose, initialFilter = 'all' }) {
           </div>
         ) : (
           <MapContainer
-            center={[20, 0]}
-            zoom={2}
+            center={[37.5, 34.5]}
+            zoom={5}
             style={{ height: '100%', width: '100%' }}
             className="z-0"
           >
@@ -195,7 +183,7 @@ export default function AllPredictionsMap({ onClose, initialFilter = 'all' }) {
                       <div><strong>Predicted:</strong> {Number(pred.predicted_lat).toFixed(2)}°, {Number(pred.predicted_lon).toFixed(2)}°</div>
                       <div><strong>Mag:</strong> M{Number(pred.predicted_mag).toFixed(1)}</div>
                       {pred.predicted_place && <div className="text-gray-500 text-xs mt-0.5">{pred.predicted_place}</div>}
-                      {status === 'matched' && pred.actual_lat != null && (() => {
+                      {(status === 'matched' || status === 'late') && pred.actual_lat != null && (() => {
                         const h = lateHours(pred);
                         return (
                           <div className="mt-1 pt-1 border-t border-gray-200">
@@ -212,11 +200,11 @@ export default function AllPredictionsMap({ onClose, initialFilter = 'all' }) {
               );
             })}
 
-            {/* Actual earthquake pins for matched predictions */}
+            {/* Actual earthquake pins for matched + late-catch predictions */}
             {visible
-              .filter(p => getStatus(p) === 'matched' && p.actual_lat != null && p.actual_lon != null)
+              .filter(p => ['matched', 'late'].includes(getStatus(p)) && p.actual_lat != null && p.actual_lon != null)
               .map(pred => {
-                const color = matchedColor(pred);
+                const color = getStatus(pred) === 'late' ? '#22d3ee' : '#22c55e';
                 const h = lateHours(pred);
                 return (
                   <Marker
